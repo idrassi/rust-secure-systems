@@ -1,0 +1,33 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable branch snapshot
+        with:
+          components: clippy
+
+      - name: Install mdBook
+        run: cargo install mdbook --version 0.5.2 --locked
+
+      - name: Lint companion workspace
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test companion workspace
+        run: cargo test --workspace
+
+      - name: Build mdBook
+        run: mdbook build
+
+      - name: Build snippet helper crate
+        run: cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
+
+      - name: Test mdBook snippets
+        run: mdbook test -L target/book-snippets-check/debug/deps

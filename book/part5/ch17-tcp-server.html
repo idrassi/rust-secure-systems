@@ -1,0 +1,942 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 17 — Building a Hardened TCP Server - Rust for Secure Systems Programming</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A comprehensive guide to writing secure systems software in Rust, designed for system developers with a security background.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/brand-2df87166.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-b46b394a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8e63d631.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Rust for Secure Systems Programming</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems/edit/main/src/part5/ch17-tcp-server.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-17--building-a-hardened-tcp-server"><a class="header" href="#chapter-17--building-a-hardened-tcp-server">Chapter 17 — Building a Hardened TCP Server</a></h1>
+<blockquote>
+<p><em>“Theory without practice is empty. Practice without theory is blind.”</em></p>
+</blockquote>
+<p>This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We’ll build a secure echo server with TLS, rate limiting, connection management, and comprehensive logging. Every design decision will reference the security principles covered earlier in the book.</p>
+<p>The companion crate in this repository lives at <code>companion/ch17-hardened-server</code>. The snippets below use that package layout directly so Chapter 19 can deploy the same binary without translation.</p>
+<h2 id="171-design-and-threat-model"><a class="header" href="#171-design-and-threat-model">17.1 Design and Threat Model</a></h2>
+<h3 id="threat-model"><a class="header" href="#threat-model">Threat Model</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Threat</th><th>Mitigation</th><th>Chapter</th></tr>
+</thead>
+<tbody>
+<tr><td>Unencrypted communication</td><td>TLS via rustls</td><td>Ch 8, 12</td></tr>
+<tr><td>Resource exhaustion (DoS)</td><td>Connection limits, timeouts</td><td>Ch 12</td></tr>
+<tr><td>Slowloris attacks</td><td>Read timeouts</td><td>Ch 12</td></tr>
+<tr><td>Brute-force attacks</td><td>Connection-attempt throttling + per-request rate limiting for both valid and malformed frames</td><td>Ch 12</td></tr>
+<tr><td>Memory exhaustion</td><td>Bounded buffers, size limits</td><td>Ch 7</td></tr>
+<tr><td>Buffer overflows</td><td>Rust’s memory safety</td><td>Ch 3</td></tr>
+<tr><td>Data races</td><td>Rust’s concurrency model</td><td>Ch 6</td></tr>
+<tr><td>Information disclosure</td><td>Structured logging, no secret leaks</td><td>Ch 5</td></tr>
+<tr><td>Dependency vulnerabilities</td><td>cargo-audit, cargo-deny</td><td>Ch 15, 16</td></tr>
+<tr><td>Panic-induced crashes</td><td><code>panic = "abort"</code>, explicit error handling, and poison recovery for shared state</td><td>Ch 5, 6</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="architecture"><a class="header" href="#architecture">Architecture</a></h3>
+<pre><code class="language-text">Client → TLS Termination → Connection Handler → Request Parser → Business Logic → Response
+              ↓                    ↓                    ↓
+          rustls            Rate Limiter         Input Validation
+                            Conn Counter          (newtypes)
+</code></pre>
+<h2 id="172-project-setup"><a class="header" href="#172-project-setup">17.2 Project Setup</a></h2>
+<p>Because the real example lives in a workspace, the package manifest and the release profile live in different files. Cargo only honors <code>[profile.*]</code> settings from the workspace root, so the deployed companion binary inherits its hardening flags from the top-level <code>Cargo.toml</code>.</p>
+<pre><code class="language-toml"># companion/ch17-hardened-server/Cargo.toml
+[package]
+name = "ch17-hardened-server"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+tokio.workspace = true
+tokio-rustls.workspace = true
+rustls.workspace = true
+rustls-pemfile.workspace = true
+log.workspace = true
+env_logger.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+</code></pre>
+<pre><code class="language-toml"># Cargo.toml (workspace root excerpt)
+[workspace]
+members = [
+    "companion/ch10-ffi",
+    "companion/ch12-networking",
+    "companion/ch17-hardened-server",
+    "companion/ch19-hardening",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+
+[profile.release]
+overflow-checks = true
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+</code></pre>
+<h2 id="173-secure-types"><a class="header" href="#173-secure-types">17.3 Secure Types</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book as thiserror;
+</span>// src/types.rs
+use thiserror::Error;
+
+/// Maximum number of concurrent connections
+pub const MAX_CONNECTIONS: usize = 1000;
+
+/// Maximum message size (64 KiB)
+pub const MAX_MESSAGE_SIZE: usize = 64 * 1024;
+
+/// Read timeout in seconds
+pub const READ_TIMEOUT_SECS: u64 = 30;
+
+/// Write timeout in seconds
+pub const WRITE_TIMEOUT_SECS: u64 = 10;
+
+/// TLS handshake timeout in seconds
+pub const TLS_HANDSHAKE_TIMEOUT_SECS: u64 = 10;
+
+/// Maximum session duration in seconds
+pub const MAX_SESSION_SECS: u64 = 300;
+
+/// Rate limit: max connection attempts per minute per IP
+pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
+
+/// Rate limit: max requests per minute per IP
+pub const RATE_LIMIT: usize = 60;
+
+/// A validated message with a non-empty payload and guaranteed bounds
+#[derive(Debug)]
+pub struct Message(Vec&lt;u8&gt;);
+
+impl Message {
+    pub fn from_bytes(data: &amp;[u8]) -&gt; Result&lt;Self, ProtocolError&gt; {
+        if data.len() &gt; MAX_MESSAGE_SIZE {
+            return Err(ProtocolError::MessageTooLarge {
+                size: data.len(),
+                max: MAX_MESSAGE_SIZE,
+            });
+        }
+        // Validate message format: 4-byte length prefix + payload
+        if data.len() &lt; 4 {
+            return Err(ProtocolError::IncompleteHeader);
+        }
+        let declared_len = u32::from_be_bytes([data[0], data[1], data[2], data[3]]) as usize;
+        if declared_len == 0 {
+            return Err(ProtocolError::EmptyMessage);
+        }
+        if declared_len &gt; MAX_MESSAGE_SIZE - 4 {
+            return Err(ProtocolError::DeclaredLengthTooLarge(declared_len));
+        }
+        if data.len() &lt; 4 + declared_len {
+            return Err(ProtocolError::IncompleteMessage {
+                expected: 4 + declared_len,
+                actual: data.len(),
+            });
+        }
+        Ok(Message(data[..4 + declared_len].to_vec()))
+    }
+    
+    pub fn payload(&amp;self) -&gt; &amp;[u8] {
+        &amp;self.0[4..]
+    }
+    
+    pub fn as_bytes(&amp;self) -&gt; &amp;[u8] {
+        &amp;self.0
+    }
+}
+
+/// Create an echo response message
+pub fn echo_response(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+    debug_assert!(!payload.is_empty());
+    debug_assert!(payload.len() &lt;= MAX_MESSAGE_SIZE - 4);
+    let len = payload.len() as u32;
+    let mut response = len.to_be_bytes().to_vec();
+    response.extend_from_slice(payload);
+    response
+}
+
+#[derive(Debug, Error)]
+pub enum ProtocolError {
+    #[error("message too large: {size} bytes (max {max})")]
+    MessageTooLarge { size: usize, max: usize },
+
+    #[error("empty message")]
+    EmptyMessage,
+
+    #[error("incomplete header")]
+    IncompleteHeader,
+
+    #[error("declared length too large: {0}")]
+    DeclaredLengthTooLarge(usize),
+
+    #[error("incomplete message: expected {expected}, got {actual}")]
+    IncompleteMessage { expected: usize, actual: usize },
+}
+<span class="boring">}</span></code></pre>
+<h2 id="174-rate-limiter"><a class="header" href="#174-rate-limiter">17.4 Rate Limiter</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::log as log;
+</span>// src/rate_limiter.rs
+use std::collections::HashMap;
+use std::net::IpAddr;
+use std::sync::{Mutex, MutexGuard};
+use std::time::{Duration, Instant};
+
+pub struct RateLimiter {
+    clients: Mutex&lt;HashMap&lt;IpAddr, ClientRecord&gt;&gt;,
+    max_requests: usize,
+    window: Duration,
+}
+
+struct ClientRecord {
+    count: usize,
+    window_start: Instant,
+}
+
+impl RateLimiter {
+    pub fn new(max_requests: usize, window: Duration) -&gt; Self {
+        RateLimiter {
+            clients: Mutex::new(HashMap::new()),
+            max_requests,
+            window,
+        }
+    }
+    
+    pub fn check(&amp;self, addr: IpAddr) -&gt; bool {
+        let mut clients = self.lock_clients();
+        let now = Instant::now();
+        
+        let record = clients.entry(addr).or_insert_with(|| ClientRecord {
+            count: 0,
+            window_start: now,
+        });
+        
+        if now.duration_since(record.window_start) &gt; self.window {
+            record.count = 0;
+            record.window_start = now;
+        }
+        
+        record.count += 1;
+        
+        if record.count &gt; self.max_requests {
+            log::warn!("Rate limit exceeded for {}", addr);
+            false
+        } else {
+            true
+        }
+    }
+    
+    /// Remove expired entries to prevent memory growth
+    pub fn cleanup(&amp;self) {
+        let mut clients = self.lock_clients();
+        let now = Instant::now();
+        let double_window = self.window * 2;
+        clients.retain(|_, record| now.duration_since(record.window_start) &lt;= double_window);
+    }
+
+    fn lock_clients(&amp;self) -&gt; MutexGuard&lt;'_, HashMap&lt;IpAddr, ClientRecord&gt;&gt; {
+        match self.clients.lock() {
+            Ok(guard) =&gt; guard,
+            Err(poisoned) =&gt; {
+                log::error!("Rate limiter state poisoned; clearing state and recovering");
+                let mut guard = poisoned.into_inner();
+                guard.clear();
+                guard
+            }
+        }
+    }
+}
+<span class="boring">}</span></code></pre>
+<h2 id="175-tls-configuration"><a class="header" href="#175-tls-configuration">17.5 TLS Configuration</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
+</span>// src/tls.rs
+use rustls::{ServerConfig, pki_types::PrivateKeyDer};
+use std::sync::Arc;
+use std::fs::File;
+use std::io::BufReader;
+
+pub fn create_server_config(
+    cert_path: &amp;str,
+    key_path: &amp;str,
+) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    let cert_file = File::open(cert_path)?;
+    let key_file = File::open(key_path)?;
+    
+    let certs: Vec&lt;_&gt; = rustls_pemfile::certs(&amp;mut BufReader::new(cert_file))
+        .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
+    
+    let key = rustls_pemfile::private_key(&amp;mut BufReader::new(key_file))?
+        .ok_or("no private key found")?;
+    
+    let config = ServerConfig::builder()
+        .with_no_client_auth()
+        .with_single_cert(certs, key)?;
+    
+    Ok(Arc::new(config))
+}
+<span class="boring">}</span></code></pre>
+<h2 id="176-connection-handler"><a class="header" href="#176-connection-handler">17.6 Connection Handler</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::companion::ch17_hardened_server as ch17_hardened_server;
+</span><span class="boring">use rust_secure_systems_book::deps::log as log;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>// src/handler.rs
+use ch17_hardened_server::rate_limiter::RateLimiter;
+use ch17_hardened_server::types::*;
+use std::io;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::time::{timeout, Duration};
+
+pub struct ConnectionHandler {
+    admission_limiter: Arc&lt;RateLimiter&gt;,
+    request_limiter: Arc&lt;RateLimiter&gt;,
+    connection_count: Arc&lt;AtomicUsize&gt;,
+}
+
+pub struct ConnectionPermit {
+    connection_count: Arc&lt;AtomicUsize&gt;,
+}
+
+const RATE_LIMIT_RESPONSE: &amp;[u8] = b"rate limit exceeded";
+
+impl Drop for ConnectionPermit {
+    fn drop(&amp;mut self) {
+        self.connection_count.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl ConnectionHandler {
+    pub fn new(admission_limiter: Arc&lt;RateLimiter&gt;, request_limiter: Arc&lt;RateLimiter&gt;) -&gt; Self {
+        ConnectionHandler {
+            admission_limiter,
+            request_limiter,
+            connection_count: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+    
+    pub fn connection_count(&amp;self) -&gt; usize {
+        self.connection_count.load(Ordering::SeqCst)
+    }
+    pub fn try_admit(&amp;self, addr: SocketAddr) -&gt; Option&lt;ConnectionPermit&gt; {
+        // Reserve capacity before the expensive TLS handshake begins.
+        let current = self.connection_count.fetch_add(1, Ordering::SeqCst);
+        if current &gt;= MAX_CONNECTIONS {
+            self.connection_count.fetch_sub(1, Ordering::SeqCst);
+            log::warn!("Rejecting connection from {}: limit reached", addr);
+            return None;
+        }
+
+        if !self.admission_limiter.check(addr.ip()) {
+            self.connection_count.fetch_sub(1, Ordering::SeqCst);
+            log::warn!("Rate limited before TLS handshake: {}", addr);
+            return None;
+        }
+
+        log::info!("Admitted connection from {} (total: {})", addr, current + 1);
+
+        Some(ConnectionPermit {
+            connection_count: Arc::clone(&amp;self.connection_count),
+        })
+    }
+
+    pub async fn handle&lt;S&gt;(
+        &amp;self,
+        mut stream: S,
+        addr: SocketAddr,
+        _permit: ConnectionPermit,
+    ) -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt;
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        log::info!("Handling established connection from {}", addr);
+
+        // Handle with overall session timeout
+        let result = timeout(
+            Duration::from_secs(MAX_SESSION_SECS),
+            self.handle_inner(&amp;mut stream, addr),
+        ).await;
+        
+        match result {
+            Ok(Ok(())) =&gt; log::info!("Connection from {} closed normally", addr),
+            Ok(Err(e)) =&gt; {
+                if e.downcast_ref::&lt;io::Error&gt;()
+                    .is_some_and(|io_error| io_error.kind() == io::ErrorKind::PermissionDenied)
+                {
+                    log::warn!("Connection from {} closed after rate limiting", addr);
+                } else {
+                    log::error!("Error handling {}: {}", addr, e);
+                }
+            }
+            Err(_) =&gt; log::warn!("Session timeout for {}", addr),
+        }
+
+        Ok(())
+    }
+    
+    async fn handle_inner&lt;S&gt;(
+        &amp;self,
+        stream: &amp;mut S,
+        addr: SocketAddr,
+    ) -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt;
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        let mut buffer = vec![0u8; MAX_MESSAGE_SIZE];
+        let mut buffered: usize = 0;
+        
+        loop {
+            // Read with timeout, accumulating partial reads into buffer
+            let n = timeout(
+                Duration::from_secs(READ_TIMEOUT_SECS),
+                stream.read(&amp;mut buffer[buffered..]),
+            ).await??;
+            
+            if n == 0 {
+                if buffered == 0 {
+                    break; // Connection closed
+                }
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "connection closed mid-frame",
+                ).into());
+            }
+            
+            buffered += n;
+            
+            while buffered &gt; 0 {
+                // Count both valid and malformed frames once enough bytes are
+                // buffered to classify them. Incomplete fragments are not
+                // charged yet.
+                let message = match Message::from_bytes(&amp;buffer[..buffered]) {
+                    Ok(msg) =&gt; {
+                        if !self.request_limiter.check(addr.ip()) {
+                            log::warn!("Per-request rate limit exceeded for {}", addr);
+                            let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                            timeout(
+                                Duration::from_secs(WRITE_TIMEOUT_SECS),
+                                stream.write_all(&amp;error_response),
+                            ).await??;
+                            return Err(io::Error::new(
+                                io::ErrorKind::PermissionDenied,
+                                "rate limit exceeded",
+                            ).into());
+                        }
+                        msg
+                    },
+                    Err(ProtocolError::IncompleteHeader) | Err(ProtocolError::IncompleteMessage { .. }) =&gt; {
+                    // Need more data — keep reading
+                    break;
+                    }
+                    Err(e) =&gt; {
+                    if !self.request_limiter.check(addr.ip()) {
+                        log::warn!("Per-request rate limit exceeded for {}", addr);
+                        let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                        timeout(
+                            Duration::from_secs(WRITE_TIMEOUT_SECS),
+                            stream.write_all(&amp;error_response),
+                        ).await??;
+                        return Err(io::Error::new(
+                            io::ErrorKind::PermissionDenied,
+                            "rate limit exceeded",
+                        ).into());
+                    }
+                    log::warn!("Invalid message from {}: {}", addr, e);
+                    // Keep parser details in logs, not on the wire.
+                    let error_response = echo_response(b"invalid request");
+                    timeout(
+                        Duration::from_secs(WRITE_TIMEOUT_SECS),
+                        stream.write_all(&amp;error_response),
+                    ).await??;
+                    buffered = 0;
+                    break;
+                    }
+                };
+                // Echo response
+                let response = echo_response(message.payload());
+                
+                timeout(
+                    Duration::from_secs(WRITE_TIMEOUT_SECS),
+                    stream.write_all(&amp;response),
+                ).await??;
+                
+                // Shift unconsumed bytes to the front of the buffer
+                let consumed = message.as_bytes().len();
+                buffered -= consumed;
+                if buffered &gt; 0 {
+                    buffer.copy_within(consumed..consumed + buffered, 0);
+                }
+            }
+        }
+        
+        Ok(())
+    }
+}
+<span class="boring">}</span></code></pre>
+<h2 id="177-main-server"><a class="header" href="#177-main-server">17.7 Main Server</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::companion::ch17_hardened_server as ch17_hardened_server;
+</span><span class="boring">use rust_secure_systems_book::deps::env_logger as env_logger;
+</span><span class="boring">use rust_secure_systems_book::deps::log as log;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio_rustls as tokio_rustls;
+</span>// src/main.rs
+use ch17_hardened_server::{handler::ConnectionHandler, rate_limiter::RateLimiter, tls, types};
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::time::{timeout, Duration};
+
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info")
+    ).init();
+    
+    let admission_limiter = Arc::new(RateLimiter::new(
+        types::CONNECTION_ATTEMPT_RATE_LIMIT,
+        std::time::Duration::from_secs(60),
+    ));
+    let request_limiter = Arc::new(RateLimiter::new(
+        types::RATE_LIMIT,
+        std::time::Duration::from_secs(60),
+    ));
+    
+    let handler = Arc::new(ConnectionHandler::new(
+        Arc::clone(&amp;admission_limiter),
+        Arc::clone(&amp;request_limiter),
+    ));
+
+    // Hardened server: require TLS configuration at startup and fail fast if it
+    // is missing. Development-only plain TCP belongs in a separate example.
+    let cert_path = std::env::var("TLS_CERT_PATH")
+        .map_err(|_| "TLS_CERT_PATH must be set for the hardened server")?;
+    let key_path = std::env::var("TLS_KEY_PATH")
+        .map_err(|_| "TLS_KEY_PATH must be set for the hardened server")?;
+    let config = tls::create_server_config(&amp;cert_path, &amp;key_path)?;
+    let tls_acceptor = tokio_rustls::TlsAcceptor::from(config);
+    
+    let listener = TcpListener::bind("0.0.0.0:8443").await?;
+    log::info!("Server listening on 0.0.0.0:8443 with TLS enabled");
+    
+    // Periodic cleanup task
+    let cleanup_admission_limiter = Arc::clone(&amp;admission_limiter);
+    let cleanup_request_limiter = Arc::clone(&amp;request_limiter);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            cleanup_admission_limiter.cleanup();
+            cleanup_request_limiter.cleanup();
+        }
+    });
+    
+    loop {
+        let (stream, addr) = listener.accept().await?;
+        if let Err(e) = stream.set_nodelay(true) {
+            log::warn!("Failed to configure TCP_NODELAY for {}: {}", addr, e);
+            continue;
+        }
+
+        let Some(permit) = handler.try_admit(addr) else {
+            continue;
+        };
+
+        let handler = Arc::clone(&amp;handler);
+        let tls_acceptor = tls_acceptor.clone();
+        
+        tokio::spawn(async move {
+            let tls_stream = match timeout(
+                Duration::from_secs(types::TLS_HANDSHAKE_TIMEOUT_SECS),
+                tls_acceptor.accept(stream),
+            ).await {
+                Ok(Ok(tls_stream)) =&gt; {
+                    log::info!("TLS handshake completed for {}", addr);
+                    tls_stream
+                }
+                Ok(Err(e)) =&gt; {
+                    log::error!("TLS handshake failed for {}: {}", addr, e);
+                    return;
+                }
+                Err(_) =&gt; {
+                    log::warn!("TLS handshake timeout for {}", addr);
+                    return;
+                }
+            };
+            
+            let result = handler.handle(tls_stream, addr, permit).await;
+            
+            if let Err(e) = result {
+                log::error!("Fatal error for {}: {}", addr, e);
+            }
+        });
+    }
+}</code></pre>
+<p>Admission control happens before <code>tls_acceptor.accept()</code>, so connection floods consume a bounded number of slots and cannot trigger unlimited concurrent handshakes. A separate per-request limiter runs once enough bytes are buffered to classify a frame, so malformed requests also consume the same request budget and one long-lived TLS session cannot bypass brute-force throttling.</p>
+<blockquote>
+<p><strong>Note</strong>: The handler already accepts any <code>AsyncRead + AsyncWrite + Unpin</code> stream, so the same code works with <code>TcpStream</code>, <code>tokio_rustls::server::TlsStream&lt;TcpStream&gt;</code>, and test doubles.</p>
+</blockquote>
+<h2 id="178-tests"><a class="header" href="#178-tests">17.8 Tests</a></h2>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::proptest as proptest;
+</span>// src/types.rs
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    #[test]
+    fn test_message_validation_valid() {
+        let payload = b"hello";
+        let mut data = (payload.len() as u32).to_be_bytes().to_vec();
+        data.extend_from_slice(payload);
+        
+        let msg = Message::from_bytes(&amp;data).unwrap();
+        assert_eq!(msg.payload(), payload);
+    }
+
+    #[test]
+    fn test_message_validation_too_large() {
+        let large_size = MAX_MESSAGE_SIZE + 1;
+        let data = vec![0u8; large_size];
+        assert!(Message::from_bytes(&amp;data).is_err());
+    }
+
+    #[test]
+    fn test_message_validation_incomplete() {
+        // Only 2 bytes of header
+        assert!(Message::from_bytes(&amp;[0, 0]).is_err());
+    }
+
+    #[test]
+    fn test_zero_length_frame_rejected() {
+        assert!(matches!(
+            Message::from_bytes(&amp;[0, 0, 0, 0]),
+            Err(ProtocolError::EmptyMessage)
+        ));
+    }
+
+    #[test]
+    fn test_message_validation_declared_length_mismatch() {
+        let mut data = 1000u32.to_be_bytes().to_vec();
+        data.extend_from_slice(b"short");
+        assert!(Message::from_bytes(&amp;data).is_err());
+    }
+
+    #[test]
+    fn test_echo_response_format() {
+        let response = echo_response(b"test");
+        let len = u32::from_be_bytes([response[0], response[1], response[2], response[3]]);
+        assert_eq!(len, 4);
+        assert_eq!(&amp;response[4..], b"test");
+    }
+
+    #[test]
+    fn test_empty_message_rejected() {
+        assert!(matches!(
+            Message::from_bytes(&amp;[0, 0, 0, 0]),
+            Err(ProtocolError::EmptyMessage)
+        ));
+    }
+
+    proptest! {
+        #[test]
+        fn message_roundtrip(payload in prop::collection::vec(any::&lt;u8&gt;(), 1..1000)) {
+            let response = echo_response(&amp;payload);
+            let msg = Message::from_bytes(&amp;response).unwrap();
+
+            assert_eq!(msg.payload(), &amp;payload[..]);
+        }
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>If you later split shared code into <code>src/lib.rs</code>, the same test cases can be moved into <code>tests/</code> as integration tests with minimal changes.</p>
+<h2 id="179-security-review-checklist"><a class="header" href="#179-security-review-checklist">17.9 Security Review Checklist</a></h2>
+<p>Review this server against our security checklist:</p>
+<ul>
+<li><input disabled="" type="checkbox" checked=""> <strong>Memory safety</strong>: No <code>unsafe</code> code (safe Rust throughout)</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Integer overflow</strong>: <code>overflow-checks = true</code> in release, checked length parsing</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Input validation</strong>: <code>Message::from_bytes</code> validates length, bounds, format</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Connection limiting</strong>: MAX_CONNECTIONS enforced before the TLS handshake starts</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Rate limiting</strong>: Connection-attempt throttling before the handshake and per-IP request limiting for both valid and malformed frames once they are parseable</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Timeouts</strong>: Read, write, and session timeouts</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Logging</strong>: Security-relevant logs with no sensitive data</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>Error handling</strong>: No <code>unwrap()</code> in production paths; mutex poisoning is recovered explicitly</li>
+<li><input disabled="" type="checkbox" checked=""> <strong>TLS</strong>: rustls is required; the server refuses to start without <code>TLS_CERT_PATH</code> and <code>TLS_KEY_PATH</code></li>
+<li><input disabled="" type="checkbox" checked=""> <strong>DoS protection</strong>: Bounded message sizes, handshake/session timeouts, and both admission/request rate limits</li>
+</ul>
+<h2 id="1710-summary"><a class="header" href="#1710-summary">17.10 Summary</a></h2>
+<p>This server demonstrates the practical application of secure Rust development:</p>
+<ol>
+<li><strong>Types enforce validity</strong>: <code>Message</code> validates at construction time</li>
+<li><strong>Defense in depth</strong>: Connection limits, rate limits, timeouts, message size limits</li>
+<li><strong>Safe concurrency</strong>: <code>Arc</code>, <code>AtomicUsize</code>, <code>Mutex</code> with clear ownership</li>
+<li><strong>No unsafe code</strong>: The entire server is safe Rust</li>
+<li><strong>Comprehensive testing</strong>: Unit tests and property tests around the protocol layer</li>
+</ol>
+<p>In the next chapter, we build a secure binary parser—another common security-critical component.</p>
+<blockquote>
+<p><strong>Note</strong>: This server uses the <code>log</code> crate for simplicity. Chapter 19 introduces the <code>tracing</code> crate, which provides structured JSON logging, request spans, and better async integration — recommended for production deployments.</p>
+</blockquote>
+<h2 id="1711-exercises"><a class="header" href="#1711-exercises">17.11 Exercises</a></h2>
+<ol>
+<li>
+<p><strong>Mutual TLS</strong>: Extend <code>create_server_config()</code> to require and verify client certificates for privileged peers. Add tests for: valid client certificate accepted, unknown CA rejected, expired client certificate rejected, and plaintext clients rejected before application data is processed.</p>
+</li>
+<li>
+<p><strong>Graceful Shutdown</strong>: Add graceful shutdown to the server: listen for SIGTERM (Unix) or Ctrl+C, stop accepting new connections, wait for existing connections to complete (with a timeout), and then exit cleanly. Ensure all connection counters are correctly decremented on shutdown.</p>
+</li>
+<li>
+<p><strong>Load Test</strong>: Write a load-testing client that opens 500 concurrent connections and sends 100 messages per connection. Verify that: (a) the server never exceeds <code>MAX_CONNECTIONS</code>, (b) the rate limiter triggers for abusive clients, (c) no panics or errors appear in the server logs. Measure throughput and latency percentiles (p50, p99).</p>
+</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../part4/ch16-supply-chain.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../part5/ch18-parser.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../part4/ch16-supply-chain.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../part5/ch18-parser.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

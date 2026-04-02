@@ -1,0 +1,526 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 3 — Ownership, Borrowing, and Lifetimes - Rust for Secure Systems Programming</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A comprehensive guide to writing secure systems software in Rust, designed for system developers with a security background.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/brand-2df87166.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-b46b394a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8e63d631.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Rust for Secure Systems Programming</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems/edit/main/src/part1/ch03-ownership.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-3--ownership-borrowing-and-lifetimes"><a class="header" href="#chapter-3--ownership-borrowing-and-lifetimes">Chapter 3 — Ownership, Borrowing, and Lifetimes</a></h1>
+<blockquote>
+<p><em>“You don’t free memory in Rust. The compiler decides when to free it, and it never gets it wrong.”</em></p>
+</blockquote>
+<p>This is the most important chapter in the book. Rust’s ownership model is what makes the language unique, and understanding it deeply is essential for writing secure systems code. If you come from C/C++, you are used to manually managing memory with <code>malloc</code>/<code>free</code> or <code>new</code>/<code>delete</code>. Rust replaces this with a set of compile-time rules that guarantee memory safety without garbage collection.</p>
+<h2 id="31-ownership-rules"><a class="header" href="#31-ownership-rules">3.1 Ownership Rules</a></h2>
+<p>Every value in Rust has exactly one <strong>owner</strong>—a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:</p>
+<ol>
+<li>Each value has exactly one owner.</li>
+<li>When the owner goes out of scope, the value is dropped.</li>
+<li>Values can be <strong>moved</strong> to a new owner or <strong>borrowed</strong> by references.</li>
+</ol>
+<pre class="playground"><code class="language-rust edition2024">fn main() {
+    let s1 = String::from("hello");  // s1 owns the String
+    let s2 = s1;                     // ownership moves to s2
+    // println!("{}", s1);           // ERROR: s1 no longer valid
+    println!("{}", s2);              // OK: s2 is the owner
+}   // s2 is dropped here, memory freed</code></pre>
+<p>This is a <strong>move</strong>—ownership transfers from <code>s1</code> to <code>s2</code>. The compiler prevents use-after-free by making <code>s1</code> inaccessible after the move.</p>
+<p>🔒 <strong>Security impact</strong>: Eliminates CWE-416 (Use-After-Free) and double-free bugs. In C, transferring a string pointer without clear ownership conventions leads to double-free or use-after-free. Rust enforces this at compile time.</p>
+<h3 id="311-the-copy-trait"><a class="header" href="#311-the-copy-trait">3.1.1 The <code>Copy</code> Trait</a></h3>
+<p>Some types are so small that copying them is cheaper than managing ownership. Types that implement the <code>Copy</code> trait are implicitly copied on assignment instead of moved:</p>
+<pre class="playground"><code class="language-rust edition2024">fn main() {
+    let x: i32 = 42;
+    let y = x;        // x is copied (i32 implements Copy)
+    println!("{}", x); // OK: x is still valid
+    println!("{}", y); // OK: y has its own copy
+}</code></pre>
+<p>Types that implement <code>Copy</code>: all integer types, <code>f32</code>/<code>f64</code>, <code>bool</code>, <code>char</code>, tuples of <code>Copy</code> types, and arrays of <code>Copy</code> types.</p>
+<p>Types that do <strong>not</strong> implement <code>Copy</code>: <code>String</code>, <code>Vec&lt;T&gt;</code>, <code>Box&lt;T&gt;</code>, and any type that manages a resource (heap memory, file handles, etc.).</p>
+<p>⚠️ <strong>Security note</strong>: Custom types should <code>#[derive(Copy, Clone)]</code> only when appropriate. Blindly deriving <code>Copy</code> for types containing handles or pointers can lead to logic errors.</p>
+<h3 id="312-cloning-when-you-need-duplication"><a class="header" href="#312-cloning-when-you-need-duplication">3.1.2 Cloning When You Need Duplication</a></h3>
+<p>When you actually need a deep copy, use <code>.clone()</code>:</p>
+<pre class="playground"><code class="language-rust edition2024">fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1.clone();   // Deep copy, both are valid
+    println!("{} {}", s1, s2);
+}</code></pre>
+<h2 id="32-borrowing-and-references"><a class="header" href="#32-borrowing-and-references">3.2 Borrowing and References</a></h2>
+<p>Instead of transferring ownership, you can <strong>borrow</strong> a value via references. There are two kinds:</p>
+<ul>
+<li><strong>Immutable references</strong> (<code>&amp;T</code>): Allow reading but not modification. Multiple immutable borrows are allowed simultaneously.</li>
+<li><strong>Mutable references</strong> (<code>&amp;mut T</code>): Allow modification. Only <strong>one</strong> mutable borrow is allowed at a time, and it cannot coexist with any immutable borrows.</li>
+</ul>
+<pre class="playground"><code class="language-rust edition2024">fn calculate_length(s: &amp;String) -&gt; usize {  // borrow immutably
+    s.len()
+}   // s goes out of scope but since it doesn't have ownership, nothing happens
+
+fn append_world(s: &amp;mut String) {           // borrow mutably
+    s.push_str(", world");
+}
+
+fn main() {
+    let mut greeting = String::from("hello");
+    
+    // Immutable borrow
+    let len = calculate_length(&amp;greeting);
+    println!("'{}' has length {}", greeting, len);
+    
+    // Mutable borrow
+    append_world(&amp;mut greeting);
+    println!("{}", greeting);  // "hello, world"
+}</code></pre>
+<h3 id="321-the-borrowing-rules-enforced"><a class="header" href="#321-the-borrowing-rules-enforced">3.2.1 The Borrowing Rules Enforced</a></h3>
+<p>The compiler enforces these rules strictly:</p>
+<pre class="playground"><code class="language-rust edition2024">fn main() {
+    let mut data = vec![1, 2, 3, 4, 5];
+    
+    // Rule 1: Multiple immutable borrows OK
+    let r1 = &amp;data[0];
+    let r2 = &amp;data[1];
+    println!("{} {}", r1, r2);  // OK
+    
+    // Rule 2: Mutable borrow must be exclusive
+    let r3 = &amp;mut data;
+    // let r4 = &amp;data[0];       // ERROR: cannot borrow immutably while mutably borrowed
+    r3.push(6);
+    println!("{:?}", r3);
+    
+    // Rule 3: Mutable borrows are exclusive
+    // let r5 = &amp;mut data;      // ERROR: cannot have two mutable borrows
+}</code></pre>
+<p>🔒 <strong>Security impact</strong>: These rules eliminate:</p>
+<ul>
+<li><strong>CWE-416 (Use-After-Free)</strong>: References cannot outlive the data they reference.</li>
+<li><strong>CWE-366 (Data Race)</strong>: Two threads cannot have mutable access to the same data simultaneously without synchronization.</li>
+<li><strong>Iterator invalidation</strong>: Modifying a collection while iterating is a compile error.</li>
+</ul>
+<h3 id="322-preventing-iterator-invalidation"><a class="header" href="#322-preventing-iterator-invalidation">3.2.2 Preventing Iterator Invalidation</a></h3>
+<p>A classic C++ bug that leads to crashes and security vulnerabilities:</p>
+<pre><code class="language-cpp">// C++ - DANGEROUS: iterator invalidation
+std::vector&lt;int&gt; v = {1, 2, 3};
+for (auto it = v.begin(); it != v.end(); ++it) {
+    if (*it == 2) {
+        v.push_back(4);  // May reallocate, invalidating `it`
+        // `it` is now dangling - use-after-free!
+    }
+}
+</code></pre>
+<p>Rust prevents this at compile time:</p>
+<pre class="playground"><code class="language-rust edition2024">fn main() {
+    let mut v = vec![1, 2, 3];
+    for val in &amp;v {           // immutable borrow of v
+        // v.push(4);         // ERROR: cannot borrow mutably while borrowed immutably
+        println!("{}", val);
+    }
+    v.push(4);                // OK: borrow ended
+}</code></pre>
+<h2 id="33-lifetimes"><a class="header" href="#33-lifetimes">3.3 Lifetimes</a></h2>
+<p>Every reference in Rust has a <strong>lifetime</strong>—the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.</p>
+<h3 id="331-the-problem-lifetimes-solve"><a class="header" href="#331-the-problem-lifetimes-solve">3.3.1 The Problem Lifetimes Solve</a></h3>
+<p>Consider this function:</p>
+<pre class="playground"><code class="language-rust compile_fail edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// What does the compiler need to know?
+fn longest(x: &amp;str, y: &amp;str) -&gt; &amp;str {
+    if x.len() &gt; y.len() { x } else { y }
+}
+<span class="boring">}</span></code></pre>
+<p>The compiler cannot know whether the returned reference came from <code>x</code> or <code>y</code>. We must specify the relationship:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn longest&lt;'a&gt;(x: &amp;'a str, y: &amp;'a str) -&gt; &amp;'a str {
+    if x.len() &gt; y.len() { x } else { y }
+}
+<span class="boring">}</span></code></pre>
+<p>The annotation <code>&lt;'a&gt;</code> says: “the returned reference lives as long as the <em>shorter</em> of <code>x</code> and <code>y</code>’s lifetimes.”</p>
+<pre class="playground"><code class="language-rust edition2024">fn longest&lt;'a&gt;(x: &amp;'a str, y: &amp;'a str) -&gt; &amp;'a str {
+    if x.len() &gt; y.len() { x } else { y }
+}
+
+fn main() {
+    let s1 = String::from("long string");
+    let result;
+    {
+        let s2 = String::from("short");
+        result = longest(s1.as_str(), s2.as_str());
+        println!("{}", result);  // OK: s2 still alive
+    }
+    // println!("{}", result);  // ERROR: s2 is dead, result may refer to it
+}</code></pre>
+<p>🔒 <strong>Security impact</strong>: Lifetimes guarantee that no reference can outlive the data it points to. This is the compile-time equivalent of proving the absence of dangling pointers.</p>
+<h3 id="332-lifetime-elision-rules"><a class="header" href="#332-lifetime-elision-rules">3.3.2 Lifetime Elision Rules</a></h3>
+<p>You don’t always need to write lifetime annotations. The compiler applies three rules:</p>
+<ol>
+<li>Each reference parameter gets its own lifetime.</li>
+<li>If there’s exactly one input lifetime, it’s assigned to all output lifetimes.</li>
+<li>If there are multiple input lifetimes but one is <code>&amp;self</code> or <code>&amp;mut self</code>, that lifetime is assigned to all outputs.</li>
+</ol>
+<pre><code class="language-text">// Elided (implicit)
+fn first_word(s: &amp;str) -&gt; &amp;str
+
+// Expanded (explicit)
+fn first_word&lt;'a&gt;(s: &amp;'a str) -&gt; &amp;'a str
+</code></pre>
+<h3 id="333-struct-lifetimes"><a class="header" href="#333-struct-lifetimes">3.3.3 Struct Lifetimes</a></h3>
+<p>Structs that hold references must specify lifetimes:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct Parser&lt;'a&gt; {
+    input: &amp;'a str,
+    position: usize,
+}
+
+impl&lt;'a&gt; Parser&lt;'a&gt; {
+    fn new(input: &amp;'a str) -&gt; Self {
+        Parser { input, position: 0 }
+    }
+    
+    fn peek(&amp;self) -&gt; Option&lt;char&gt; {
+        self.input.chars().nth(self.position)
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
+<h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
+<h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
+<p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>
+<pre class="playground"><code class="language-rust edition2024">struct SecureBuffer {
+    data: Vec&lt;u8&gt;,
+}
+
+impl Drop for SecureBuffer {
+    fn drop(&amp;mut self) {
+        // Zero the buffer before freeing memory using volatile writes
+        // to prevent the compiler from optimizing away the zeroing.
+        for byte in self.data.iter_mut() {
+            unsafe { std::ptr::write_volatile(byte, 0); }
+        }
+        // Memory barrier to ensure the writes are not reordered
+        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+        // Vec will be freed after this
+    }
+}
+
+fn main() {
+    let key = SecureBuffer {
+        data: vec![0xDE, 0xAD, 0xBE, 0xEF],
+    };
+    // When `key` goes out of scope, the buffer is zeroed and freed
+}</code></pre>
+<p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
+<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. The <code>write_volatile</code> example above shows the low-level mechanics, but in practice you should prefer the <code>zeroize</code> crate:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">extern crate zeroize;
+</span>use zeroize::Zeroize;
+
+#[derive(zeroize::Zeroize)]
+#[zeroize(drop)]  // Automatically zeroize on Drop
+struct SecureBuffer {
+    data: Vec&lt;u8&gt;,
+}
+<span class="boring">}</span></code></pre>
+<p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
+<h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
+<p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::cell::RefCell;
+
+struct Logger {
+    messages: RefCell&lt;Vec&lt;String&gt;&gt;,
+}
+
+impl Logger {
+    fn log(&amp;self, msg: &amp;str) {
+        // Borrow mutably through the RefCell, even though self is immutable
+        self.messages.borrow_mut().push(msg.to_string());
+    }
+    
+    fn dump(&amp;self) -&gt; Vec&lt;String&gt; {
+        self.messages.borrow().clone()
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>RefCell</code> enforces borrowing rules at <strong>runtime</strong> instead of compile time. If you violate the rules (e.g., calling <code>borrow_mut()</code> while a <code>borrow()</code> is active), the program panics. Use <code>RefCell</code> only when you cannot satisfy the borrow checker at compile time, and ensure your usage patterns cannot lead to panics.</p>
+<h3 id="343-self-referential-types-and-pin"><a class="header" href="#343-self-referential-types-and-pin">3.4.3 Self-Referential Types and <code>Pin</code></a></h3>
+<p>Self-referential types (structs where one field references another) are a challenge in Rust. Most developers encounter this indirectly through <code>async fn</code>: the compiler-generated future may hold references into its own state machine, so it must not be moved after polling begins.</p>
+<p><code>Pin&lt;P&gt;</code> is the tool Rust uses to express that guarantee. Pinning does not magically make arbitrary self-references safe; it only promises that the pointee will not move after it has been pinned. If you think you need a hand-written self-referential struct, first try a simpler design: store offsets instead of references, split the owned buffer from the parsed view, or borrow from an external owner instead of borrowing from <code>self</code>.</p>
+<p>🔒 <strong>Security relevance</strong>: <code>Pin</code> matters when implementing low-level async runtimes, protocol state machines, or custom pointer types. Used correctly, it prevents bugs where internal references are invalidated by moves. Used incorrectly with <code>unsafe</code>, it can recreate the same dangling-reference class Rust normally eliminates.</p>
+<h2 id="35-ownership-compared-to-cc-patterns"><a class="header" href="#35-ownership-compared-to-cc-patterns">3.5 Ownership Compared to C/C++ Patterns</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Pattern</th><th>C/C++</th><th>Rust</th></tr>
+</thead>
+<tbody>
+<tr><td>Single owner</td><td>Manual convention</td><td>Enforced by compiler</td></tr>
+<tr><td>Shared ownership</td><td>Shared pointers (<code>shared_ptr</code>)</td><td><code>Arc&lt;T&gt;</code> (atomic reference count)</td></tr>
+<tr><td>Unique ownership</td><td><code>unique_ptr</code></td><td><code>Box&lt;T&gt;</code> (or plain binding)</td></tr>
+<tr><td>Borrowing</td><td>Raw pointers, no rules</td><td>References with compile-time rules</td></tr>
+<tr><td>Lifetime management</td><td>Manual / RAII</td><td>Compiler-enforced RAII</td></tr>
+<tr><td>Double-free</td><td>Possible</td><td>Impossible (ownership transfer)</td></tr>
+<tr><td>Use-after-free</td><td>Possible</td><td>Impossible (borrow checker)</td></tr>
+<tr><td>Dangling pointer</td><td>Possible</td><td>Impossible (lifetimes)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="36-summary"><a class="header" href="#36-summary">3.6 Summary</a></h2>
+<ul>
+<li>Every value has exactly one owner; when the owner is dropped, the value is freed.</li>
+<li>References borrow values without taking ownership, governed by strict rules.</li>
+<li>The borrow checker enforces: either one mutable reference <strong>or</strong> any number of immutable references.</li>
+<li>Lifetimes ensure references cannot outlive the data they reference.</li>
+<li><code>Drop</code> provides deterministic cleanup on normal destruction paths; use it to hook secure wiping, but do not assume it runs on abort or forced-exit paths.</li>
+<li>Interior mutability (<code>RefCell</code>, <code>Cell</code>) moves borrow checking to runtime; use sparingly.</li>
+</ul>
+<p>Understanding ownership is the foundation. In the next chapter, we explore Rust’s type system and how it prevents entire categories of security bugs.</p>
+<h2 id="37-exercises"><a class="header" href="#37-exercises">3.7 Exercises</a></h2>
+<ol>
+<li>
+<p><strong>Borrow Checker Exploration</strong>: Write a function that attempts to hold an immutable reference to a <code>Vec</code> while pushing a new element. Observe the compiler error. Then fix the code by restructuring it so the borrow ends before the mutation. Document which CWE class this prevents.</p>
+</li>
+<li>
+<p><strong>Lifetime Annotations</strong>: Write a function <code>first_two_words(s: &amp;str) -&gt; (&amp;str, &amp;str)</code> that returns the first two space-separated words. Add explicit lifetime annotations. Then write a <code>main</code> that demonstrates a case where the compiler correctly rejects use of the result after the original <code>String</code> is dropped.</p>
+</li>
+<li>
+<p><strong>Custom Drop</strong>: Implement a struct <code>SecureBuffer</code> that holds a <code>Vec&lt;u8&gt;</code> and implements both <code>wipe(&amp;mut self)</code> and <code>Drop</code>. Write a test that calls <code>wipe()</code> and verifies the buffer is zeroed before deallocation, then have <code>Drop</code> call the same wipe logic. Do not read memory after drop; that would itself be undefined behavior.</p>
+</li>
+<li>
+<p><strong>RefCell Safety</strong>: Create a <code>RefCell&lt;Vec&lt;i32&gt;&gt;</code> and write code that attempts to call <code>.borrow()</code> while a <code>.borrow_mut()</code> is active. Observe the runtime panic. Compare this to what would happen in C++ with undefined behavior.</p>
+</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../part1/ch02-setup.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../part1/ch04-types.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../part1/ch02-setup.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../part1/ch04-types.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

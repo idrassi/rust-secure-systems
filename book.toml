@@ -1,0 +1,23 @@
+[book]
+title = "Rust for Secure Systems Programming"
+authors = ["Mounir IDRASSI"]
+language = "en"
+description = "A comprehensive guide to writing secure systems software in Rust, designed for system developers with a security background."
+
+[build]
+build-dir = "book"
+
+[rust]
+edition = "2024"
+
+[output.html]
+default-theme = "navy"
+git-repository-url = "https://github.com/idrassi/rust-secure-systems"
+edit-url-template = "https://github.com/idrassi/rust-secure-systems/edit/main/{path}"
+site-url = "https://amcrypto.jp/rust-secure-systems/"
+additional-css = ["theme/brand.css"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true

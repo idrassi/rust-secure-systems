@@ -1,0 +1,483 @@
+# Chapter 18 — Secure Parser Construction
+
+> *"Parsers are the gateway to every system. Secure the gateway."*
+
+Binary parsers are among the most security-critical components in any system. History shows that parser bugs account for a disproportionate share of critical vulnerabilities: buffer overflows in image decoders, integer overflows in packet parsers, and logic errors in protocol state machines. This chapter builds a secure binary protocol parser using Rust's type system to prevent common parser vulnerabilities.
+
+## 18.1 The Parser Threat Model
+
+| Vulnerability | CWE | How Rust Helps |
+|--------------|-----|----------------|
+| Buffer over-read | CWE-125 | Bounds-checked slicing |
+| Buffer over-write | CWE-787 | Bounds-checked indexing |
+| Integer overflow in length | CWE-190 | Checked arithmetic |
+| Uninitialized memory read | CWE-908 | `MaybeUninit` required for unsafe |
+| Type confusion | CWE-843 | Strong type system |
+| Denial of service (OOM) | CWE-789 | Size limits |
+| State machine confusion | CWE-1265 | Type-state pattern |
+
+## 18.2 Design Principles for Secure Parsers
+
+1. **Parse, don't validate**: Transform raw bytes into strongly-typed structures.
+2. **Fail fast**: Reject invalid input at the earliest possible point.
+3. **No panics**: Use `Result` for all fallible operations.
+4. **Bounded allocation**: Never allocate based on untrusted size fields without limits.
+5. **No unsafe**: Parsers should be implementable entirely in safe Rust.
+
+## 18.3 Example: A Secure TLV (Type-Length-Value) Parser
+
+### 18.3.1 Type Definitions
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# extern crate self as thiserror;
+# pub use rust_secure_systems_book::deps::thiserror::Error;
+# pub use rust_secure_systems_book::deps::thiserror::*;
+// src/tlv.rs
+use std::fmt;
+
+/// Maximum single TLV value size (1 MiB)
+const MAX_VALUE_SIZE: usize = 1024 * 1024;
+
+/// Maximum total message size (16 MiB)
+const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
+
+/// Maximum nesting depth for recursive TLVs
+const MAX_DEPTH: usize = 16;
+
+/// TLV type tags with semantic meaning.
+///
+/// Note: We do **not** use `#[repr(u8)]` here because this enum has a
+/// data-carrying variant (`Extension`), which is incompatible with explicit
+/// discriminant annotations in `#[repr(u8)]`. Instead, the `from_byte` and
+/// `as_byte` methods handle the tag↔enum mapping manually.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TlvTag {
+    Padding,
+    KeyId,
+    Algorithm,
+    Iv,
+    Ciphertext,
+    AuthTag,
+    Aad,
+    Certificate,
+    Signature,
+    Timestamp,
+    Nonce,
+    Extension(u8),
+}
+
+impl TlvTag {
+    fn from_byte(byte: u8) -> Self {
+        match byte {
+            0x00 => TlvTag::Padding,
+            0x01 => TlvTag::KeyId,
+            0x02 => TlvTag::Algorithm,
+            0x03 => TlvTag::Iv,
+            0x04 => TlvTag::Ciphertext,
+            0x05 => TlvTag::AuthTag,
+            0x06 => TlvTag::Aad,
+            0x07 => TlvTag::Certificate,
+            0x08 => TlvTag::Signature,
+            0x09 => TlvTag::Timestamp,
+            0x0A => TlvTag::Nonce,
+            other => TlvTag::Extension(other),
+        }
+    }
+    
+    fn as_byte(&self) -> u8 {
+        match self {
+            TlvTag::Padding => 0x00,
+            TlvTag::KeyId => 0x01,
+            TlvTag::Algorithm => 0x02,
+            TlvTag::Iv => 0x03,
+            TlvTag::Ciphertext => 0x04,
+            TlvTag::AuthTag => 0x05,
+            TlvTag::Aad => 0x06,
+            TlvTag::Certificate => 0x07,
+            TlvTag::Signature => 0x08,
+            TlvTag::Timestamp => 0x09,
+            TlvTag::Nonce => 0x0A,
+            TlvTag::Extension(b) => *b,
+        }
+    }
+}
+
+/// A parsed TLV record with validated bounds
+#[derive(Debug, Clone)]
+pub struct TlvRecord {
+    tag: TlvTag,
+    value: Vec<u8>,
+}
+
+impl TlvRecord {
+    pub fn tag(&self) -> TlvTag {
+        self.tag
+    }
+    
+    pub fn value(&self) -> &[u8] {
+        &self.value
+    }
+    
+    /// Construct a TLV record with validation
+    pub fn new(tag: TlvTag, value: Vec<u8>) -> Result<Self, ParseError> {
+        if value.len() > MAX_VALUE_SIZE {
+            return Err(ParseError::ValueTooLarge {
+                size: value.len(),
+                max: MAX_VALUE_SIZE,
+            });
+        }
+        Ok(TlvRecord { tag, value })
+    }
+    
+    /// Serialize to bytes
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(5 + self.value.len());
+        bytes.push(self.tag.as_byte());
+        let len = self.value.len() as u32;
+        bytes.extend_from_slice(&len.to_be_bytes());
+        bytes.extend_from_slice(&self.value);
+        bytes
+    }
+}
+
+/// A collection of TLV records (a TLV message)
+#[derive(Debug, Clone)]
+pub struct TlvMessage {
+    records: Vec<TlvRecord>,
+}
+
+impl TlvMessage {
+    pub fn records(&self) -> &[TlvRecord] {
+        &self.records
+    }
+    
+    pub fn get(&self, tag: TlvTag) -> Option<&TlvRecord> {
+        self.records.iter().find(|r| r.tag == tag)
+    }
+    
+    /// Parse a TLV message from raw bytes
+    pub fn parse(data: &[u8]) -> Result<Self, ParseError> {
+        if data.len() > MAX_TOTAL_SIZE {
+            return Err(ParseError::MessageTooLarge {
+                size: data.len(),
+                max: MAX_TOTAL_SIZE,
+            });
+        }
+        
+        let mut records = Vec::new();
+        let mut offset = 0usize;
+        
+        while offset < data.len() {
+            // Need at least 5 bytes for tag + length
+            if offset.checked_add(5).ok_or(ParseError::IntegerOverflow)? > data.len() {
+                return Err(ParseError::IncompleteHeader { offset });
+            }
+            
+            let tag = TlvTag::from_byte(data[offset]);
+            offset += 1;
+            
+            // Read 4-byte big-endian length
+            let length = u32::from_be_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]) as usize;
+            offset += 4;
+            
+            // Validate length
+            if length > MAX_VALUE_SIZE {
+                return Err(ParseError::ValueTooLarge {
+                    size: length,
+                    max: MAX_VALUE_SIZE,
+                });
+            }
+            
+            // Check we have enough data
+            let end = offset.checked_add(length).ok_or(ParseError::IntegerOverflow)?;
+            if end > data.len() {
+                return Err(ParseError::IncompleteValue {
+                    expected: end,
+                    available: data.len(),
+                });
+            }
+            
+            // Extract value (skip padding)
+            let value = data[offset..end].to_vec();
+            offset = end;
+            
+            if !matches!(tag, TlvTag::Padding) {
+                records.push(TlvRecord { tag, value });
+            }
+        }
+        
+        Ok(TlvMessage { records })
+    }
+    
+    /// Serialize to bytes
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        for record in &self.records {
+            bytes.extend_from_slice(&record.to_bytes());
+        }
+        bytes
+    }
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    MessageTooLarge { size: usize, max: usize },
+    IncompleteHeader { offset: usize },
+    ValueTooLarge { size: usize, max: usize },
+    IncompleteValue { expected: usize, available: usize },
+    IntegerOverflow,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ParseError::MessageTooLarge { size, max } => {
+                write!(f, "message too large: {size} bytes (max {max})")
+            }
+            ParseError::IncompleteHeader { offset } => {
+                write!(f, "incomplete header at offset {offset}")
+            }
+            ParseError::ValueTooLarge { size, max } => {
+                write!(f, "value too large: {size} bytes (max {max})")
+            }
+            ParseError::IncompleteValue { expected, available } => {
+                write!(f, "incomplete value: expected {expected} bytes, have {available}")
+            }
+            ParseError::IntegerOverflow => f.write_str("integer overflow in length calculation"),
+        }
+    }
+}
+
+impl std::error::Error for ParseError {}
+```
+
+## 18.4 Type-State Pattern for Protocol State Machines
+
+The type-state pattern uses Rust's type system to encode protocol states, making invalid transitions unrepresentable:
+
+```rust,no_run
+// src/protocol.rs
+# use std::io;
+# use std::net::TcpStream;
+# struct Credentials;
+# #[derive(Debug)]
+# struct AuthError;
+# fn verify_credentials(_credentials: &Credentials) -> Result<u64, AuthError> {
+#     Ok(7)
+# }
+
+/// A connection in the initial (unauthenticated) state
+pub struct Unauthenticated;
+
+/// A connection in the authenticated state
+pub struct Authenticated {
+    user_id: u64,
+}
+
+/// A connection in the encrypted state
+pub struct Encrypted {
+    user_id: u64,
+    session_key: [u8; 32],
+}
+
+/// A protocol connection that enforces state transitions at compile time
+pub struct Connection<S> {
+    stream: TcpStream,
+    state: S,
+}
+
+impl Connection<Unauthenticated> {
+    pub fn new(stream: TcpStream) -> Self {
+        Connection {
+            stream,
+            state: Unauthenticated,
+        }
+    }
+    
+    /// Authenticate the connection. Only callable in the Unauthenticated state.
+    pub fn authenticate(self, credentials: &Credentials) -> Result<Connection<Authenticated>, AuthError> {
+        let user_id = verify_credentials(credentials)?;
+        Ok(Connection {
+            stream: self.stream,
+            state: Authenticated { user_id },
+        })
+    }
+}
+
+impl Connection<Authenticated> {
+    /// Upgrade to encrypted. Only callable in the Authenticated state.
+    pub fn upgrade_to_encrypted(self, key: [u8; 32]) -> Connection<Encrypted> {
+        Connection {
+            stream: self.stream,
+            state: Encrypted {
+                user_id: self.state.user_id,
+                session_key: key,
+            },
+        }
+    }
+    
+    /// Send data in the clear (authenticated but not encrypted)
+    pub fn send(&mut self, data: &[u8]) -> io::Result<()> {
+        // ...
+        Ok(())
+    }
+}
+
+impl Connection<Encrypted> {
+    /// Send encrypted data. Only available in Encrypted state.
+    pub fn send_encrypted(&mut self, data: &[u8]) -> io::Result<()> {
+        // Encrypt with self.state.session_key
+        Ok(())
+    }
+    
+    pub fn user_id(&self) -> u64 {
+        self.state.user_id
+    }
+}
+
+// This code will NOT compile:
+fn exploit(conn: Connection<Unauthenticated>) {
+    // conn.send(b"data");  // ERROR: no method `send` on Connection<Unauthenticated>
+    // conn.send_encrypted(b"data");  // ERROR: no method on Unauthenticated
+}
+```
+
+🔒 **Security impact**: The type-state pattern prevents:
+- Sending data before authentication
+- Sending unencrypted data after the connection is upgraded
+- Accessing encrypted features without establishing a session key
+- All enforced at **compile time**, not runtime
+
+## 18.5 Fuzzing the Parser
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# extern crate libfuzzer_sys;
+# use rust_secure_systems_book::tlv_parser as tlv_parser;
+// fuzz/fuzz_targets/tlv_parser.rs
+libfuzzer_sys::fuzz_target!(|data: &[u8]| {
+    // The parser should never panic, regardless of input
+    let _ = tlv_parser::TlvMessage::parse(data);
+});
+```
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# extern crate arbitrary;
+# extern crate libfuzzer_sys;
+# use rust_secure_systems_book::tlv_parser as tlv_parser;
+// fuzz/fuzz_targets/tlv_roundtrip.rs
+use arbitrary::Arbitrary;
+
+#[derive(Debug, arbitrary::Arbitrary)]
+struct TlvInput {
+    records: Vec<(u8, Vec<u8>)>,
+}
+
+libfuzzer_sys::fuzz_target!(|input: TlvInput| {
+    // Build a valid TLV message
+    let mut bytes = Vec::new();
+    for (tag, value) in &input.records {
+        if value.len() > 1024 * 1024 { continue; }
+        bytes.push(*tag);
+        let len = (value.len() as u32).to_be_bytes();
+        bytes.extend_from_slice(&len);
+        bytes.extend_from_slice(value);
+    }
+    
+    // Parse it back
+    if let Ok(msg) = tlv_parser::TlvMessage::parse(&bytes) {
+        // Roundtrip: serialize and parse again
+        let re_serialized = msg.to_bytes();
+        let reparsed = tlv_parser::TlvMessage::parse(&re_serialized).unwrap();
+        assert_eq!(msg.records().len(), reparsed.records().len());
+    }
+});
+```
+
+## 18.6 Property-Based Tests
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::proptest as proptest;
+# use rust_secure_systems_book::tlv_parser as tlv_parser;
+// tests/tlv_properties.rs
+use proptest::prelude::*;
+use tlv_parser::*;
+
+fn tlv_record_strategy() -> impl Strategy<Value = (u8, Vec<u8>)> {
+    (any::<u8>(), proptest::collection::vec(any::<u8>(), 0..1024))
+}
+
+proptest! {
+    #[test]
+    fn parse_roundtrip(records in proptest::collection::vec(tlv_record_strategy(), 0..20)) {
+        // Build message
+        let mut bytes = Vec::new();
+        for (tag, value) in &records {
+            bytes.push(*tag);
+            let len = (value.len() as u32).to_be_bytes();
+            bytes.extend_from_slice(&len);
+            bytes.extend_from_slice(value);
+        }
+        
+        // Parse
+        let msg = TlvMessage::parse(&bytes).unwrap();
+        
+        // Re-serialize
+        let re_bytes = msg.to_bytes();
+        
+        // Re-parse
+        let reparsed = TlvMessage::parse(&re_bytes).unwrap();
+        
+        // Verify record counts match (excluding padding)
+        let original_non_padding = records.iter()
+            .filter(|(t, _)| *t != 0x00)
+            .count();
+        assert_eq!(original_non_padding, reparsed.records().len());
+    }
+    
+    #[test]
+    fn parser_never_panics(data in proptest::collection::vec(any::<u8>(), 0..65536)) {
+        let _ = TlvMessage::parse(&data);  // Should never panic
+    }
+    
+    #[test]
+    fn oversized_values_rejected(value in proptest::collection::vec(any::<u8>(), 1024 * 1024 + 1..1024 * 1024 + 100)) {
+        let mut bytes = vec![0x01];  // tag
+        let len = (value.len() as u32).to_be_bytes();
+        bytes.extend_from_slice(&len);
+        bytes.extend_from_slice(&value);
+        
+        assert!(TlvMessage::parse(&bytes).is_err());
+    }
+}
+```
+
+## 18.7 Summary
+
+This parser demonstrates key security principles:
+
+1. **Type-driven parsing**: `TlvTag` enum constrains valid tag values.
+2. **Bounded allocation**: Every size field is validated against limits before allocation.
+3. **Checked arithmetic**: All offset calculations use `checked_add`.
+4. **No panics**: All errors return `Result`, never panic.
+5. **Type-state pattern**: Protocol states are encoded in types, preventing invalid transitions.
+6. **Fuzzing**: The parser is designed to be fuzzable with no panics on any input.
+7. **Roundtrip property**: Serialization followed by parsing produces equivalent results.
+
+In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.
+
+## 18.8 Exercises
+
+1. **Streaming Parser**: Extend the `TlvMessage` parser to support incremental (streaming) parsing — it should accept partial data, return `Incomplete` when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple `read()` calls.
+
+2. **Parser Combinators with `nom`**: Rewrite the TLV parser using the `nom` crate. Compare the code size, error quality, and performance against the hand-written parser. Discuss which approach is better for security auditing (fewer lines vs. more explicit control).
+
+3. **Fuzzing the Parser**: Create a `cargo-fuzz` target for the `TlvMessage` parser. Run it for at least 30 minutes. If any crashes or hangs are found, minimize the input, analyze the root cause, fix the bug, and add a regression test.

@@ -1,0 +1,97 @@
+[package]
+name = "rust-secure-systems-book"
+version = "1.0.0"
+edition.workspace = true
+authors = ["Mounir IDRASSI"]
+description = "Source for the book Rust for Secure Systems Programming and its tested Rust companion examples."
+homepage = "https://amcrypto.jp/rust-secure-systems/"
+repository = "https://github.com/idrassi/rust-secure-systems"
+license = "Apache-2.0"
+publish = false
+
+[lib]
+path = "book-snippets/lib.rs"
+test = false
+
+[workspace]
+members = [
+    "companion/ch10-ffi",
+    "companion/ch12-networking",
+    "companion/ch17-hardened-server",
+    "companion/ch19-hardening",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+authors = ["Mounir IDRASSI"]
+homepage = "https://amcrypto.jp/rust-secure-systems/"
+repository = "https://github.com/idrassi/rust-secure-systems"
+license = "Apache-2.0"
+
+[workspace.dependencies]
+env_logger = "0.11"
+hex = "0.4"
+log = "0.4"
+proptest = "1"
+rustls = "0.23"
+rustls-pemfile = "2"
+tempfile = "3"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+tokio-rustls = "0.26"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+zeroize = "1"
+
+[dependencies]
+anyhow = "1"
+arbitrary = { version = "1", features = ["derive"] }
+argon2 = "0.5"
+aes-gcm = "0.10"
+bindgen = "0.71"
+bytes = "1"
+cbindgen = "0.29"
+cc = "1"
+crossbeam-channel = "0.5"
+ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
+env_logger.workspace = true
+hex.workspace = true
+libc = "0.2"
+libfuzzer-sys = "0.4"
+log.workspace = true
+loom = "0.7"
+password-hash = { version = "0.5", features = ["std"] }
+proptest.workspace = true
+quickcheck_macros = "1"
+rand = "0.8"
+rand_core = { version = "0.6", features = ["std"] }
+ring = "0.17"
+rustls.workspace = true
+rustls-pemfile.workspace = true
+secrecy = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-util = { version = "0.7", features = ["codec"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+wasmtime = "25"
+webpki-roots = "0.26"
+windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }
+x25519-dalek = { version = "2", features = ["zeroize"] }
+zerocopy = { version = "0.8", features = ["derive"] }
+zeroize.workspace = true
+ch12_networking = { package = "ch12-networking", path = "companion/ch12-networking" }
+ch17_hardened_server = { package = "ch17-hardened-server", path = "companion/ch17-hardened-server" }
+ch19_hardening = { package = "ch19-hardening", path = "companion/ch19-hardening" }
+
+[profile.release]
+overflow-checks = true
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

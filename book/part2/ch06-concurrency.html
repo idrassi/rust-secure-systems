@@ -1,0 +1,820 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 6 — Fearless Concurrency - Rust for Secure Systems Programming</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A comprehensive guide to writing secure systems software in Rust, designed for system developers with a security background.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/brand-2df87166.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-b46b394a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8e63d631.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Rust for Secure Systems Programming</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems/edit/main/src/part2/ch06-concurrency.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-6--fearless-concurrency"><a class="header" href="#chapter-6--fearless-concurrency">Chapter 6 — Fearless Concurrency</a></h1>
+<blockquote>
+<p><em>“Data races are not just bugs—they are security vulnerabilities.”</em></p>
+</blockquote>
+<p>Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don’t deadlock. The result is a constant stream of data race vulnerabilities (CWE-362, CWE-366).</p>
+<p>Rust’s ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is “fearless concurrency”—not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.</p>
+<h2 id="61-thread-safety-guarantees"><a class="header" href="#61-thread-safety-guarantees">6.1 Thread Safety Guarantees</a></h2>
+<h3 id="611-the-send-and-sync-traits"><a class="header" href="#611-the-send-and-sync-traits">6.1.1 The <code>Send</code> and <code>Sync</code> Traits</a></h3>
+<p>Rust’s concurrency safety rests on two marker traits:</p>
+<ul>
+<li><strong><code>Send</code></strong>: A type is safe to <em>transfer ownership</em> to another thread.</li>
+<li><strong><code>Sync</code></strong>: A type is safe to <em>share a reference</em> between threads (i.e., <code>&amp;T</code> is <code>Send</code>).</li>
+</ul>
+<p>Most types automatically implement <code>Send</code> and <code>Sync</code> if all their fields do. The compiler <strong>rejects</strong> code that violates these constraints:</p>
+<pre class="playground"><code class="language-rust compile_fail edition2024">use std::rc::Rc;  // Single-threaded reference counting
+
+fn main() {
+    let data = Rc::new(vec![1, 2, 3]);
+    
+    std::thread::spawn(move || {
+        // ERROR: `Rc&lt;Vec&lt;i32&gt;&gt;` cannot be sent between threads safely
+        println!("{:?}", data);
+    });
+}</code></pre>
+<p><code>Rc&lt;T&gt;</code> is not <code>Send</code> because its reference counting is not atomic. Using <code>Arc&lt;T&gt;</code> (Atomic Reference Counted) instead fixes the issue:</p>
+<pre class="playground"><code class="language-rust edition2024">use std::sync::Arc;
+
+fn main() {
+    let data = Arc::new(vec![1, 2, 3]);
+    
+    std::thread::spawn(move || {
+        println!("{:?}", data);  // OK: Arc&lt;Vec&lt;i32&gt;&gt; is Send
+    });
+}</code></pre>
+<p>🔒 <strong>Security impact</strong>: The compiler prevents you from accidentally sharing non-thread-safe types across threads. In C, using a non-thread-safe allocator or data structure in a multithreaded context is a subtle and dangerous bug.</p>
+<h3 id="612-ownership-prevents-data-races"><a class="header" href="#612-ownership-prevents-data-races">6.1.2 Ownership Prevents Data Races</a></h3>
+<p>The borrow checker’s rules extend to threads:</p>
+<ul>
+<li>You can have <strong>multiple readers</strong> (<code>&amp;T</code>) OR <strong>one writer</strong> (<code>&amp;mut T</code>), never both.</li>
+<li>To have multiple writers, you must use <strong>explicit synchronization</strong>.</li>
+</ul>
+<pre class="playground"><code class="language-rust edition2024">use std::sync::{Arc, Mutex};
+use std::thread;
+
+fn main() {
+    let counter = Arc::new(Mutex::new(0u64));
+    let mut handles = vec![];
+
+    for _ in 0..100 {
+        let counter = Arc::clone(&amp;counter);
+        let handle = thread::spawn(move || {
+            let mut num = counter.lock().unwrap();
+            *num += 1;
+            // Lock automatically released when `num` goes out of scope
+        });
+        handles.push(handle);
+    }
+
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    assert_eq!(*counter.lock().unwrap(), 100);
+}</code></pre>
+<h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
+<h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
+<p><code>Mutex&lt;T&gt;</code> provides exclusive access to <code>T</code>. The lock guard pattern ensures the lock is always released:</p>
+<blockquote>
+<p><strong>Note</strong>: The examples in this section use <code>.unwrap()</code> for brevity. In production security-critical code, handle mutex poisoning explicitly (see the poisoning discussion below) and avoid <code>.unwrap()</code> on <code>Result</code> types—use <code>.unwrap_or_else()</code>, <code>match</code>, or the <code>?</code> operator instead.</p>
+</blockquote>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::sync::Mutex;
+
+struct Connection;
+
+struct Database {
+    connections: Mutex&lt;Vec&lt;Connection&gt;&gt;,
+}
+
+impl Database {
+    fn add_connection(&amp;self, conn: Connection) {
+        let mut conns = self.connections.lock().unwrap();
+        conns.push(conn);
+        // Lock released here automatically
+    }
+    
+    fn count(&amp;self) -&gt; usize {
+        let conns = self.connections.lock().unwrap();
+        conns.len()
+        // Lock released here
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>🔒 <strong>Security pattern</strong>: The RAII guard pattern ensures locks are never forgotten. In C, forgetting to unlock a mutex is a common source of deadlocks and priority inversion.</p>
+<p>⚠️ <strong>Poisoning</strong>: If a thread panics while holding a <code>Mutex</code>, the mutex becomes “poisoned.” Subsequent <code>.lock()</code> calls return a <code>PoisonError</code>. Calling <code>.unwrap()</code> on that <code>Result</code> will panic. If you decide recovery is acceptable, you must handle <code>Err(poisoned)</code> explicitly and call <code>poisoned.into_inner()</code> to regain access to the guard. For security-critical code, consider poisoning a signal that shared state may no longer be trustworthy:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>let mutex = std::sync::Mutex::new(vec![1u8, 2, 3]);
+
+match mutex.lock() {
+    Ok(guard) =&gt; {
+        let _ = guard.len();
+    }
+    Err(_poisoned) =&gt; {
+        // Decide: abort, recover, or use the potentially-corrupted data
+        eprintln!("Mutex poisoned - data may be corrupted");
+        std::process::abort();  // Safest option
+    }
+}
+<span class="boring">}</span></code></pre>
+<h3 id="622-rwlockt--read-write-lock"><a class="header" href="#622-rwlockt--read-write-lock">6.2.2 <code>RwLock&lt;T&gt;</code> — Read-Write Lock</a></h3>
+<p><code>RwLock&lt;T&gt;</code> allows multiple readers OR one writer:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::collections::HashMap;
+use std::sync::RwLock;
+
+struct Config {
+    settings: RwLock&lt;HashMap&lt;String, String&gt;&gt;,
+}
+
+impl Config {
+    fn get(&amp;self, key: &amp;str) -&gt; Option&lt;String&gt; {
+        let settings = self.settings.read().unwrap();
+        settings.get(key).cloned()
+    }
+    
+    fn set(&amp;self, key: &amp;str, value: &amp;str) {
+        let mut settings = self.settings.write().unwrap();
+        settings.insert(key.to_string(), value.to_string());
+    }
+}
+<span class="boring">}</span></code></pre>
+<h3 id="623-atomics"><a class="header" href="#623-atomics">6.2.3 Atomics</a></h3>
+<p>For lock-free programming, Rust provides atomic types:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::sync::atomic::{AtomicU64, Ordering};
+
+struct AtomicCounter {
+    count: AtomicU64,
+}
+
+impl AtomicCounter {
+    fn new() -&gt; Self {
+        AtomicCounter { count: AtomicU64::new(0) }
+    }
+    
+    fn increment(&amp;self) -&gt; u64 {
+        self.count.fetch_add(1, Ordering::SeqCst)
+    }
+    
+    fn get(&amp;self) -&gt; u64 {
+        self.count.load(Ordering::SeqCst)
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>🔒 <strong>Security note</strong>: Use <code>Ordering::SeqCst</code> (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.</p>
+<h2 id="63-message-passing-with-channels"><a class="header" href="#63-message-passing-with-channels">6.3 Message Passing with Channels</a></h2>
+<p>Rust’s channel API encourages a “do not communicate by sharing memory; share memory by communicating” approach:</p>
+<pre class="playground"><code class="language-rust edition2024">use std::sync::mpsc;
+use std::thread;
+
+struct Request {
+    client_id: u64,
+    payload: Vec&lt;u8&gt;,
+}
+
+fn main() {
+    let (tx, rx) = mpsc::channel::&lt;Request&gt;();
+
+    // Spawn a single worker that owns the receiver
+    let worker = thread::spawn(move || {
+        while let Ok(req) = rx.recv() {
+            println!("Processing request {} ({} bytes)", req.client_id, req.payload.len());
+        }
+        println!("Channel closed, worker exiting");
+    });
+
+    // Send requests from the main thread
+    for i in 0..10 {
+        tx.send(Request {
+            client_id: i,
+            payload: vec![0u8; 64],
+        }).unwrap();
+    }
+
+    // Drop the sender to signal the worker to exit
+    drop(tx);
+    worker.join().unwrap();
+}</code></pre>
+<p>⚠️ <strong>Limitation</strong>: <code>std::sync::mpsc::Receiver</code> is <strong>not</strong> <code>Clone</code>. Only one thread can receive from a standard channel. For multi-consumer patterns, use <code>crossbeam-channel</code> or <code>flume</code> instead.</p>
+<p>A more practical example with <code>crossbeam-channel</code> for multi-worker message distribution:</p>
+<pre><code class="language-toml"># Cargo.toml
+[dependencies]
+crossbeam-channel = "0.5"
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::crossbeam_channel as crossbeam_channel;
+</span>use crossbeam_channel::{bounded, Sender, Receiver};
+use std::thread;
+
+enum Command {
+    Process(Vec&lt;u8&gt;),
+    Shutdown,
+}
+
+fn worker(id: usize, rx: Receiver&lt;Command&gt;) {
+    while let Ok(cmd) = rx.recv() {
+        match cmd {
+            Command::Process(data) =&gt; {
+                println!("Worker {} processing {} bytes", id, data.len());
+            }
+            Command::Shutdown =&gt; break,
+        }
+    }
+}
+
+fn main() {
+    let (tx, rx) = bounded::&lt;Command&gt;(100);  // Bounded channel prevents OOM
+    
+    let mut handles = vec![];
+    for id in 0..4 {
+        let rx = rx.clone();
+        handles.push(thread::spawn(move || worker(id, rx)));
+    }
+    
+    // Send work
+    for i in 0..1000 {
+        tx.send(Command::Process(vec![i as u8; 64])).unwrap();
+    }
+    
+    // Shutdown
+    for _ in 0..4 {
+        tx.send(Command::Shutdown).unwrap();
+    }
+    
+    for handle in handles {
+        handle.join().unwrap();
+    }
+}</code></pre>
+<p>🔒 <strong>Security pattern</strong>: Use bounded channels to prevent unbounded memory growth (a form of denial of service). An unbounded channel allows a fast producer to exhaust memory before a slow consumer can process messages.</p>
+<h2 id="64-asyncawait-concurrency"><a class="header" href="#64-asyncawait-concurrency">6.4 Async/Await Concurrency</a></h2>
+<p>For I/O-bound workloads, Rust’s async/await model provides efficient concurrency without threads:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::log as log;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::net::TcpListener;
+
+<span class="boring">struct State;
+</span><span class="boring">impl State {
+</span><span class="boring">    fn new() -&gt; Self {
+</span><span class="boring">        Self
+</span><span class="boring">    }
+</span><span class="boring">}
+</span>
+#[tokio::main]
+async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let listener = TcpListener::bind("0.0.0.0:8443").await?;
+    let state = Arc::new(Mutex::new(State::new()));
+    
+    loop {
+        let (stream, addr) = listener.accept().await?;
+        let state = Arc::clone(&amp;state);
+        
+        tokio::spawn(async move {
+            if let Err(e) = handle_connection(stream, addr, state).await {
+                log::error!("Error handling {}: {}", addr, e);
+            }
+        });
+    }
+}
+
+async fn handle_connection(
+    stream: tokio::net::TcpStream,
+    addr: std::net::SocketAddr,
+    state: Arc&lt;Mutex&lt;State&gt;&gt;,
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    // Connection handling logic
+    Ok(())
+}</code></pre>
+<p>⚠️ <strong>Important difference</strong>: <code>tokio::sync::Mutex</code> (async) vs. <code>std::sync::Mutex</code> (blocking):</p>
+<ul>
+<li>Use <code>std::sync::Mutex</code> when the critical section is short and CPU-bound.</li>
+<li>Use <code>tokio::sync::Mutex</code> when you need to hold the lock across <code>.await</code> points.</li>
+</ul>
+<p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
+<h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
+<p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
+<h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+
+<span class="boring">fn process_message(_body: &amp;[u8]) {}
+</span>
+/// WARNING: This function is NOT cancellation-safe.
+async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Result&lt;()&gt; {
+    // If we are cancelled after reading the first message header
+    // but before reading its body, the stream is now in an inconsistent
+    // state. The first message's bytes have been consumed, but we have
+    // not processed them. Data is silently lost.
+    let mut header = [0u8; 4];
+    stream.read_exact(&amp;mut header).await?;  // May succeed
+    let len = u32::from_be_bytes(header) as usize;
+    let mut body = vec![0u8; len];
+    stream.read_exact(&amp;mut body).await?;     // If cancelled HERE, header bytes are gone
+    process_message(&amp;body);
+    Ok(())
+}
+<span class="boring">}</span></code></pre>
+<p>If <code>read_exact_two_messages</code> is used inside <code>tokio::select!</code> and the other branch wins, the partial read is lost:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span><span class="boring">use std::time::Duration;
+</span><span class="boring">async fn read_exact_two_messages(
+</span><span class="boring">    _stream: &amp;mut tokio::net::TcpStream,
+</span><span class="boring">) -&gt; std::io::Result&lt;()&gt; {
+</span><span class="boring">    Ok(())
+</span><span class="boring">}
+</span><span class="boring">async fn demo(stream: &amp;mut tokio::net::TcpStream) {
+</span>// DANGEROUS: may silently drop partial reads
+tokio::select! {
+    result = read_exact_two_messages(stream) =&gt; { /* ... */ }
+    _ = tokio::time::sleep(Duration::from_secs(30)) =&gt; {
+        // Timeout! But we may have already consumed some bytes from `stream`.
+        // The stream is now in an inconsistent state.
+    }
+}
+<span class="boring">}
+</span><span class="boring">}</span></code></pre>
+<p>🔒 <strong>Security impact</strong>: Cancellation-unsafe code can cause:</p>
+<ul>
+<li><strong>Data loss</strong>: Partially read messages are dropped, violating protocol integrity.</li>
+<li><strong>State desynchronization</strong>: The peer believes data was consumed; our side disagrees.</li>
+<li><strong>Protocol confusion</strong>: The stream is now misaligned, potentially parsing attacker-controlled data as message headers (CWE-1265, CWE-20).</li>
+</ul>
+<h3 id="652-making-async-code-cancellation-safe"><a class="header" href="#652-making-async-code-cancellation-safe">6.5.2 Making Async Code Cancellation-Safe</a></h3>
+<p>A function is cancellation-safe if dropping the future at any <code>.await</code> point leaves the system in a consistent state. Key patterns:</p>
+<p><strong>Pattern 1: Use cancellation-safe operations.</strong> <code>tokio::io::AsyncReadExt::read()</code> (which reads <em>up to</em> N bytes) is cancellation-safe because it either reads data or doesn’t—no partial state. <code>read_exact()</code> is <strong>not</strong> cancellation-safe because it may have read some bytes but not all.</p>
+<p><strong>Pattern 2: Buffer and retry.</strong> Use a framed reader that buffers partial reads:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use tokio::io::{AsyncReadExt, ReadHalf};
+use tokio::net::TcpStream;
+
+/// A buffered reader that tracks position and can resume after cancellation.
+struct FramedReader {
+    buffer: Vec&lt;u8&gt;,
+    read_pos: usize,
+}
+
+impl FramedReader {
+    fn new(max_size: usize) -&gt; Self {
+        FramedReader {
+            buffer: vec![0u8; max_size],
+            read_pos: 0,
+        }
+    }
+
+    /// Cancellation-safe: reads one full message or nothing.
+    /// If cancelled, `read_pos` still reflects previously consumed data.
+    async fn read_message(
+        &amp;mut self,
+        stream: &amp;mut ReadHalf&lt;TcpStream&gt;,
+    ) -&gt; std::io::Result&lt;Option&lt;&amp;[u8]&gt;&gt; {
+        // Try to read more data (non-destructive on cancellation)
+        if self.read_pos &lt; 4 {
+            let n = stream.read(&amp;mut self.buffer[self.read_pos..]).await?;
+            if n == 0 {
+                return Ok(None); // EOF
+            }
+            self.read_pos += n;
+            if self.read_pos &lt; 4 {
+                return Ok(None); // Need more data
+            }
+        }
+
+        let len = u32::from_be_bytes([
+            self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]
+        ]) as usize;
+
+        if len &gt; self.buffer.len() - 4 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "message too large",
+            ));
+        }
+
+        // Read remaining data if needed
+        while self.read_pos &lt; 4 + len {
+            let n = stream.read(&amp;mut self.buffer[self.read_pos..]).await?;
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    "connection closed mid-message",
+                ));
+            }
+            self.read_pos += n;
+        }
+
+        // Consume the message
+        let message_end = 4 + len;
+        let message = &amp;self.buffer[..message_end];
+        // Note: caller should copy the data before calling advance()
+        Ok(Some(message))
+    }
+
+    /// Call after successfully processing a message.
+    fn advance(&amp;mut self) {
+        let message_end = 4 + self.current_message_len();
+        let remaining = self.read_pos - message_end;
+        if remaining &gt; 0 {
+            self.buffer.copy_within(message_end..self.read_pos, 0);
+        }
+        self.read_pos = remaining;
+    }
+
+    fn current_message_len(&amp;self) -&gt; usize {
+        if self.read_pos &lt; 4 {
+            return 0;
+        }
+        u32::from_be_bytes([
+            self.buffer[0], self.buffer[1], self.buffer[2], self.buffer[3]
+        ]) as usize
+    }
+}
+<span class="boring">}</span></code></pre>
+<p><strong>Pattern 3: Use <code>tokio_util::codec</code> for production.</strong> The <code>tokio_util::codec</code> framework handles framing and buffering for you, making it cancellation-safe by design:</p>
+<pre><code class="language-toml"># Cargo.toml
+[dependencies]
+tokio-util = { version = "0.7", features = ["codec"] }
+bytes = "1"
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::bytes as bytes;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio_util as tokio_util;
+</span>use tokio_util::codec::{Decoder, Encoder, Framed};
+use bytes::{BytesMut, Buf, BufMut};
+
+struct LengthPrefixedCodec {
+    max_length: usize,
+}
+
+impl Decoder for LengthPrefixedCodec {
+    type Item = Vec&lt;u8&gt;;
+    type Error = std::io::Error;
+
+    fn decode(&amp;mut self, src: &amp;mut BytesMut) -&gt; Result&lt;Option&lt;Self::Item&gt;, Self::Error&gt; {
+        if src.len() &lt; 4 {
+            return Ok(None); // Need more data
+        }
+        // Peek at the length without advancing the cursor
+        let len = u32::from_be_bytes([src[0], src[1], src[2], src[3]]) as usize;
+        if len &gt; self.max_length {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "frame too large",
+            ));
+        }
+        if src.len() &lt; 4 + len {
+            src.reserve(4 + len - src.len());
+            return Ok(None); // Need more data
+        }
+        // Now consume the length prefix and payload
+        src.advance(4);
+        Ok(Some(src.split_to(len).to_vec()))
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>🔒 <strong>Security practice</strong>: Always use a framed codec (<code>tokio_util::codec</code>) or equivalent buffering layer for production async network code. It ensures cancellation safety, enforces message size limits, and prevents partial-read desynchronization.</p>
+<h3 id="653-other-async-pitfalls"><a class="header" href="#653-other-async-pitfalls">6.5.3 Other Async Pitfalls</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Pitfall</th><th>Description</th><th>Mitigation</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Task starvation</strong></td><td>A busy task never yields, starving others</td><td>Use <code>tokio::task::yield_now()</code> in tight loops; use cooperative budgeting</td></tr>
+<tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to limit concurrent tasks</td></tr>
+<tr><td><strong>Blocking in async</strong></td><td>Calling <code>std::thread::sleep</code> or CPU-heavy work blocks the executor</td><td>Use <code>tokio::task::spawn_blocking</code> for blocking operations</td></tr>
+<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; resources may leak</td><td>Use <code>Drop</code> guards for cleanup, or structured concurrency patterns</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="66-common-concurrency-pitfalls-and-how-rust-prevents-them"><a class="header" href="#66-common-concurrency-pitfalls-and-how-rust-prevents-them">6.6 Common Concurrency Pitfalls (and How Rust Prevents Them)</a></h2>
+<h3 id="661-deadlocks"><a class="header" href="#661-deadlocks">6.6.1 Deadlocks</a></h3>
+<p>Rust does <strong>not</strong> prevent deadlocks. If you acquire multiple locks in different orders, you can still deadlock:</p>
+<pre class="playground"><code class="language-rust edition2024">use std::sync::{Arc, Mutex};
+
+fn main() {
+    let a = Arc::new(Mutex::new(0));
+    let b = Arc::new(Mutex::new(0));
+    
+    let a1 = Arc::clone(&amp;a);
+    let b1 = Arc::clone(&amp;b);
+    let h1 = std::thread::spawn(move || {
+        let _g1 = a1.lock().unwrap();
+        let _g2 = b1.lock().unwrap();  // May deadlock
+    });
+    
+    let a2 = Arc::clone(&amp;a);
+    let b2 = Arc::clone(&amp;b);
+    let h2 = std::thread::spawn(move || {
+        let _g1 = b2.lock().unwrap();
+        let _g2 = a2.lock().unwrap();  // May deadlock (different order!)
+    });
+}</code></pre>
+<p>🔒 <strong>Mitigation</strong>: Use a consistent lock ordering, or use a single lock to protect multiple resources. Consider using <code>parking_lot</code> crate’s reentrant mutex detection.</p>
+<h3 id="662-use-after-free-in-concurrent-contexts"><a class="header" href="#662-use-after-free-in-concurrent-contexts">6.6.2 Use-After-Free in Concurrent Contexts</a></h3>
+<p>In C, passing a stack pointer to another thread is a common use-after-free:</p>
+<pre><code class="language-c">// C - DANGEROUS
+void* thread_func(void* arg) {
+    int* data = (int*)arg;
+    sleep(1);
+    printf("%d\n", *data);  // data may be freed!
+}
+
+int main() {
+    int value = 42;
+    pthread_t tid;
+    pthread_create(&amp;tid, NULL, thread_func, &amp;value);
+    // value goes out of scope, thread still holds a pointer!
+    return 0;  // Use-after-free
+}
+</code></pre>
+<p>Rust prevents this at compile time:</p>
+<pre class="playground"><code class="language-rust compile_fail edition2024">fn main() {
+    let value = 42;
+    std::thread::spawn(|| {
+        // ERROR: `value` does not live long enough
+        println!("{}", value);
+    });
+}</code></pre>
+<p>To fix, you must explicitly move the value:</p>
+<pre class="playground"><code class="language-rust edition2024">fn main() {
+    let value = 42;
+    std::thread::spawn(move || {
+        println!("{}", value);  // OK: ownership transferred
+    });
+}</code></pre>
+<h2 id="67-summary"><a class="header" href="#67-summary">6.7 Summary</a></h2>
+<ul>
+<li><code>Send</code> and <code>Sync</code> traits enforce thread safety at compile time.</li>
+<li><code>Mutex&lt;T&gt;</code> and <code>RwLock&lt;T&gt;</code> provide RAII-based locking that never forgets to unlock.</li>
+<li>Atomics provide lock-free patterns; use <code>SeqCst</code> ordering unless you can prove weaker is safe.</li>
+<li>Channels enable message-passing concurrency; prefer bounded channels to prevent memory exhaustion.</li>
+<li>Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks—use consistent lock ordering.</li>
+<li>Async/await is efficient for I/O-bound workloads; understand the differences between sync and async mutexes.</li>
+<li><strong>Cancellation safety</strong> is critical in async code: always use framed codecs or buffered readers to ensure partial reads are not lost when futures are dropped.</li>
+</ul>
+<p>In the next chapter, we tackle input validation—the first line of defense against injection and parsing attacks.</p>
+<h2 id="68-exercises"><a class="header" href="#68-exercises">6.8 Exercises</a></h2>
+<ol>
+<li>
+<p><strong>Thread Safety Verification</strong>: Create a struct containing an <code>Rc&lt;String&gt;</code> and attempt to send it across a thread boundary with <code>std::thread::spawn</code>. Observe the compiler error. Replace <code>Rc</code> with <code>Arc</code> and verify it compiles. Then add a <code>RefCell&lt;String&gt;</code> inside the <code>Arc</code> and observe the new error when trying to share it across threads. Replace with <code>Mutex&lt;String&gt;</code> and verify it compiles.</p>
+</li>
+<li>
+<p><strong>Bounded Channel</strong>: Implement a producer-consumer pattern with a bounded channel of capacity 10. Spawn a fast producer that sends 100 messages and a slow consumer that sleeps for 100ms per message. Observe the backpressure behavior. Then switch to an unbounded channel and discuss the memory implications.</p>
+</li>
+<li>
+<p><strong>Deadlock Demonstration</strong>: Write a program that intentionally deadlocks by acquiring two <code>Mutex</code>es in opposite orders from two threads. Confirm the deadlock (the program hangs). Then fix it by establishing a consistent lock ordering. Add a timeout using <code>try_lock_for</code> (from <code>parking_lot</code>) to detect and recover from potential deadlocks.</p>
+</li>
+<li>
+<p><strong>Cancellation Safety</strong>: Write an async function that reads a 4-byte header followed by a variable-length body from a <code>TcpStream</code>. Use <code>tokio::select!</code> with a timeout. Demonstrate the data loss bug when using <code>read_exact</code>. Then rewrite using a <code>Framed</code> codec from <code>tokio_util</code> and verify the fix.</p>
+</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../part2/ch05-errors.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../part2/ch07-validation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../part2/ch05-errors.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../part2/ch07-validation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

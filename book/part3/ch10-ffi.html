@@ -1,0 +1,674 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 10 — Foreign Function Interface - Rust for Secure Systems Programming</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A comprehensive guide to writing secure systems software in Rust, designed for system developers with a security background.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/brand-2df87166.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-b46b394a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8e63d631.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Rust for Secure Systems Programming</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems/edit/main/src/part3/ch10-ffi.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-10--foreign-function-interface"><a class="header" href="#chapter-10--foreign-function-interface">Chapter 10 — Foreign Function Interface</a></h1>
+<blockquote>
+<p><em>“The boundary between Rust and C is the most dangerous place in your codebase.”</em></p>
+</blockquote>
+<p>Real-world systems need to interact with existing C libraries, operating system APIs, and legacy codebases. Rust’s FFI (Foreign Function Interface) allows seamless interop with C, but every FFI boundary is a security checkpoint: data crosses from the safe, compiler-verified world of Rust into the unsafe, manually-managed world of C, and vice versa.</p>
+<h2 id="101-calling-c-from-rust"><a class="header" href="#101-calling-c-from-rust">10.1 Calling C from Rust</a></h2>
+<h3 id="1011-basic-ffi-declarations"><a class="header" href="#1011-basic-ffi-declarations">10.1.1 Basic FFI Declarations</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>unsafe extern "C" {
+    // Declare external C functions
+    fn malloc(size: usize) -&gt; *mut std::ffi::c_void;
+    fn free(ptr: *mut std::ffi::c_void);
+    fn strlen(s: *const i8) -&gt; usize;
+}
+
+fn c_string_length(s: &amp;std::ffi::CStr) -&gt; usize {
+    unsafe {
+        strlen(s.as_ptr())
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>In Edition 2024, <code>extern</code> blocks are explicitly <code>unsafe</code> because Rust cannot verify that the foreign signatures are correct.</p>
+<p>🔒 <strong>Security rules for calling C</strong>:</p>
+<ol>
+<li>Assume the C function can corrupt memory.</li>
+<li>Validate all inputs before passing to C.</li>
+<li>Validate all outputs from C before using them.</li>
+<li>Ensure C code cannot cause Rust’s destructor-based cleanup to misbehave.</li>
+<li>Be aware that C code may call <code>longjmp</code> or raise C++ exceptions, which is UB if it crosses into Rust frames.</li>
+</ol>
+<h3 id="1012-the-bindgen-tool"><a class="header" href="#1012-the-bindgen-tool">10.1.2 The <code>bindgen</code> Tool</a></h3>
+<p>Manually writing FFI bindings is error-prone. Use <code>bindgen</code> to generate them from C headers:</p>
+<pre><code class="language-bash">cargo install bindgen-cli --version 0.72.1 --locked
+bindgen /usr/include/openssl/ssl.h -o ssl_bindings.rs
+</code></pre>
+<p>Or use the <code>build.rs</code> pattern:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::bindgen as bindgen;
+</span>// build.rs
+use std::env;
+use std::path::PathBuf;
+
+fn main() {
+    let bindings = bindgen::Builder::default()
+        .header("wrapper.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .generate()
+        .expect("Unable to generate bindings");
+    
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
+}</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// src/lib.rs
+#[cfg(any())]
+include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+<span class="boring">}</span></code></pre>
+<h3 id="1013-string-interoperability"><a class="header" href="#1013-string-interoperability">10.1.3 String Interoperability</a></h3>
+<p>Converting between Rust strings and C strings is a common source of bugs:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::ffi::{CStr, CString, c_char};
+
+/// SAFELY call a C function that takes a null-terminated string
+fn call_c_with_string(input: &amp;str) -&gt; Result&lt;i32, std::ffi::NulError&gt; {
+    // CString ensures null-termination and no embedded null bytes
+    let c_string = CString::new(input)?;
+    
+    let result = unsafe {
+        c_function_taking_string(c_string.as_ptr())
+    };
+    
+    Ok(result)
+}
+
+/// Borrow from an existing `&amp;CStr` when some other Rust value already proves
+/// the lifetime.
+fn borrow_c_string(raw: &amp;CStr) -&gt; Option&lt;&amp;str&gt; {
+    raw.to_str().ok()
+}
+
+/// # Safety
+/// `raw` must point to a valid, NUL-terminated C string for the duration of
+/// this call.
+unsafe fn receive_c_string_owned(raw: *const c_char) -&gt; Option&lt;String&gt; {
+    if raw.is_null() {
+        return None;
+    }
+    
+    unsafe {
+        CStr::from_ptr(raw).to_str().ok().map(|s| s.to_owned())
+    }
+}
+
+unsafe extern "C" {
+    fn c_function_taking_string(s: *const c_char) -&gt; i32;
+}
+<span class="boring">}</span></code></pre>
+<p><code>receive_c_string_owned</code> stays <code>unsafe</code> even with a null check. Rust still cannot prove that a non-null pointer is valid, correctly terminated, properly aligned, or alive for the required lifetime.</p>
+<p>Do not invent a lifetime from a raw pointer and return <code>&amp;'a str</code> directly. If the C API gives you only <code>*const c_char</code>, copying into an owned <code>String</code> is the safest general default. Return a borrowed <code>&amp;str</code> only when some other Rust value, such as an existing <code>&amp;CStr</code>, already anchors the lifetime.</p>
+<p>⚠️ <strong>Security pitfalls</strong>:</p>
+<ul>
+<li><strong>Embedded nulls</strong>: <code>CString::new()</code> rejects strings with embedded <code>\0</code>. In C, a null byte terminates the string. If you need to pass binary data, use <code>*const u8</code> with an explicit length.</li>
+<li><strong>Lifetime</strong>: C strings returned from C functions may be freed by the C library. Copy the data if you need it to outlive the C function’s lifetime.</li>
+<li><strong>UTF-8 validation</strong>: C strings are not necessarily valid UTF-8. Use <code>CStr::to_str()</code> which validates.</li>
+</ul>
+<h2 id="102-calling-rust-from-c"><a class="header" href="#102-calling-rust-from-c">10.2 Calling Rust from C</a></h2>
+<h3 id="1021-exporting-rust-functions"><a class="header" href="#1021-exporting-rust-functions">10.2.1 Exporting Rust Functions</a></h3>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">#[derive(Debug)]
+</span><span class="boring">enum ProcessingError {
+</span><span class="boring">    Empty,
+</span><span class="boring">}
+</span><span class="boring">#[repr(C)]
+</span><span class="boring">pub struct AddResult {
+</span><span class="boring">    pub success: bool,
+</span><span class="boring">    pub value: i32,
+</span><span class="boring">    pub error_code: i32,
+</span><span class="boring">}
+</span><span class="boring">
+</span>#[unsafe(no_mangle)]
+pub extern "C" fn rust_add_checked(a: i32, b: i32) -&gt; AddResult {
+    match a.checked_add(b) {
+        Some(value) =&gt; AddResult {
+            success: true,
+            value,
+            error_code: 0,
+        },
+        None =&gt; AddResult {
+            success: false,
+            value: 0,
+            error_code: 1,
+        },
+    }
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `data` must either be null or point to `len` readable bytes for the
+/// duration of this call.
+pub unsafe extern "C" fn process_buffer(data: *const u8, len: usize) -&gt; i32 {
+    // Validate inputs
+    if data.is_null() {
+        return -1;
+    }
+    if len &gt; MAX_BUFFER_SIZE {
+        return -2;
+    }
+    
+    // Wrap in catch_unwind to prevent panics from crossing FFI boundary
+    let result = std::panic::catch_unwind(|| {
+        let slice = unsafe { std::slice::from_raw_parts(data, len) };
+        process_data(slice)
+    });
+    
+    match result {
+        Ok(Ok(value)) =&gt; value,
+        Ok(Err(_)) =&gt; -3,
+        Err(_) =&gt; -4,  // Panic occurred
+    }
+}
+
+const MAX_BUFFER_SIZE: usize = 1024 * 1024;  // 1 MiB limit
+
+fn process_data(data: &amp;[u8]) -&gt; Result&lt;i32, ProcessingError&gt; {
+    // Safe Rust processing
+    if data.is_empty() {
+        return Err(ProcessingError::Empty);
+    }
+    Ok(data.len() as i32)
+}
+<span class="boring">}</span></code></pre>
+<p>In Edition 2024, <code>no_mangle</code> is an unsafe attribute, so exported symbols are written as <code>#[unsafe(no_mangle)]</code>.
+Pointer validation does not make the function safe to call from Rust: the caller still owns the obligation to pass a live, correctly sized buffer.</p>
+<p>Avoid sentinel return values for arithmetic helpers unless the ABI guarantees one value is impossible. Returning <code>0</code> on overflow, for example, silently conflates failure with a valid sum. A small <code>#[repr(C)]</code> status struct or explicit out-parameter keeps the contract unambiguous.</p>
+<p>🔒 <strong>Security checklist for Rust functions called from C</strong>:</p>
+<ol>
+<li>✅ Mark raw-pointer entry points <code>unsafe extern "C" fn</code> so the safety contract is explicit on the Rust side.</li>
+<li>✅ Validate all pointer arguments (null check), while remembering that null checks do not prove provenance, alignment, or lifetime.</li>
+<li>✅ Validate all size/length arguments (bounds, max limits).</li>
+<li>✅ Wrap in <code>catch_unwind</code> to prevent panics from crossing FFI boundary.</li>
+<li>✅ Use <code>#[unsafe(no_mangle)]</code> (Edition 2024) and <code>extern "C"</code> for a stable ABI.</li>
+<li>✅ Never panic across the FFI boundary—it’s undefined behavior.</li>
+</ol>
+<h3 id="1022-exporting-rust-types"><a class="header" href="#1022-exporting-rust-types">10.2.2 Exporting Rust Types</a></h3>
+<p>For complex interop, use <code>#[repr(C)]</code> to ensure C-compatible layout:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[repr(C)]
+pub struct FfiResult {
+    pub success: bool,
+    pub value: i64,
+    pub error_code: i32,
+    pub error_message: [u8; 256],
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn compute(x: i64, y: i64) -&gt; FfiResult {
+    match x.checked_mul(y) {
+        Some(value) =&gt; FfiResult {
+            success: true,
+            value,
+            error_code: 0,
+            error_message: [0; 256],
+        },
+        None =&gt; {
+            let mut msg = [0u8; 256];
+            let err = b"multiplication overflow";
+            msg[..err.len()].copy_from_slice(err);
+            FfiResult {
+                success: false,
+                value: 0,
+                error_code: 1,
+                error_message: msg,
+            }
+        }
+    }
+}
+<span class="boring">}</span></code></pre>
+<h2 id="103-the-cc-and-bindgen-crates-for-building-c-code"><a class="header" href="#103-the-cc-and-bindgen-crates-for-building-c-code">10.3 The <code>cc</code> and <code>bindgen</code> Crates for Building C Code</a></h2>
+<h3 id="1031-compiling-c-code-with-cc"><a class="header" href="#1031-compiling-c-code-with-cc">10.3.1 Compiling C Code with <code>cc</code></a></h3>
+<p>When you need to include C source code in your Rust project:</p>
+<pre><code class="language-toml"># [build-dependencies]
+# cc = "1"
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::cc as cc;
+</span>// build.rs
+fn main() {
+    cc::Build::new()
+        .file("src/legacy_crypto.c")
+        .flag("-O2")
+        .flag("-Wall")
+        .flag("-Wextra")
+        .flag("-Werror")          // Treat warnings as errors
+        .flag("-fstack-protector-strong")  // Stack canaries
+        .flag("-D_FORTIFY_SOURCE=2")       // Fortify source
+        .compile("legacy_crypto");
+}</code></pre>
+<p>🔒 <strong>Security practice</strong>: Apply the same hardening flags to C code that you would in a pure C project:</p>
+<ul>
+<li><code>-fstack-protector-strong</code>: Stack canaries</li>
+<li><code>-D_FORTIFY_SOURCE=2</code>: Buffer overflow detection in glibc functions</li>
+<li><code>-fPIC</code>: Position-independent code (for shared libraries)</li>
+<li><code>-Wl,-z,noexecstack</code>: Non-executable stack</li>
+<li><code>-Wl,-z,relro</code>: Read-only relocations</li>
+<li><code>-Wl,-z,now</code>: Full RELRO</li>
+</ul>
+<h3 id="1032-generating-c-headers-with-cbindgen"><a class="header" href="#1032-generating-c-headers-with-cbindgen">10.3.2 Generating C Headers with <code>cbindgen</code></a></h3>
+<p>When exposing Rust functions to C, you need C header files. <code>cbindgen</code> generates them automatically from your Rust code, ensuring the headers stay in sync:</p>
+<pre><code class="language-bash">cargo install cbindgen --version 0.29.2 --locked
+cbindgen --config cbindgen.toml --crate my-lib --output my_lib.h
+</code></pre>
+<p>Or integrate into <code>build.rs</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::cbindgen as cbindgen;
+</span>// build.rs
+fn main() {
+    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    
+    let config = cbindgen::Config::from_file("cbindgen.toml")
+        .expect("Unable to read cbindgen.toml");
+    
+    cbindgen::Builder::new()
+        .with_crate(crate_dir)
+        .with_config(config)
+        .generate()
+        .expect("Unable to generate C bindings")
+        .write_to_file("target/my_lib.h");
+}</code></pre>
+<p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary.</p>
+<h2 id="104-dangerous-c-patterns"><a class="header" href="#104-dangerous-c-patterns">10.4 Dangerous C Patterns</a></h2>
+<h3 id="1041-longjmp-and-c-exceptions"><a class="header" href="#1041-longjmp-and-c-exceptions">10.4.1 <code>longjmp</code> and C++ Exceptions</a></h3>
+<p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior — it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">struct ResourceGuard;
+</span><span class="boring">fn acquire_resource() -&gt; ResourceGuard {
+</span><span class="boring">    ResourceGuard
+</span><span class="boring">}
+</span><span class="boring">unsafe fn c_library_do_jump() {}
+</span>// UNSOUND: if c_library_do_jump() calls longjmp, Rust destructors are bypassed
+unsafe {
+    let mut guard = acquire_resource();
+    c_library_do_jump();  // If this longjmps, guard.drop() is never called!
+}
+<span class="boring">}</span></code></pre>
+<p>If a C library uses <code>longjmp</code>, wrap it so the jump is caught on the C side before returning to Rust:</p>
+<pre><code class="language-c">// C wrapper
+int safe_c_operation(void) {
+    if (setjmp(buf) == 0) {
+        return c_library_do_jump();  // Normal path
+    } else {
+        return -1;  // longjmp was caught — return error to Rust
+    }
+}
+</code></pre>
+<h3 id="1042-using--c-panicabort-for-ffi-safety"><a class="header" href="#1042-using--c-panicabort-for-ffi-safety">10.4.2 Using <code>-C panic=abort</code> for FFI Safety</a></h3>
+<p>When Rust code is called from C, a Rust panic that crosses the FFI boundary is undefined behavior. While <code>catch_unwind</code> can catch most panics, the safest approach is to compile with <code>-C panic=abort</code>:</p>
+<pre><code class="language-toml"># Cargo.toml
+[profile.release]
+panic = "abort"  # Panic immediately aborts the process instead of unwinding
+</code></pre>
+<p>With <code>panic = "abort"</code>:</p>
+<ul>
+<li>Panics terminate the process immediately — they cannot cross the FFI boundary.</li>
+<li>No unwinding tables — smaller binary, reduced attack surface.</li>
+<li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
+</ul>
+<p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
+<h2 id="104-ownership-across-the-ffi-boundary"><a class="header" href="#104-ownership-across-the-ffi-boundary">10.4 Ownership Across the FFI Boundary</a></h2>
+<p>The most dangerous aspect of FFI is ownership confusion. Who allocates? Who frees?</p>
+<h3 id="pattern-1-rust-allocates-rust-frees"><a class="header" href="#pattern-1-rust-allocates-rust-frees">Pattern 1: Rust Allocates, Rust Frees</a></h3>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">const MAX_ALLOCATION: usize = 1024 * 1024;
+</span>#[unsafe(no_mangle)]
+pub extern "C" fn create_buffer(size: usize) -&gt; *mut u8 {
+    if size == 0 || size &gt; MAX_ALLOCATION {
+        return std::ptr::null_mut();
+    }
+    let mut buf = Vec::with_capacity(size);
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);  // Prevent Rust from freeing
+    ptr
+}
+
+#[unsafe(no_mangle)]
+/// # Safety
+/// `ptr` and `size` must come from `create_buffer`, and this function must be
+/// called at most once for a given allocation.
+pub unsafe extern "C" fn free_buffer(ptr: *mut u8, size: usize) {
+    if !ptr.is_null() {
+        unsafe {
+            // Reconstruct the Vec to let Rust free it properly
+            let _ = Vec::from_raw_parts(ptr, 0, size);
+        }
+    }
+}
+<span class="boring">}</span></code></pre>
+<h3 id="pattern-2-c-allocates-rust-uses"><a class="header" href="#pattern-2-c-allocates-rust-uses">Pattern 2: C Allocates, Rust Uses</a></h3>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>pub struct CBuffer {
+    ptr: *mut u8,
+    len: usize,
+}
+
+impl CBuffer {
+    /// # Safety
+    /// `ptr` must be valid for reads of `len` bytes, allocated by C.
+    pub unsafe fn from_c(ptr: *mut u8, len: usize) -&gt; Option&lt;Self&gt; {
+        if ptr.is_null() || len == 0 {
+            return None;
+        }
+        Some(CBuffer { ptr, len })
+    }
+    
+    pub fn as_slice(&amp;self) -&gt; &amp;[u8] {
+        unsafe { std::slice::from_raw_parts(self.ptr, self.len) }
+    }
+}
+
+// Do NOT implement Drop to free the memory—C owns it.
+// If C expects Rust to free it, use the appropriate C deallocator.
+<span class="boring">}</span></code></pre>
+<p>🔒 <strong>Golden rule</strong>: Never mix allocators. If C allocates with <code>malloc</code>, free with <code>free</code>. If Rust allocates with <code>Vec</code>, free with <code>Vec::from_raw_parts</code>. Mixing them is undefined behavior.</p>
+<h2 id="105-callbacks-and-function-pointers"><a class="header" href="#105-callbacks-and-function-pointers">10.5 Callbacks and Function Pointers</a></h2>
+<h3 id="c-calling-rust-callbacks"><a class="header" href="#c-calling-rust-callbacks">C Calling Rust Callbacks</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>type Callback = extern "C" fn(i32, *const u8, usize) -&gt; i32;
+
+#[unsafe(no_mangle)]
+pub extern "C" fn register_callback(cb: Option&lt;Callback&gt;) -&gt; i32 {
+    match cb {
+        Some(callback) =&gt; {
+            // Store the callback safely
+            unsafe {
+                GLOBAL_CALLBACK = Some(callback);
+            }
+            0
+        }
+        None =&gt; -1,
+    }
+}
+
+static mut GLOBAL_CALLBACK: Option&lt;Callback&gt; = None;
+<span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Thread safety</strong>: <code>static mut</code> is inherently unsafe for concurrent access. Use <code>Mutex</code> or atomic operations:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::sync::Mutex;
+
+type Callback = extern "C" fn(i32, *const u8, usize) -&gt; i32;
+
+static GLOBAL_CALLBACK: Mutex&lt;Option&lt;Callback&gt;&gt; = Mutex::new(None);
+
+fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
+    let mut guard = GLOBAL_CALLBACK.lock().expect("callback mutex poisoned");
+    *guard = cb;
+    0
+}
+<span class="boring">}</span></code></pre>
+<h2 id="106-summary"><a class="header" href="#106-summary">10.6 Summary</a></h2>
+<ul>
+<li>FFI is inherently unsafe—every boundary crossing requires careful validation.</li>
+<li>Use <code>bindgen</code> to generate bindings instead of writing them manually.</li>
+<li>Always validate inputs before passing to C and outputs from C.</li>
+<li>Use <code>catch_unwind</code> when Rust code is called from C to prevent panics from crossing the boundary.</li>
+<li>Use <code>#[repr(C)]</code> for stable ABI compatibility.</li>
+<li>Never mix allocators—match allocation and deallocation between Rust and C.</li>
+<li>Apply C hardening flags to any C code compiled in your project.</li>
+<li>Document ownership semantics clearly at every FFI boundary.</li>
+</ul>
+<p>In the next chapter, we explore Rust’s memory layout controls for systems programming.</p>
+<h2 id="107-exercises"><a class="header" href="#107-exercises">10.7 Exercises</a></h2>
+<ol>
+<li>
+<p><strong>Safe CString Wrapper</strong>: Write a function <code>call_c_with_args(cmd: &amp;str, args: &amp;[&amp;str]) -&gt; Result&lt;i32, FfiError&gt;</code> that converts Rust strings to <code>CString</code>, calls a C function (simulate with a mock), and properly handles null bytes, NUL termination, and lifetime issues. Handle all error cases without <code>unwrap()</code>.</p>
+</li>
+<li>
+<p><strong>Rust Library for C</strong>: Create a Rust library that exports three functions via <code>#[unsafe(no_mangle)] extern "C"</code>: a string reverser, a buffer processor (with input validation), and a stateful counter. Write a C header file for it. Wrap every function in <code>catch_unwind</code>. Write tests in C that call these functions with various inputs including NULL pointers, zero-length buffers, and extremely large sizes.</p>
+</li>
+<li>
+<p><strong>Ownership Across FFI</strong>: Implement two FFI patterns: (a) Rust allocates a buffer, passes it to C, C fills it, Rust frees it; (b) C allocates, Rust processes, C frees. Use <code>#[repr(C)]</code> structs to pass metadata. Write tests verifying no memory leaks using a custom allocator.</p>
+</li>
+</ol>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../part3/ch09-unsafe.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../part3/ch11-memory.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../part3/ch09-unsafe.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../part3/ch11-memory.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

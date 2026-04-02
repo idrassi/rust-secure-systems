@@ -1,0 +1,12 @@
+[package]
+name = "ch12-networking"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+tokio.workspace = true

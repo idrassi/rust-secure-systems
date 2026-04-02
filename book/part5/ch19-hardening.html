@@ -1,0 +1,1030 @@
+<!DOCTYPE HTML>
+<html lang="en" class="navy sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Chapter 19 — Deployment Hardening and Release - Rust for Secure Systems Programming</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="A comprehensive guide to writing secure systems software in Rust, designed for system developers with a security background.">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+        <link rel="stylesheet" href="../theme/brand-2df87166.css">
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "navy";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-b46b394a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8e63d631.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('navy')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Rust for Secure Systems Programming</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems" title="Git repository" aria-label="Git repository">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg></span>
+                        </a>
+                        <a href="https://github.com/idrassi/rust-secure-systems/edit/main/src/part5/ch19-hardening.md" title="Suggest an edit" aria-label="Suggest an edit" rel="edit">
+                            <span class=fa-svg id="git-edit-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M421.7 220.3l-11.3 11.3-22.6 22.6-205 205c-6.6 6.6-14.8 11.5-23.8 14.1L30.8 511c-8.4 2.5-17.5 .2-23.7-6.1S-1.5 489.7 1 481.2L38.7 353.1c2.6-9 7.5-17.2 14.1-23.8l205-205 22.6-22.6 11.3-11.3 33.9 33.9 62.1 62.1 33.9 33.9zM96 353.9l-9.3 9.3c-.9 .9-1.6 2.1-2 3.4l-25.3 86 86-25.3c1.3-.4 2.5-1.1 3.4-2l9.3-9.3H112c-8.8 0-16-7.2-16-16V353.9zM453.3 19.3l39.4 39.4c25 25 25 65.5 0 90.5l-14.5 14.5-22.6 22.6-11.3 11.3-33.9-33.9-62.1-62.1L314.3 67.7l11.3-11.3 22.6-22.6 14.5-14.5c25-25 65.5-25 90.5 0z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="chapter-19--deployment-hardening-and-release"><a class="header" href="#chapter-19--deployment-hardening-and-release">Chapter 19 — Deployment Hardening and Release</a></h1>
+<blockquote>
+<p><em>“Secure code deployed insecurely is insecure.”</em></p>
+</blockquote>
+<p>Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline—from compiler hardening flags to runtime protections, from container security to monitoring.</p>
+<p>This chapter is intentionally generic, but the concrete commands use the Chapter 17 companion service from this repository where that makes verification less ambiguous. When you see <code>ch17-hardened-server</code>, substitute your own package or binary name in a different codebase.</p>
+<h2 id="191-compilation-hardening"><a class="header" href="#191-compilation-hardening">19.1 Compilation Hardening</a></h2>
+<h3 id="1911-release-profile-configuration"><a class="header" href="#1911-release-profile-configuration">19.1.1 Release Profile Configuration</a></h3>
+<pre><code class="language-toml"># Cargo.toml
+[profile.release]
+# Security-relevant settings
+overflow-checks = true       # Panic on integer overflow (prevents CWE-190)
+lto = true                   # Link-time optimization (removes dead code, reduces attack surface)
+codegen-units = 1            # Single codegen unit (better optimization, no parallel shortcuts)
+panic = "abort"              # Abort on panic (smaller binary, no unwinding table attack surface)
+strip = "symbols"            # Strip debug symbols from release binary
+opt-level = "z"              # Optimize for size (smaller attack surface)
+
+# Optional: customize debug info for crash analysis
+debug = 1                    # Line tables only (enough for stack traces, no full debug info)
+</code></pre>
+<h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
+<pre><code class="language-toml"># .cargo/config.toml (Linux)
+[build]
+rustflags = [
+    # Keep frame pointers for profiling and post-mortem analysis
+    "-C", "force-frame-pointers=yes",
+    
+    # Link-time hardening
+    "-C", "link-arg=-Wl,-z,noexecstack",    # Non-executable stack (NX bit)
+    "-C", "link-arg=-Wl,-z,relro",          # Partial RELRO (read-only relocations)
+    "-C", "link-arg=-Wl,-z,now",            # Full RELRO (resolve all symbols at load)
+    
+    # Position-independent executable (required for ASLR)
+    "-C", "relocation-model=pic",
+]
+
+# Stable Rust/Linux already enables PIE, NX, and RELRO for ordinary binaries.
+# These extra linker flags are mostly useful when you want the intent to be
+# explicit or when you also link C/assembly objects.
+#
+# Note: For C dependencies compiled via the `cc` crate, set environment variables:
+#   CFLAGS="-O2 -D_FORTIFY_SOURCE=2 -fstack-protector-strong"
+# These are C compiler flags, not Rust linker flags.
+# They apply during compilation of C code, not at link time. On stable Rust,
+# stack-smashing protection for Rust code itself is not enabled via these flags.
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support
+]
+</code></pre>
+<h3 id="1913-windows-specific-hardening"><a class="header" href="#1913-windows-specific-hardening">19.1.3 Windows-Specific Hardening</a></h3>
+<pre><code class="language-toml"># .cargo/config.toml (Windows)
+[build]
+rustflags = [
+    # Control Flow Guard (CFG)
+    "-C", "control-flow-guard=yes",
+    
+    # Dynamic Base (ASLR)
+    "-C", "link-arg=/DYNAMICBASE",
+    
+    # High Entropy ASLR
+    "-C", "link-arg=/HIGHENTROPYVA",
+    
+    # Data Execution Prevention (DEP/NX)
+    "-C", "link-arg=/NXCOMPAT",
+]
+</code></pre>
+<h3 id="1914-security-comparison-hardening-technologies"><a class="header" href="#1914-security-comparison-hardening-technologies">19.1.4 Security Comparison: Hardening Technologies</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Protection</th><th>What It Prevents</th><th>Linux</th><th>Windows</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>NX/DEP</strong></td><td>Code execution on stack/heap</td><td>Enabled by default; reinforce when linking non-Rust objects</td><td><code>/NXCOMPAT</code></td></tr>
+<tr><td><strong>ASLR</strong></td><td>Fixed-address attacks</td><td>PIE enabled by default</td><td><code>/DYNAMICBASE</code></td></tr>
+<tr><td><strong>Stack canaries</strong></td><td>Stack buffer overflow</td><td><code>-fstack-protector</code> for C/C++ code; Rust SSP is nightly-only today</td><td><code>/GS</code> for MSVC-compiled C/C++</td></tr>
+<tr><td><strong>RELRO</strong></td><td>GOT overwrite</td><td>Full RELRO enabled by default on mainstream targets</td><td>N/A (ELF-specific mitigation)</td></tr>
+<tr><td><strong>CFG</strong></td><td>Indirect-call hijacking</td><td>Target-specific hardware hardening, not a general stable default</td><td><code>-C control-flow-guard=yes</code></td></tr>
+<tr><td><strong>Fortify</strong></td><td>glibc buffer overflow</td><td><code>-D_FORTIFY_SOURCE=2</code> for C dependencies</td><td>N/A</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="192-container-security"><a class="header" href="#192-container-security">19.2 Container Security</a></h2>
+<h3 id="1921-multi-stage-docker-build"><a class="header" href="#1921-multi-stage-docker-build">19.2.1 Multi-Stage Docker Build</a></h3>
+<p>The Dockerfile below uses the Chapter 17 companion service as a real workspace example. If your project is a single crate rather than a workspace, simplify the <code>COPY</code> lines accordingly. In a workspace, Cargo validates every member during the dependency-caching stage, so the example copies every member manifest and creates minimal placeholder targets before the first <code>cargo build</code>.</p>
+<pre><code class="language-dockerfile"># Dockerfile
+
+# Stage 1: Build
+FROM rust:1.85-slim AS builder
+
+WORKDIR /app
+
+# Cache dependencies
+COPY Cargo.toml Cargo.lock ./
+COPY book-snippets/lib.rs book-snippets/lib.rs
+COPY companion/ch10-ffi/Cargo.toml companion/ch10-ffi/Cargo.toml
+COPY companion/ch12-networking/Cargo.toml companion/ch12-networking/Cargo.toml
+COPY companion/ch17-hardened-server/Cargo.toml companion/ch17-hardened-server/Cargo.toml
+COPY companion/ch19-hardening/Cargo.toml companion/ch19-hardening/Cargo.toml
+RUN mkdir -p companion/ch10-ffi/src \
+             companion/ch12-networking/src \
+             companion/ch17-hardened-server/src \
+             companion/ch19-hardening/src \
+ &amp;&amp; printf "" &gt; companion/ch10-ffi/src/lib.rs \
+ &amp;&amp; printf "" &gt; companion/ch12-networking/src/lib.rs \
+ &amp;&amp; printf "" &gt; companion/ch17-hardened-server/src/lib.rs \
+ &amp;&amp; printf "fn main() {}\n" &gt; companion/ch17-hardened-server/src/main.rs \
+ &amp;&amp; printf "" &gt; companion/ch19-hardening/src/lib.rs
+RUN cargo build --locked --release -p ch17-hardened-server
+
+# Build actual application
+COPY companion/ch17-hardened-server ./companion/ch17-hardened-server
+RUN cargo build --locked --release -p ch17-hardened-server
+
+# Stage 2: Minimal runtime
+FROM gcr.io/distroless/cc-debian12:nonroot
+
+# Copy only the binary
+COPY --from=builder /app/target/release/ch17-hardened-server /usr/local/bin/secure-server
+
+# Run as non-root user (distroless/cc nonroot already does this)
+USER nonroot:nonroot
+
+EXPOSE 8443
+
+ENTRYPOINT ["secure-server"]
+</code></pre>
+<p>🔒 <strong>Security features of this Dockerfile</strong>:</p>
+<ol>
+<li><strong>Multi-stage build</strong>: Build tools, source code, and build-time dependencies are not in the final image.</li>
+<li><strong>Distroless base</strong>: No shell, no package manager, minimal attack surface.</li>
+<li><strong>Non-root user</strong>: Runs as <code>nonroot</code> by default.</li>
+<li><strong>No unnecessary files</strong>: Only the compiled binary is copied.</li>
+</ol>
+<h3 id="1922-container-hardening-with-podmandocker"><a class="header" href="#1922-container-hardening-with-podmandocker">19.2.2 Container Hardening with Podman/Docker</a></h3>
+<pre><code class="language-yaml"># docker-compose.yml (or podman kube)
+services:
+  secure-server:
+    image: secure-server:latest
+    security_opt:
+      - no-new-privileges:true     # Prevent privilege escalation
+    cap_drop:
+      - ALL                         # Drop all capabilities
+    read_only: true                 # Read-only filesystem
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m  # Writable temp with restrictions
+    volumes:
+      - ./certs:/run/certs:ro
+    ports:
+      - "8443:8443"
+    environment:
+      - RUST_LOG=info
+      - TLS_CERT_PATH=/run/certs/server.crt
+      - TLS_KEY_PATH=/run/certs/server.key
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M             # Prevent resource exhaustion
+        reservations:
+          cpus: "0.5"
+          memory: 128M
+</code></pre>
+<p>Only add <code>seccomp:seccomp-profile.json</code> after you have produced a profile that is strictly tighter than the runtime default for the exact image you deploy.</p>
+<p>No capability is added here because the sample server binds to port 8443, which is not a privileged port on Linux. Only add <code>NET_BIND_SERVICE</code> if you must bind below 1024.</p>
+<p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting.</p>
+<h3 id="1923-seccomp-profile"><a class="header" href="#1923-seccomp-profile">19.2.3 Seccomp Profile</a></h3>
+<p>The safest default is to keep Docker or Podman’s built-in seccomp profile. Do <strong>not</strong> replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.</p>
+<p>When you do need a custom profile, derive it from the runtime default profile for the exact engine version you deploy, trace the syscalls your service actually needs, and then tighten from there. The example below is an <strong>illustrative excerpt</strong>, not a complete profile:</p>
+<pre><code class="language-jsonc">{
+    "defaultAction": "SCMP_ACT_ERRNO",
+    "architectures": ["SCMP_ARCH_X86_64"],
+    "syscalls": [
+        {
+            "comment": "Excerpt only. Start from the runtime default profile, then trim to the exact syscall set your service uses.",
+            "names": [
+                "accept4", "bind", "brk", "clock_gettime",
+                "close", "epoll_create1", "epoll_ctl", "epoll_pwait",
+                "exit", "exit_group", "futex", "getrandom",
+                "listen", "madvise", "mmap", "mprotect",
+                "munmap", "nanosleep", "read", "recvfrom",
+                "rt_sigaction", "rt_sigprocmask", "sendto", "setsockopt",
+                "socket", "write"
+            ],
+            "action": "SCMP_ACT_ALLOW"
+        }
+    ]
+}
+</code></pre>
+<p>Treat this as process guidance, not a copy-paste policy. A production seccomp allowlist must be derived from the exact binary, libc, and container runtime you deploy. If you are not ready to maintain a custom allowlist, keeping the runtime default profile is safer than shipping an incomplete one.</p>
+<p>🔒 <strong>Security impact</strong>: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available—dramatically reducing what they can do.</p>
+<h2 id="193-binary-hardening-verification"><a class="header" href="#193-binary-hardening-verification">19.3 Binary Hardening Verification</a></h2>
+<p>After building, verify the hardening was applied:</p>
+<h3 id="linux-checksec"><a class="header" href="#linux-checksec">Linux (checksec)</a></h3>
+<pre><code class="language-bash">APP_BIN=ch17-hardened-server
+
+# Install checksec
+sudo apt install checksec
+
+# Verify binary hardening
+checksec --file=target/release/$APP_BIN
+
+# Expected output on a stable pure-Rust build:
+# RELRO        STACK CANARY  NX         PIE       RPATH     RUNPATH   Symbols
+# Full RELRO   No canary found NX enabled PIE enabled No RPATH No RUNPATH No Symbols
+#
+# If you compile C/C++ objects with stack protectors, or build Rust with
+# nightly-only SSP support, the canary column may instead show "Canary found".
+</code></pre>
+<h3 id="manual-verification"><a class="header" href="#manual-verification">Manual Verification</a></h3>
+<pre><code class="language-bash"># Check for NX (non-executable stack)
+readelf -l target/release/$APP_BIN | grep GNU_STACK
+# Should show: RWE → RW (no execute)
+
+# Check for PIE (position-independent)
+readelf -h target/release/$APP_BIN | grep Type
+# Should show: DYN (Position-Independent Executable)
+
+# Check for GNU_RELRO segment (presence only)
+readelf -l target/release/$APP_BIN | grep RELRO
+# Should show: GNU_RELRO
+
+# Check for full RELRO (eager binding)
+readelf -d target/release/$APP_BIN | grep BIND_NOW
+# Should show: BIND_NOW
+
+# Check symbol stripping
+file target/release/$APP_BIN
+# Should show: "stripped"
+</code></pre>
+<h2 id="194-runtime-monitoring-and-observability"><a class="header" href="#194-runtime-monitoring-and-observability">19.4 Runtime Monitoring and Observability</a></h2>
+<h3 id="1941-structured-logging-with-the-tracing-crate"><a class="header" href="#1941-structured-logging-with-the-tracing-crate">19.4.1 Structured Logging with the <code>tracing</code> Crate</a></h3>
+<p>For production security monitoring, the <code>tracing</code> crate provides structured, async-aware logging with spans that track request context. It is far more powerful than the basic <code>log</code> crate for security observability:</p>
+<pre><code class="language-toml"># Cargo.toml
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tracing as tracing;
+</span><span class="boring">use rust_secure_systems_book::deps::tracing_subscriber as tracing_subscriber;
+</span>// src/logging.rs
+use std::sync::Once;
+use tracing::{error, info, warn};
+use tracing_subscriber::{fmt, EnvFilter};
+
+static LOGGING_INIT: Once = Once::new();
+
+/// Initialize structured JSON logging for production
+pub fn init_logging() {
+    LOGGING_INIT.call_once(|| {
+        let subscriber = fmt()
+            .json()                           // Structured JSON output for log aggregation
+            .with_env_filter(
+                EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| EnvFilter::new("info"))
+            )
+            .with_target(true)                // Include module path
+            .with_thread_ids(true)            // Identify threads
+            .with_file(true)                  // Source file
+            .with_line_number(true)           // Line number
+            .finish();
+
+        let _ = tracing::subscriber::set_global_default(subscriber);
+    });
+}
+
+/// Log a security-relevant event with structured fields
+pub fn log_security_event(
+    event_type: &amp;str,
+    severity: SecurityEventSeverity,
+    source_ip: Option&lt;std::net::IpAddr&gt;,
+    user_id: Option&lt;u64&gt;,
+    details: &amp;str,
+) {
+    match severity {
+        SecurityEventSeverity::Info =&gt; {
+            info!(
+                event_type,
+                source_ip = ?source_ip,
+                user_id = ?user_id,
+                details,
+                "Security event"
+            );
+        }
+        SecurityEventSeverity::Warning =&gt; {
+            warn!(
+                event_type,
+                source_ip = ?source_ip,
+                user_id = ?user_id,
+                details,
+                "Security event"
+            );
+        }
+        SecurityEventSeverity::Critical =&gt; {
+            error!(
+                event_type,
+                source_ip = ?source_ip,
+                user_id = ?user_id,
+                details,
+                "Security event"
+            );
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SecurityEventSeverity {
+    Info,
+    Warning,
+    Critical,
+}
+<span class="boring">}</span></code></pre>
+<p>Initialize the subscriber once during startup. Do not call logging initialization from request paths, and do not assume repeated <code>.init()</code> calls are harmless in tests or embedded runtimes.</p>
+<h3 id="1942-request-tracing-with-spans"><a class="header" href="#1942-request-tracing-with-spans">19.4.2 Request Tracing with Spans</a></h3>
+<p>Spans attach context to all log events within a request, enabling you to trace a request from acceptance through processing to response:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::companion::ch19_hardening as ch19_hardening;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span><span class="boring">use rust_secure_systems_book::deps::tracing as tracing;
+</span><span class="boring">use ch19_hardening::logging::{log_security_event, SecurityEventSeverity};
+</span>use tracing::{instrument, info_span, Instrument};
+use std::net::SocketAddr;
+
+<span class="boring">fn generate_connection_id() -&gt; u64 { 1 }
+</span><span class="boring">async fn read_message(_stream: &amp;mut tokio::net::TcpStream) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+</span><span class="boring">    Ok(b"ping".to_vec())
+</span><span class="boring">}
+</span><span class="boring">async fn process_message(message: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+</span><span class="boring">    Ok(message.to_vec())
+</span><span class="boring">}
+</span><span class="boring">async fn write_response(
+</span><span class="boring">    _stream: &amp;mut tokio::net::TcpStream,
+</span><span class="boring">    _response: &amp;[u8],
+</span><span class="boring">) -&gt; std::io::Result&lt;()&gt; {
+</span><span class="boring">    Ok(())
+</span><span class="boring">}
+</span>
+async fn handle_connection(
+    mut stream: tokio::net::TcpStream,
+    addr: SocketAddr,
+) -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt; {
+    // Create a span for this connection with identifying fields
+    let span = info_span!(
+        "connection",
+        peer_addr = %addr,
+        connection_id = %generate_connection_id(),
+    );
+    
+    async move {
+        tracing::info!("Connection accepted");
+        
+        // All log events inside this block include peer_addr and connection_id
+        loop {
+            let message = read_message(&amp;mut stream).await?;
+            tracing::info!(message_size = message.len(), "Message received");
+            
+            match process_message(&amp;message).await {
+                Ok(response) =&gt; {
+                    write_response(&amp;mut stream, &amp;response).await?;
+                    tracing::info!(response_size = response.len(), "Response sent");
+                }
+                Err(e) =&gt; {
+                    // Security events are automatically associated with this connection
+                    log_security_event(
+                        "invalid_input",
+                        SecurityEventSeverity::Warning,
+                        Some(addr.ip()),
+                        None,
+                        &amp;format!("Message rejected: {}", e),
+                    );
+                    tracing::warn!(error = %e, "Message processing failed");
+                    break;
+                }
+            }
+        }
+        
+        tracing::info!("Connection closed");
+        Ok(())
+    }.instrument(span).await
+}
+<span class="boring">}</span></code></pre>
+<p>🔒 <strong>Security benefits of structured tracing</strong>:</p>
+<ol>
+<li><strong>Correlation</strong>: Every event is tagged with connection ID, peer address, and user ID, enabling post-incident analysis.</li>
+<li><strong>Machine-readable</strong>: JSON output integrates with SIEM systems (Splunk, ELK, Datadog) for automated alerting.</li>
+<li><strong>Contextual spans</strong>: A security event in a handler automatically includes the full request context—no manual threading of parameters.</li>
+<li><strong>Audit trail</strong>: Structured logs serve as an audit trail for compliance (SOC 2, PCI-DSS).</li>
+</ol>
+<p>⚠️ <strong>Critical rule</strong>: Never log secrets. Add fields to the deny list:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// Alternative: simply never include secrets in span fields or event arguments.
+// If you must log a field that sometimes contains secrets, mask it:
+fn mask_token(token: &amp;str) -&gt; String {
+    let len = token.chars().count();
+    if len &gt; 8 {
+        let prefix: String = token.chars().take(4).collect();
+        let suffix: String = token.chars().skip(len - 4).collect();
+        format!("{prefix}****{suffix}")
+    } else {
+        "****".to_string()
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.</p>
+<h3 id="1943-security-event-taxonomy"><a class="header" href="#1943-security-event-taxonomy">19.4.3 Security Event Taxonomy</a></h3>
+<p>Define a consistent set of security event types across your application for reliable alerting:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>/// Security event types for consistent logging and alerting
+pub mod security_events {
+    // Authentication events
+    pub const AUTH_SUCCESS: &amp;str = "auth.success";
+    pub const AUTH_FAILURE: &amp;str = "auth.failure";
+    pub const AUTH_LOCKOUT: &amp;str = "auth.lockout";
+    pub const AUTH_TOKEN_REFRESH: &amp;str = "auth.token_refresh";
+    
+    // Authorization events
+    pub const ACCESS_GRANTED: &amp;str = "access.granted";
+    pub const ACCESS_DENIED: &amp;str = "access.denied";
+    pub const PRIVILEGE_ESCALATION_ATTEMPT: &amp;str = "access.privilege_escalation";
+    
+    // Input validation events
+    pub const INPUT_REJECTED: &amp;str = "input.rejected";
+    pub const INPUT_SIZE_EXCEEDED: &amp;str = "input.size_exceeded";
+    pub const MALFORMED_REQUEST: &amp;str = "input.malformed";
+    
+    // Rate limiting
+    pub const RATE_LIMIT_EXCEEDED: &amp;str = "rate_limit.exceeded";
+    pub const CONNECTION_LIMIT_EXCEEDED: &amp;str = "rate_limit.connections";
+    
+    // TLS/cryptography
+    pub const TLS_HANDSHAKE_FAILED: &amp;str = "tls.handshake_failed";
+    pub const TLS_CERTIFICATE_INVALID: &amp;str = "tls.cert_invalid";
+    pub const CRYPTO_OPERATION_FAILED: &amp;str = "crypto.operation_failed";
+    
+    // Resource exhaustion
+    pub const MEMORY_PRESSURE: &amp;str = "resource.memory_pressure";
+    pub const TASK_TIMEOUT: &amp;str = "resource.task_timeout";
+}
+<span class="boring">}</span></code></pre>
+<h3 id="1944-health-checks-and-metrics"><a class="header" href="#1944-health-checks-and-metrics">19.4.4 Health Checks and Metrics</a></h3>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>// src/metrics.rs
+use std::sync::atomic::{AtomicU64, Ordering};
+
+pub struct ServerMetrics {
+    pub connections_accepted: AtomicU64,
+    pub connections_rejected: AtomicU64,
+    pub messages_processed: AtomicU64,
+    pub errors: AtomicU64,
+    pub auth_failures: AtomicU64,
+    pub rate_limits_triggered: AtomicU64,
+}
+
+impl ServerMetrics {
+    pub fn new() -&gt; Self {
+        ServerMetrics {
+            connections_accepted: AtomicU64::new(0),
+            connections_rejected: AtomicU64::new(0),
+            messages_processed: AtomicU64::new(0),
+            errors: AtomicU64::new(0),
+            auth_failures: AtomicU64::new(0),
+            rate_limits_triggered: AtomicU64::new(0),
+        }
+    }
+    
+    pub fn snapshot(&amp;self) -&gt; MetricsSnapshot {
+        MetricsSnapshot {
+            connections_accepted: self.connections_accepted.load(Ordering::Relaxed),
+            connections_rejected: self.connections_rejected.load(Ordering::Relaxed),
+            messages_processed: self.messages_processed.load(Ordering::Relaxed),
+            errors: self.errors.load(Ordering::Relaxed),
+            auth_failures: self.auth_failures.load(Ordering::Relaxed),
+            rate_limits_triggered: self.rate_limits_triggered.load(Ordering::Relaxed),
+        }
+    }
+}
+
+pub struct MetricsSnapshot {
+    pub connections_accepted: u64,
+    pub connections_rejected: u64,
+    pub messages_processed: u64,
+    pub errors: u64,
+    pub auth_failures: u64,
+    pub rate_limits_triggered: u64,
+}
+<span class="boring">}</span></code></pre>
+<h2 id="195-secret-management-in-production"><a class="header" href="#195-secret-management-in-production">19.5 Secret Management in Production</a></h2>
+<h3 id="1951-environment-variables"><a class="header" href="#1951-environment-variables">19.5.1 Environment Variables</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::companion::ch19_hardening as ch19_hardening;
+</span><span class="boring">use ch19_hardening::secrets::SecretError;
+</span><span class="boring">use rust_secure_systems_book::deps::hex as hex;
+</span><span class="boring">use rust_secure_systems_book::deps::zeroize as zeroize;
+</span>use std::env;
+use zeroize::Zeroize;
+
+fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
+    let mut value = env::var(key).map_err(|_| SecretError::NotFound(key.to_string()))?;
+    let decoded = hex::decode(&amp;value).map_err(|_| SecretError::InvalidFormat);
+    value.zeroize();
+    decoded
+}
+<span class="boring">}</span></code></pre>
+<p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
+<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux and can leak through process listing. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.</p>
+<h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span>use std::fs::File;
+use std::io::Read;
+<span class="boring">use rust_secure_systems_book::companion::ch19_hardening as ch19_hardening;
+</span><span class="boring">use ch19_hardening::secrets::SecretError;
+</span>#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+fn load_secret_from_file(path: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
+    let mut file = File::open(path)?;
+
+    #[cfg(unix)]
+    {
+        // Validate the already-open handle to avoid a path-swap race.
+        let metadata = file.metadata()?;
+        let mode = metadata.permissions().mode();
+        if mode &amp; 0o077 != 0 {
+            return Err(SecretError::InsecurePermissions {
+                path: path.to_string(),
+                mode: format!("{:o}", mode &amp; 0o777),
+            });
+        }
+    }
+
+    let mut data = Vec::new();
+    file.read_to_end(&amp;mut data)?;
+    Ok(data)
+}
+<span class="boring">}</span></code></pre>
+<p>This pattern avoids a TOCTOU race on Unix by validating permissions on the same opened file handle that is later read. On Windows, <code>std</code> does not expose DACL inspection, so prefer Credential Manager, DPAPI, or a dedicated secret store, or validate ACLs with platform APIs before relying on raw secret files.</p>
+<p>🔒 <strong>Security practice</strong>: On Unix, secret files should usually be mode <code>0400</code> or <code>0600</code> and owned by the service user.</p>
+<h3 id="1953-vault-integration-hashicorp-vault-aws-secrets-manager"><a class="header" href="#1953-vault-integration-hashicorp-vault-aws-secrets-manager">19.5.3 Vault Integration (HashiCorp Vault, AWS Secrets Manager)</a></h3>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::companion::ch19_hardening as ch19_hardening;
+</span><span class="boring">use ch19_hardening::secrets::SecretError;
+</span>use std::future::Future;
+
+async fn load_from_vault&lt;F, Fut&gt;(
+    secret_id: &amp;str,
+    fetch_secret: F,
+) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt;
+where
+    F: FnOnce(&amp;str) -&gt; Fut,
+    Fut: Future&lt;Output = Result&lt;Option&lt;String&gt;, SecretError&gt;&gt;,
+{
+    let secret_string = fetch_secret(secret_id)
+        .await?
+        .ok_or_else(|| SecretError::NotFound(secret_id.to_string()))?;
+
+    Ok(secret_string.into_bytes())
+}
+<span class="boring">}</span></code></pre>
+<h2 id="196-os-level-hardening"><a class="header" href="#196-os-level-hardening">19.6 OS-Level Hardening</a></h2>
+<h3 id="1961-systemd-service-hardening"><a class="header" href="#1961-systemd-service-hardening">19.6.1 systemd Service Hardening</a></h3>
+<p>For Linux deployments using systemd, apply security directives to restrict the service at the OS level:</p>
+<pre><code class="language-ini"># /etc/systemd/system/secure-server.service
+[Unit]
+Description=Secure Rust Server
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/secure-server
+Restart=on-failure
+RestartSec=5
+
+# Run as a dedicated non-root user
+User=secure-server
+Group=secure-server
+
+# Sandbox directives
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+
+# Restrict filesystem access
+ReadWritePaths=/var/lib/secure-server /var/log/secure-server
+ReadOnlyPaths=/etc/secure-server/config.toml
+
+# Restrict address families used by the service
+# This does not restrict specific port numbers.
+# Requires systemd 235+
+RestrictAddressFamilies=AF_INET AF_INET6
+
+# System call filtering
+SystemCallFilter=@system-service
+SystemCallFilter=~@mount @privileged @reboot @swap
+SystemCallArchitectures=native
+
+# Resource limits
+LimitNOFILE=4096
+MemoryMax=512M
+TasksMax=50
+CPUWeight=50
+
+# Environment
+Environment=RUST_LOG=info
+Environment=TLS_CERT_PATH=/etc/secure-server/server.crt
+Environment=TLS_KEY_PATH=/etc/secure-server/server.key
+
+[Install]
+WantedBy=multi-user.target
+</code></pre>
+<p>If you need to restrict the service to specific listen ports, combine
+<code>RestrictAddressFamilies=</code> with socket activation, container/network policy, or
+host firewall rules. Address-family filtering alone is not a port-level control.</p>
+<p>🔒 <strong>Security features</strong>:</p>
+<ol>
+<li><strong>NoNewPrivileges</strong>: Prevents the process from gaining additional privileges via setuid/setgid.</li>
+<li><strong>ProtectSystem=strict</strong>: Makes the entire filesystem read-only except explicitly listed paths.</li>
+<li><strong>PrivateTmp</strong>: Gives the service its own private <code>/tmp</code> directory.</li>
+<li><strong>RestrictAddressFamilies</strong>: Limits the service to IPv4/IPv6 sockets, reducing the reachable kernel API surface.</li>
+<li><strong>SystemCallFilter</strong>: Restricts system calls — even arbitrary code execution is limited.</li>
+<li><strong>MemoryMax/TasksMax</strong>: Prevents resource exhaustion from affecting the rest of the system.</li>
+</ol>
+<p>Verify the hardening is effective:</p>
+<pre><code class="language-bash"># Check the security properties of a running service
+systemd-analyze security secure-server
+
+# Expected output:
+# NAME                                  DESCRIPTION
+ # ...
+# Overall exposure level for secure-server: 0.2 LOW
+</code></pre>
+<h3 id="1962-apparmor--selinux-profiles"><a class="header" href="#1962-apparmor--selinux-profiles">19.6.2 AppArmor / SELinux Profiles</a></h3>
+<p>For additional Mandatory Access Control (MAC), create an AppArmor profile:</p>
+<pre><code class="language-bash"># Generate a baseline profile
+aa-genprof /usr/local/bin/secure-server
+
+# The profile restricts:
+# - Which files can be read/written
+# - Which network ports can be bound/connected
+# - Which capabilities can be used
+# - Which syscalls are permitted
+</code></pre>
+<p>An example AppArmor profile:</p>
+<pre><code class="language-ini">#include &lt;tunables/global&gt;
+/usr/local/bin/secure-server {
+  #include &lt;abstractions/base&gt;
+  
+  # Network: allow IPv4/IPv6 TCP sockets.
+  # Use host firewall rules, socket activation, or container policy to pin this
+  # to port 8443.
+  network inet tcp,
+  network inet6 tcp,
+  
+  # Read config and certs
+  /etc/secure-server/* r,
+  
+  # Write logs
+  /var/log/secure-server/* rw,
+  
+  # Data directory
+  /var/lib/secure-server/** rw,
+  
+  # Deny everything else
+  deny /** w,
+  deny /** l,
+}
+</code></pre>
+<p>🔒 <strong>Security practice</strong>: Use at least one layer of MAC (systemd sandboxing, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
+<h2 id="197-release-checklist"><a class="header" href="#197-release-checklist">19.7 Release Checklist</a></h2>
+<p>Before deploying a Rust application to production:</p>
+<h3 id="build-verification"><a class="header" href="#build-verification">Build Verification</a></h3>
+<ul>
+<li><input disabled="" type="checkbox"> Build with <code>cargo build --release</code> using hardened flags</li>
+<li><input disabled="" type="checkbox"> Verify binary hardening (checksec: RELRO, NX, PIE, and canary status for any C/C++ objects)</li>
+<li><input disabled="" type="checkbox"> Run full test suite (<code>cargo test --all-features</code>)</li>
+<li><input disabled="" type="checkbox"> Run clippy with security lints (<code>cargo clippy -- -W clippy::unwrap_used</code>)</li>
+<li><input disabled="" type="checkbox"> Run <code>cargo audit</code> — no known vulnerabilities</li>
+<li><input disabled="" type="checkbox"> Run <code>cargo deny check</code> — all policies pass</li>
+<li><input disabled="" type="checkbox"> Run fuzzing targets (at least 1 hour each)</li>
+</ul>
+<h3 id="binary-verification"><a class="header" href="#binary-verification">Binary Verification</a></h3>
+<ul>
+<li><input disabled="" type="checkbox"> Binary is stripped (no debug symbols in production)</li>
+<li><input disabled="" type="checkbox"> Binary size is reasonable (no unexpectedly large binary)</li>
+<li><input disabled="" type="checkbox"> <code>overflow-checks = true</code> enabled in release profile</li>
+<li><input disabled="" type="checkbox"> Static linking for musl (fully static binary) or verified shared library versions</li>
+</ul>
+<h3 id="deployment-verification"><a class="header" href="#deployment-verification">Deployment Verification</a></h3>
+<ul>
+<li><input disabled="" type="checkbox"> Container uses distroless or minimal base image</li>
+<li><input disabled="" type="checkbox"> Runs as non-root user</li>
+<li><input disabled="" type="checkbox"> Read-only filesystem with writable tmpfs</li>
+<li><input disabled="" type="checkbox"> Seccomp profile applied</li>
+<li><input disabled="" type="checkbox"> All capabilities dropped except required ones</li>
+<li><input disabled="" type="checkbox"> Resource limits set (CPU, memory)</li>
+</ul>
+<h3 id="runtime-verification"><a class="header" href="#runtime-verification">Runtime Verification</a></h3>
+<ul>
+<li><input disabled="" type="checkbox"> Structured logging enabled</li>
+<li><input disabled="" type="checkbox"> Security metrics exported (prometheus, cloudwatch, etc.)</li>
+<li><input disabled="" type="checkbox"> Health check endpoint available</li>
+<li><input disabled="" type="checkbox"> Alerting configured for auth failures, rate limits, errors</li>
+<li><input disabled="" type="checkbox"> TLS certificates valid and monitored for expiry</li>
+</ul>
+<h3 id="documentation"><a class="header" href="#documentation">Documentation</a></h3>
+<ul>
+<li><input disabled="" type="checkbox"> Security policy documented (<code>SECURITY.md</code>)</li>
+<li><input disabled="" type="checkbox"> Threat model documented</li>
+<li><input disabled="" type="checkbox"> Incident response plan in place</li>
+<li><input disabled="" type="checkbox"> Dependency list (SBOM) generated and archived</li>
+</ul>
+<h2 id="198-summary"><a class="header" href="#198-summary">19.8 Summary</a></h2>
+<ul>
+<li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>
+<li>Use multi-stage Docker builds with distroless base images.</li>
+<li>Run as non-root with minimal capabilities and seccomp filtering.</li>
+<li>Verify hardening with <code>checksec</code> or manual checks.</li>
+<li>Load secrets from vaults or permission-restricted files, never hardcode.</li>
+<li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
+<li>Integrate logs with a SIEM for automated alerting on security events.</li>
+<li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>
+<li>Follow the release checklist for every production deployment.</li>
+</ul>
+<p>This concludes the book. You now have the knowledge and practical skills to write secure systems software in Rust—from the language fundamentals through production deployment. The security landscape evolves constantly; continue learning, continue auditing, and continue building systems that are secure by design.</p>
+<h2 id="199-exercises"><a class="header" href="#199-exercises">19.9 Exercises</a></h2>
+<ol>
+<li>
+<p><strong>Hardened Build Pipeline</strong>: Set up a complete hardened build pipeline for one of the projects from Chapters 17 or 18: configure <code>.cargo/config.toml</code> with all hardening flags, verify the binary with <code>checksec</code> (Linux) or <code>Dumpbin /headers</code> (Windows), build a distroless Docker image, and run it with all capabilities dropped. Document each step and its security benefit.</p>
+</li>
+<li>
+<p><strong>systemd Service Unit</strong>: Write a systemd service unit for the Chapter 17 TCP server with all the sandboxing directives from §19.6.1. Deploy it on a Linux VM, run <code>systemd-analyze security</code> to check the exposure score, and attempt an escape (e.g., try to write to <code>/etc</code>, try to load a kernel module). Verify each attempt is blocked.</p>
+</li>
+<li>
+<p><strong>Incident Response Drill</strong>: Simulate a security incident: deliberately introduce a vulnerability into one of the chapter projects (e.g., a <code>panic!</code> in a network handler, or a logging statement that leaks a secret). Deploy the service, trigger the vulnerability, and use the structured logs and metrics to: (a) detect the incident, (b) identify the affected component, (c) trace the timeline. Write an incident report.</p>
+</li>
+</ol>
+<hr>
+<h2 id="appendix-a-recommended-reading"><a class="header" href="#appendix-a-recommended-reading">Appendix A: Recommended Reading</a></h2>
+<ul>
+<li><strong>The Rust Programming Language</strong> (Klabnik &amp; Nichols): Official Rust book</li>
+<li><strong>Rust for Rustaceans</strong> (Jon Gjengset): Advanced Rust patterns</li>
+<li><strong>Rust in Action</strong> (Tim McNamara): Systems programming with Rust</li>
+<li><strong>The CERT C Secure Coding Standard</strong>: Security patterns that apply universally</li>
+<li><strong>OWASP Application Security Verification Standard (ASVS)</strong>: Security requirements</li>
+<li><strong>MITRE CWE Database</strong>: Comprehensive weakness enumeration</li>
+</ul>
+<h2 id="appendix-b-essential-crates-for-security"><a class="header" href="#appendix-b-essential-crates-for-security">Appendix B: Essential Crates for Security</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Crate</th><th>Purpose</th><th>Trust Level</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ring</code></td><td>Cryptography</td><td>High (BoringSSL-derived, audited)</td></tr>
+<tr><td><code>rustls</code></td><td>TLS</td><td>High (memory-safe, audited)</td></tr>
+<tr><td><code>serde</code></td><td>Serialization</td><td>High (rust-lang org)</td></tr>
+<tr><td><code>zeroize</code></td><td>Memory wiping</td><td>High (widely audited)</td></tr>
+<tr><td><code>secrecy</code></td><td>Secret encapsulation</td><td>High</td></tr>
+<tr><td><code>thiserror</code></td><td>Error types</td><td>High</td></tr>
+<tr><td><code>proptest</code></td><td>Property testing</td><td>High</td></tr>
+<tr><td><code>tokio</code></td><td>Async runtime</td><td>High</td></tr>
+<tr><td><code>tracing</code></td><td>Structured logging</td><td>High</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="appendix-c-security-audit-resources"><a class="header" href="#appendix-c-security-audit-resources">Appendix C: Security Audit Resources</a></h2>
+<ul>
+<li><strong>RustSec Advisory Database</strong>: https://rustsec.org/</li>
+<li><strong>Clippy Lint List</strong>: https://rust-lang.github.io/rust-clippy/master/</li>
+<li><strong>Miri Documentation</strong>: https://github.com/rust-lang/miri</li>
+<li><strong>cargo-geiger</strong>: https://github.com/rust-secure-code/cargo-geiger</li>
+<li><strong>cargo-vet</strong>: https://mozilla.github.io/cargo-vet/</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../part5/ch18-parser.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../part5/ch18-parser.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

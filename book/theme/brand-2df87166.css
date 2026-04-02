@@ -1,0 +1,45 @@
+.book-masthead {
+    margin: 1rem 0 2rem;
+    padding: 1.25rem 1.4rem;
+    border: 1px solid var(--theme-popup-border);
+    border-radius: 14px;
+    background:
+        linear-gradient(135deg, rgba(0, 150, 207, 0.18), rgba(0, 150, 207, 0.04)),
+        var(--quote-bg);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+}
+
+.book-masthead p {
+    margin: 0;
+}
+
+.book-masthead__eyebrow {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.78rem;
+    color: var(--sidebar-active);
+}
+
+.book-masthead__author {
+    margin-top: 0.45rem;
+    font-size: 1.4rem;
+}
+
+.book-masthead__meta {
+    margin-top: 0.55rem;
+    color: var(--sidebar-fg);
+}
+
+.book-masthead__meta a {
+    font-weight: 600;
+}
+
+@media (max-width: 700px) {
+    .book-masthead {
+        padding: 1rem 1.05rem;
+    }
+
+    .book-masthead__author {
+        font-size: 1.2rem;
+    }
+}
