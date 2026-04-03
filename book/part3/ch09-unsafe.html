@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5f8c8b06.js";
+            window.path_to_searchindex_js = "../searchindex-6232f64b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -361,6 +361,37 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
+<h3 id="934-unsafecellt-is-the-foundation-of-interior-mutability"><a class="header" href="#934-unsafecellt-is-the-foundation-of-interior-mutability">9.3.4 <code>UnsafeCell&lt;T&gt;</code> Is the Foundation of Interior Mutability</a></h3>
+<p>If shared state can be mutated through a shared reference, the storage must live inside <code>UnsafeCell&lt;T&gt;</code> (or a safe abstraction built on top of it, such as <code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>, or atomics):</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::cell::UnsafeCell;
+
+pub struct SecretBox {
+    bytes: UnsafeCell&lt;[u8; 32]&gt;,
+}
+
+impl SecretBox {
+    pub fn new(bytes: [u8; 32]) -&gt; Self {
+        Self {
+            bytes: UnsafeCell::new(bytes),
+        }
+    }
+
+    pub fn with_bytes&lt;R&gt;(&amp;self, f: impl FnOnce(*mut [u8; 32]) -&gt; R) -&gt; R {
+        f(self.bytes.get())
+    }
+}
+<span class="boring">}</span></code></pre>
+<p><code>UnsafeCell</code> only opts out of Rust’s usual “shared references are immutable” rule. It does <strong>not</strong> provide synchronization by itself. If the value is shared across threads, you still need a sound synchronization strategy.</p>
+<h3 id="935-pointer-provenance-still-matters"><a class="header" href="#935-pointer-provenance-still-matters">9.3.5 Pointer Provenance Still Matters</a></h3>
+<p>Raw pointers are not just integer addresses; they are expected to be derived from the live allocation they access. In practice, that means:</p>
+<ul>
+<li>Derive pointers from real references or existing raw pointers (<code>as_ptr</code>, <code>as_mut_ptr</code>, <code>addr_of!</code>, <code>NonNull</code>).</li>
+<li>Keep pointer arithmetic within the original allocation.</li>
+<li>Do not reconstruct pointers from guessed integers and assume they are valid to dereference.</li>
+</ul>
+<p>The exact formal model continues to evolve, but the review rule is stable: if a pointer did not come from the allocation it is used on, treat the code as suspect.</p>
 <h2 id="94-common-unsafe-patterns-and-pitfalls"><a class="header" href="#94-common-unsafe-patterns-and-pitfalls">9.4 Common Unsafe Patterns and Pitfalls</a></h2>
 <h3 id="941-raw-pointer-dereferencing"><a class="header" href="#941-raw-pointer-dereferencing">9.4.1 Raw Pointer Dereferencing</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -489,7 +520,9 @@ unsafe fn process_raw(ptr: *const u8) -&gt; u8 {
 <li><input disabled="" type="checkbox"> <strong>Bounds</strong>: Is all pointer arithmetic within allocated bounds?</li>
 <li><input disabled="" type="checkbox"> <strong>Alignment</strong>: Are pointer casts properly aligned?</li>
 <li><input disabled="" type="checkbox"> <strong>Alias</strong>: Are mutable references unique? No concurrent <code>&amp;mut</code>?</li>
+<li><input disabled="" type="checkbox"> <strong>Interior mutability</strong>: Is shared mutation routed through <code>UnsafeCell</code> or a sound primitive built on it?</li>
 <li><input disabled="" type="checkbox"> <strong>Initialization</strong>: Is all read memory initialized?</li>
+<li><input disabled="" type="checkbox"> <strong>Provenance</strong>: Are raw pointers derived from the live allocation they access?</li>
 <li><input disabled="" type="checkbox"> <strong>Thread safety</strong>: Is shared state properly synchronized?</li>
 <li><input disabled="" type="checkbox"> <strong>Lifetime</strong>: Do references not outlive the data they point to?</li>
 <li><input disabled="" type="checkbox"> <strong>Soundness</strong>: Can safe code cause UB through this abstraction?</li>
@@ -595,6 +628,8 @@ fn test_atomic_counter() {
 <li><code>unsafe</code> allows five specific operations that bypass safety checks.</li>
 <li>The soundness contract: safe code must never cause UB through your unsafe abstraction.</li>
 <li>Minimize <code>unsafe</code> scope, document safety invariants, wrap in safe APIs.</li>
+<li><code>UnsafeCell</code> is the only legal foundation for interior mutability; it does not replace synchronization.</li>
+<li>Raw-pointer provenance matters: derive pointers from real allocations, not guessed addresses.</li>
 <li>Use <code>MaybeUninit</code> instead of <code>zeroed()</code> for uninitialized memory.</li>
 <li>Avoid <code>transmute</code>; use safe alternatives.</li>
 <li><strong>Use Miri</strong> to detect UB in unsafe code, <strong>Loom</strong> to test concurrent data structures, and <strong>Prusti</strong> for formal verification when mathematical guarantees are required.</li>

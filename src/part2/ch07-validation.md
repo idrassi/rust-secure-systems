@@ -151,8 +151,9 @@ pub enum ValidationError {
     DangerousCharacter,
 }
 
-/// Sanitize for shell argument usage (but prefer avoiding shell entirely)
-pub fn sanitize_shell_arg(input: &str) -> Result<String, ValidationError> {
+/// Quote one argument for a POSIX shell command line.
+/// This is illustrative only; quoting rules differ across shells.
+pub fn sanitize_posix_shell_arg(input: &str) -> Result<String, ValidationError> {
     if input.contains('\0') {
         return Err(ValidationError::NullByte);
     }
@@ -166,6 +167,8 @@ pub fn sanitize_shell_arg(input: &str) -> Result<String, ValidationError> {
     Ok(format!("'{}'", escaped))
 }
 ```
+
+⚠️ **Scope warning**: This helper only models POSIX-style single-quote escaping for cases like `sh -c ...`. It is **not** a general shell-safety API and it is **not** correct for PowerShell or `cmd.exe`.
 
 ⚠️ **Best practice**: Avoid shell escaping entirely. Use `std::process::Command` with explicit argument vectors:
 
@@ -295,17 +298,34 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 fn is_public_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
+            let [a, b, _, _] = v4.octets();
             !(v4.is_private()
                 || v4.is_loopback()
                 || v4.is_link_local()
+                || v4.is_multicast()
                 || v4 == Ipv4Addr::BROADCAST
                 || v4.is_documentation()
-                || v4.is_unspecified())
+                || v4.is_unspecified()
+                // Carrier-grade NAT: 100.64.0.0/10
+                || (a == 100 && (64..=127).contains(&b))
+                // Benchmarking: 198.18.0.0/15
+                || (a == 198 && (b == 18 || b == 19))
+                // Reserved/experimental and "this network"
+                || a == 0
+                || a >= 240)
         }
         IpAddr::V6(v6) => {
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(mapped));
+            }
+
+            let segments = v6.segments();
             !(v6.is_loopback()
                 || v6.is_unique_local()
+                || v6.is_unicast_link_local()
                 || v6.is_multicast()
+                // Documentation prefix: 2001:db8::/32
+                || (segments[0] == 0x2001 && segments[1] == 0x0db8)
                 || v6.is_unspecified()
                 || v6 == Ipv6Addr::LOCALHOST)
         }
@@ -314,6 +334,8 @@ fn is_public_ip(ip: IpAddr) -> bool {
 ```
 
 Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a "valid" hostname into access to internal services.
+
+This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.
 
 ## 7.3 Validation for Protocol Parsing
 

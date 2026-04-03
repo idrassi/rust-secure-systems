@@ -25,6 +25,8 @@ opt-level = "z"              # Optimize for size (smaller binary, better cache b
 # debug = 1                  # Use this only when shipping an unstripped artifact
 ```
 
+`panic = "abort"` is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips `Drop` on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.
+
 ### 19.1.2 Linker Hardening Flags
 
 ```toml
@@ -563,6 +565,8 @@ fn load_secret(key: &str) -> Result<Vec<u8>, SecretError> {
 The companion implementation uses this exact pattern in `companion/ch19-hardening/src/secrets.rs`, so the secret buffer is zeroized on both success and decode failure.
 
 For long-lived secrets such as TLS private keys, pair zeroization with page locking (`mlock`/`VirtualLock`) when the platform allows it so the secret is less likely to be swapped to disk.
+
+If you also compile with `panic = "abort"`, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.
 
 ⚠️ **Limitation**: Environment variables are visible in `/proc/<pid>/environ` on Linux and can leak through process listing. In Edition 2024, mutating the process environment with `std::env::set_var` or `std::env::remove_var` is `unsafe`, so "read then delete" is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.
 

@@ -194,6 +194,42 @@ impl<T> Drop for RawVec<T> {
 }
 ```
 
+### 9.3.4 `UnsafeCell<T>` Is the Foundation of Interior Mutability
+
+If shared state can be mutated through a shared reference, the storage must live inside `UnsafeCell<T>` (or a safe abstraction built on top of it, such as `Cell`, `RefCell`, `Mutex`, or atomics):
+
+```rust
+use std::cell::UnsafeCell;
+
+pub struct SecretBox {
+    bytes: UnsafeCell<[u8; 32]>,
+}
+
+impl SecretBox {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self {
+            bytes: UnsafeCell::new(bytes),
+        }
+    }
+
+    pub fn with_bytes<R>(&self, f: impl FnOnce(*mut [u8; 32]) -> R) -> R {
+        f(self.bytes.get())
+    }
+}
+```
+
+`UnsafeCell` only opts out of Rust's usual "shared references are immutable" rule. It does **not** provide synchronization by itself. If the value is shared across threads, you still need a sound synchronization strategy.
+
+### 9.3.5 Pointer Provenance Still Matters
+
+Raw pointers are not just integer addresses; they are expected to be derived from the live allocation they access. In practice, that means:
+
+- Derive pointers from real references or existing raw pointers (`as_ptr`, `as_mut_ptr`, `addr_of!`, `NonNull`).
+- Keep pointer arithmetic within the original allocation.
+- Do not reconstruct pointers from guessed integers and assume they are valid to dereference.
+
+The exact formal model continues to evolve, but the review rule is stable: if a pointer did not come from the allocation it is used on, treat the code as suspect.
+
 ## 9.4 Common Unsafe Patterns and Pitfalls
 
 ### 9.4.1 Raw Pointer Dereferencing
@@ -343,7 +379,9 @@ When reviewing `unsafe` code, verify:
 - [ ] **Bounds**: Is all pointer arithmetic within allocated bounds?
 - [ ] **Alignment**: Are pointer casts properly aligned?
 - [ ] **Alias**: Are mutable references unique? No concurrent `&mut`?
+- [ ] **Interior mutability**: Is shared mutation routed through `UnsafeCell` or a sound primitive built on it?
 - [ ] **Initialization**: Is all read memory initialized?
+- [ ] **Provenance**: Are raw pointers derived from the live allocation they access?
 - [ ] **Thread safety**: Is shared state properly synchronized?
 - [ ] **Lifetime**: Do references not outlive the data they point to?
 - [ ] **Soundness**: Can safe code cause UB through this abstraction?
@@ -461,6 +499,8 @@ Prusti is still research-grade but is maturing rapidly. For security-critical co
 - `unsafe` allows five specific operations that bypass safety checks.
 - The soundness contract: safe code must never cause UB through your unsafe abstraction.
 - Minimize `unsafe` scope, document safety invariants, wrap in safe APIs.
+- `UnsafeCell` is the only legal foundation for interior mutability; it does not replace synchronization.
+- Raw-pointer provenance matters: derive pointers from real allocations, not guessed addresses.
 - Use `MaybeUninit` instead of `zeroed()` for uninitialized memory.
 - Avoid `transmute`; use safe alternatives.
 - **Use Miri** to detect UB in unsafe code, **Loom** to test concurrent data structures, and **Prusti** for formal verification when mathematical guarantees are required.

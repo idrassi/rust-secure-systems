@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5f8c8b06.js";
+            window.path_to_searchindex_js = "searchindex-6232f64b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -2075,6 +2075,50 @@ impl AtomicCounter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security note</strong>: Use <code>Ordering::SeqCst</code> (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.</p>
+<h3 id="624-oncelockt-and-lazylockt---one-time-initialization"><a class="header" href="#624-oncelockt-and-lazylockt---one-time-initialization">6.2.4 <code>OnceLock&lt;T&gt;</code> and <code>LazyLock&lt;T&gt;</code> - One-Time Initialization</a></h3>
+<p>For lazily initialized shared state, prefer the standard library primitives over ad hoc double-checked locking:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::sync::{LazyLock, OnceLock};
+
+static TRUST_ANCHORS: OnceLock&lt;Vec&lt;&amp;'static str&gt;&gt; = OnceLock::new();
+static ALLOWED_ALGORITHMS: LazyLock&lt;Vec&lt;&amp;'static str&gt;&gt; =
+    LazyLock::new(|| vec!["ed25519", "x25519"]);
+
+fn trust_anchors() -&gt; &amp;'static [&amp;'static str] {
+    TRUST_ANCHORS.get_or_init(|| vec!["Corp Root CA", "Offline Recovery CA"])
+}
+<span class="boring">}</span></code></pre>
+<p><code>OnceLock</code> is ideal for values loaded once from configuration, certificates, or policy files. <code>LazyLock</code> is convenient when the initializer is fixed at compile time. Both avoid races around first-use initialization without needing an external crate.</p>
+<h3 id="625-condvar---wait-for-state-changes-without-spinning"><a class="header" href="#625-condvar---wait-for-state-changes-without-spinning">6.2.5 <code>Condvar</code> - Wait for State Changes Without Spinning</a></h3>
+<p>Use a condition variable when threads must sleep until a predicate becomes true:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::collections::VecDeque;
+use std::sync::{Condvar, Mutex};
+
+struct Queue {
+    items: Mutex&lt;VecDeque&lt;Vec&lt;u8&gt;&gt;&gt;,
+    available: Condvar,
+}
+
+impl Queue {
+    fn push(&amp;self, item: Vec&lt;u8&gt;) {
+        let mut items = self.items.lock().unwrap();
+        items.push_back(item);
+        self.available.notify_one();
+    }
+
+    fn pop(&amp;self) -&gt; Vec&lt;u8&gt; {
+        let mut items = self.items.lock().unwrap();
+        while items.is_empty() {
+            items = self.available.wait(items).unwrap();
+        }
+        items.pop_front().unwrap()
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Always wait in a <code>while</code> loop, not an <code>if</code>, because wakeups can be spurious and another thread may consume the resource before the current thread reacquires the lock.</p>
 <h2 id="63-message-passing-with-channels"><a class="header" href="#63-message-passing-with-channels">6.3 Message Passing with Channels</a></h2>
 <p>Rust’s channel API encourages a “do not communicate by sharing memory; share memory by communicating” approach:</p>
 <pre class="playground"><code class="language-rust edition2024">use std::sync::mpsc;
@@ -2474,6 +2518,8 @@ int main() {
 <li><code>Send</code> and <code>Sync</code> traits enforce thread safety at compile time.</li>
 <li><code>Mutex&lt;T&gt;</code> and <code>RwLock&lt;T&gt;</code> provide RAII-based locking that never forgets to unlock.</li>
 <li>Atomics provide lock-free patterns; use <code>SeqCst</code> ordering unless you can prove weaker is safe.</li>
+<li><code>OnceLock</code> and <code>LazyLock</code> provide race-free one-time initialization for shared security state.</li>
+<li><code>Condvar</code> lets threads wait on predicates without busy-waiting; always re-check the condition in a loop.</li>
 <li>Channels enable message-passing concurrency; prefer bounded channels to prevent memory exhaustion.</li>
 <li>Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks—use consistent lock ordering.</li>
 <li>Async/await is efficient for I/O-bound workloads; understand the differences between sync and async mutexes.</li>
@@ -2636,8 +2682,9 @@ pub enum ValidationError {
     DangerousCharacter,
 }
 
-/// Sanitize for shell argument usage (but prefer avoiding shell entirely)
-pub fn sanitize_shell_arg(input: &amp;str) -&gt; Result&lt;String, ValidationError&gt; {
+/// Quote one argument for a POSIX shell command line.
+/// This is illustrative only; quoting rules differ across shells.
+pub fn sanitize_posix_shell_arg(input: &amp;str) -&gt; Result&lt;String, ValidationError&gt; {
     if input.contains('\0') {
         return Err(ValidationError::NullByte);
     }
@@ -2651,6 +2698,7 @@ pub fn sanitize_shell_arg(input: &amp;str) -&gt; Result&lt;String, ValidationErr
     Ok(format!("'{}'", escaped))
 }
 <span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Scope warning</strong>: This helper only models POSIX-style single-quote escaping for cases like <code>sh -c ...</code>. It is <strong>not</strong> a general shell-safety API and it is <strong>not</strong> correct for PowerShell or <code>cmd.exe</code>.</p>
 <p>⚠️ <strong>Best practice</strong>: Avoid shell escaping entirely. Use <code>std::process::Command</code> with explicit argument vectors:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -2769,17 +2817,34 @@ pub fn parse_size(input: &amp;str) -&gt; Result&lt;usize, ValidationError&gt; {
 fn is_public_ip(ip: IpAddr) -&gt; bool {
     match ip {
         IpAddr::V4(v4) =&gt; {
+            let [a, b, _, _] = v4.octets();
             !(v4.is_private()
                 || v4.is_loopback()
                 || v4.is_link_local()
+                || v4.is_multicast()
                 || v4 == Ipv4Addr::BROADCAST
                 || v4.is_documentation()
-                || v4.is_unspecified())
+                || v4.is_unspecified()
+                // Carrier-grade NAT: 100.64.0.0/10
+                || (a == 100 &amp;&amp; (64..=127).contains(&amp;b))
+                // Benchmarking: 198.18.0.0/15
+                || (a == 198 &amp;&amp; (b == 18 || b == 19))
+                // Reserved/experimental and "this network"
+                || a == 0
+                || a &gt;= 240)
         }
         IpAddr::V6(v6) =&gt; {
+            if let Some(mapped) = v6.to_ipv4_mapped() {
+                return is_public_ip(IpAddr::V4(mapped));
+            }
+
+            let segments = v6.segments();
             !(v6.is_loopback()
                 || v6.is_unique_local()
+                || v6.is_unicast_link_local()
                 || v6.is_multicast()
+                // Documentation prefix: 2001:db8::/32
+                || (segments[0] == 0x2001 &amp;&amp; segments[1] == 0x0db8)
                 || v6.is_unspecified()
                 || v6 == Ipv6Addr::LOCALHOST)
         }
@@ -2787,6 +2852,7 @@ fn is_public_ip(ip: IpAddr) -&gt; bool {
 }
 <span class="boring">}</span></code></pre>
 <p>Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a “valid” hostname into access to internal services.</p>
+<p>This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.</p>
 <h2 id="73-validation-for-protocol-parsing"><a class="header" href="#73-validation-for-protocol-parsing">7.3 Validation for Protocol Parsing</a></h2>
 <p>When implementing network protocols, validation is critical at every layer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3651,6 +3717,37 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
+<h3 id="934-unsafecellt-is-the-foundation-of-interior-mutability"><a class="header" href="#934-unsafecellt-is-the-foundation-of-interior-mutability">9.3.4 <code>UnsafeCell&lt;T&gt;</code> Is the Foundation of Interior Mutability</a></h3>
+<p>If shared state can be mutated through a shared reference, the storage must live inside <code>UnsafeCell&lt;T&gt;</code> (or a safe abstraction built on top of it, such as <code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>, or atomics):</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::cell::UnsafeCell;
+
+pub struct SecretBox {
+    bytes: UnsafeCell&lt;[u8; 32]&gt;,
+}
+
+impl SecretBox {
+    pub fn new(bytes: [u8; 32]) -&gt; Self {
+        Self {
+            bytes: UnsafeCell::new(bytes),
+        }
+    }
+
+    pub fn with_bytes&lt;R&gt;(&amp;self, f: impl FnOnce(*mut [u8; 32]) -&gt; R) -&gt; R {
+        f(self.bytes.get())
+    }
+}
+<span class="boring">}</span></code></pre>
+<p><code>UnsafeCell</code> only opts out of Rust’s usual “shared references are immutable” rule. It does <strong>not</strong> provide synchronization by itself. If the value is shared across threads, you still need a sound synchronization strategy.</p>
+<h3 id="935-pointer-provenance-still-matters"><a class="header" href="#935-pointer-provenance-still-matters">9.3.5 Pointer Provenance Still Matters</a></h3>
+<p>Raw pointers are not just integer addresses; they are expected to be derived from the live allocation they access. In practice, that means:</p>
+<ul>
+<li>Derive pointers from real references or existing raw pointers (<code>as_ptr</code>, <code>as_mut_ptr</code>, <code>addr_of!</code>, <code>NonNull</code>).</li>
+<li>Keep pointer arithmetic within the original allocation.</li>
+<li>Do not reconstruct pointers from guessed integers and assume they are valid to dereference.</li>
+</ul>
+<p>The exact formal model continues to evolve, but the review rule is stable: if a pointer did not come from the allocation it is used on, treat the code as suspect.</p>
 <h2 id="94-common-unsafe-patterns-and-pitfalls"><a class="header" href="#94-common-unsafe-patterns-and-pitfalls">9.4 Common Unsafe Patterns and Pitfalls</a></h2>
 <h3 id="941-raw-pointer-dereferencing"><a class="header" href="#941-raw-pointer-dereferencing">9.4.1 Raw Pointer Dereferencing</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3779,7 +3876,9 @@ unsafe fn process_raw(ptr: *const u8) -&gt; u8 {
 <li><input disabled="" type="checkbox"> <strong>Bounds</strong>: Is all pointer arithmetic within allocated bounds?</li>
 <li><input disabled="" type="checkbox"> <strong>Alignment</strong>: Are pointer casts properly aligned?</li>
 <li><input disabled="" type="checkbox"> <strong>Alias</strong>: Are mutable references unique? No concurrent <code>&amp;mut</code>?</li>
+<li><input disabled="" type="checkbox"> <strong>Interior mutability</strong>: Is shared mutation routed through <code>UnsafeCell</code> or a sound primitive built on it?</li>
 <li><input disabled="" type="checkbox"> <strong>Initialization</strong>: Is all read memory initialized?</li>
+<li><input disabled="" type="checkbox"> <strong>Provenance</strong>: Are raw pointers derived from the live allocation they access?</li>
 <li><input disabled="" type="checkbox"> <strong>Thread safety</strong>: Is shared state properly synchronized?</li>
 <li><input disabled="" type="checkbox"> <strong>Lifetime</strong>: Do references not outlive the data they point to?</li>
 <li><input disabled="" type="checkbox"> <strong>Soundness</strong>: Can safe code cause UB through this abstraction?</li>
@@ -3885,6 +3984,8 @@ fn test_atomic_counter() {
 <li><code>unsafe</code> allows five specific operations that bypass safety checks.</li>
 <li>The soundness contract: safe code must never cause UB through your unsafe abstraction.</li>
 <li>Minimize <code>unsafe</code> scope, document safety invariants, wrap in safe APIs.</li>
+<li><code>UnsafeCell</code> is the only legal foundation for interior mutability; it does not replace synchronization.</li>
+<li>Raw-pointer provenance matters: derive pointers from real allocations, not guessed addresses.</li>
 <li>Use <code>MaybeUninit</code> instead of <code>zeroed()</code> for uninitialized memory.</li>
 <li>Avoid <code>transmute</code>; use safe alternatives.</li>
 <li><strong>Use Miri</strong> to detect UB in unsafe code, <strong>Loom</strong> to test concurrent data structures, and <strong>Prusti</strong> for formal verification when mathematical guarantees are required.</li>
@@ -5709,6 +5810,23 @@ jobs:
           rustup component add miri --toolchain nightly
           cargo +nightly miri test
 </code></pre>
+<h3 id="1361-faster-more-isolated-runs-with-cargo-nextest"><a class="header" href="#1361-faster-more-isolated-runs-with-cargo-nextest">13.6.1 Faster, More Isolated Runs with <code>cargo-nextest</code></a></h3>
+<p><code>cargo test</code> is the baseline, but larger security suites often benefit from <code>cargo-nextest</code>:</p>
+<ul>
+<li>Better failure reporting and timeout handling</li>
+<li>Process-level isolation between tests</li>
+<li>Easier sharding across CI workers</li>
+</ul>
+<pre><code class="language-bash">cargo install cargo-nextest --locked
+cargo nextest run --workspace --all-features
+</code></pre>
+<p>For parser, auth, and protocol suites, this isolation helps catch hidden cross-test coupling and makes flaky failures easier to diagnose.</p>
+<h3 id="1362-coverage-reporting-with-cargo-llvm-cov"><a class="header" href="#1362-coverage-reporting-with-cargo-llvm-cov">13.6.2 Coverage Reporting with <code>cargo-llvm-cov</code></a></h3>
+<p>Coverage does not prove security, but it quickly shows which validation branches, parser error paths, and unsafe wrappers are still untested:</p>
+<pre><code class="language-bash">cargo install cargo-llvm-cov --locked
+cargo llvm-cov --workspace --all-features --html
+</code></pre>
+<p>Prioritize coverage review on authentication, parsing, deserialization, unsafe wrappers, and failure paths rather than chasing a global percentage.</p>
 <h2 id="137-summary"><a class="header" href="#137-summary">13.7 Summary</a></h2>
 <ul>
 <li>Write comprehensive unit tests for all security-critical functions.</li>
@@ -5720,6 +5838,8 @@ jobs:
 <li>Test unsafe code wrappers to ensure the safe interface prevents UB.</li>
 <li>Use doc tests for testable documentation.</li>
 <li>Run tests across stable, beta, and nightly with Miri for UB detection.</li>
+<li>Use <code>cargo-nextest</code> for faster, better-isolated CI runs on large suites.</li>
+<li>Use <code>cargo-llvm-cov</code> to find untested validation and error-handling paths.</li>
 </ul>
 <p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn’t think to test for.</p>
 <h2 id="138-exercises"><a class="header" href="#138-exercises">13.8 Exercises</a></h2>
@@ -6740,6 +6860,31 @@ jobs:
           cargo cyclonedx
 </code></pre>
 <p>Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.</p>
+<h3 id="1681-trusted-publishing-for-cratesio"><a class="header" href="#1681-trusted-publishing-for-cratesio">16.8.1 Trusted Publishing for crates.io</a></h3>
+<p>For release workflows, prefer crates.io Trusted Publishing via OpenID Connect (OIDC) instead of storing long-lived registry API tokens in CI secrets. crates.io supports trusted publishing from GitHub Actions and GitLab CI.</p>
+<pre><code class="language-yaml"># .github/workflows/publish.yml
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # reviewed snapshot
+        with:
+          toolchain: stable
+      - run: cargo publish --locked
+</code></pre>
+<p>Configure the trust relationship once in crates.io, then remove stored crates.io tokens from repository secrets. If your CI provider cannot use OIDC, prefer short-lived credentials issued by a secret manager over repository-scoped long-lived tokens.</p>
+<p>Keep dependency updates small and reviewable: enable Dependabot or Renovate for Rust crates, GitHub Actions, and container base images so that supply-chain changes arrive as normal code review.</p>
 <h2 id="169-summary"><a class="header" href="#169-summary">16.9 Summary</a></h2>
 <ul>
 <li>Evaluate every dependency for trustworthiness before adoption.</li>
@@ -6751,6 +6896,8 @@ jobs:
 <li>Build in sandboxed environments with <code>--frozen --offline</code>.</li>
 <li>Generate and maintain a Software Bill of Materials (SBOM).</li>
 <li>Implement supply chain security checks in CI/CD.</li>
+<li>Prefer Trusted Publishing (OIDC) over long-lived crates.io tokens in CI.</li>
+<li>Use automated update PRs so dependency drift is reviewed incrementally.</li>
 </ul>
 <p>In the next chapter, we begin Part V with a hands-on project: building a hardened TCP server that applies everything we’ve learned.</p>
 <h2 id="1610-exercises"><a class="header" href="#1610-exercises">16.10 Exercises</a></h2>
@@ -6762,7 +6909,7 @@ jobs:
 <p><strong>Vendored Build</strong>: Configure a project to build fully offline using <code>cargo vendor</code>. Verify the build succeeds without network access. Modify one vendored dependency maliciously (add a <code>println!</code> that exfiltrates data) and demonstrate that the change is detectable via checksum verification.</p>
 </li>
 <li>
-<p><strong>Supply Chain CI Pipeline</strong>: Create a GitHub Actions workflow that runs on every PR: <code>cargo audit</code> (block on vulnerabilities), <code>cargo deny check</code> (enforce license and source policies), <code>cargo geiger</code> (report unsafe code count), and <code>cargo cyclonedx</code> (generate SBOM). Make the workflow fail if any check does not pass.</p>
+<p><strong>Supply Chain CI Pipeline</strong>: Create a GitHub Actions workflow that runs on every PR: <code>cargo audit</code> (block on vulnerabilities), <code>cargo deny check</code> (enforce license and source policies), <code>cargo geiger</code> (report unsafe code count), and <code>cargo cyclonedx</code> (generate SBOM). Make the workflow fail if any check does not pass. As a bonus, add a tag-based publish workflow that uses Trusted Publishing instead of a stored crates.io token.</p>
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -7629,7 +7776,11 @@ impl TlvMessage {
         self.records.iter().find(|r| r.tag == tag)
     }
     
-    /// Parse a TLV message from raw bytes
+    /// Parse a TLV message from raw bytes.
+    ///
+    /// This format treats every non-padding tag as unique. Rejecting duplicates
+    /// keeps the representation canonical and avoids higher layers disagreeing
+    /// about whether "first wins" or "last wins".
     pub fn parse(data: &amp;[u8]) -&gt; Result&lt;Self, ParseError&gt; {
         if data.len() &gt; MAX_TOTAL_SIZE {
             return Err(ParseError::MessageTooLarge {
@@ -7638,7 +7789,7 @@ impl TlvMessage {
             });
         }
         
-        let mut records = Vec::new();
+        let mut records: Vec&lt;TlvRecord&gt; = Vec::new();
         let mut offset = 0usize;
         
         while offset &lt; data.len() {
@@ -7650,7 +7801,7 @@ impl TlvMessage {
             let tag = TlvTag::from_byte(data[offset]);
             offset += 1;
             
-            // Read 4-byte big-endian length
+            // Read 4-byte big-endian length (network byte order)
             let length = u32::from_be_bytes([
                 data[offset],
                 data[offset + 1],
@@ -7681,6 +7832,9 @@ impl TlvMessage {
             offset = end;
             
             if !matches!(tag, TlvTag::Padding) {
+                if records.iter().any(|record| record.tag == tag) {
+                    return Err(ParseError::DuplicateTag { tag });
+                }
                 records.push(TlvRecord { tag, value });
             }
         }
@@ -7704,6 +7858,7 @@ pub enum ParseError {
     IncompleteHeader { offset: usize },
     ValueTooLarge { size: usize, max: usize },
     IncompleteValue { expected: usize, available: usize },
+    DuplicateTag { tag: TlvTag },
     IntegerOverflow,
 }
 
@@ -7722,6 +7877,9 @@ impl fmt::Display for ParseError {
             ParseError::IncompleteValue { expected, available } =&gt; {
                 write!(f, "incomplete value: expected {expected} bytes, have {available}")
             }
+            ParseError::DuplicateTag { tag } =&gt; {
+                write!(f, "duplicate tag not allowed: {tag:?}")
+            }
             ParseError::IntegerOverflow =&gt; f.write_str("integer overflow in length calculation"),
         }
     }
@@ -7729,6 +7887,7 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 <span class="boring">}</span></code></pre>
+<p>Rejecting duplicate non-padding tags is a deliberate security choice. If your protocol genuinely allows repeated fields, model them explicitly as a multi-valued field rather than relying on an accessor like <code>get()</code> to silently pick one occurrence.</p>
 <h2 id="184-type-state-pattern-for-protocol-state-machines"><a class="header" href="#184-type-state-pattern-for-protocol-state-machines">18.4 Type-State Pattern for Protocol State Machines</a></h2>
 <p>The type-state pattern uses Rust’s type system to encode protocol states, making invalid transitions unrepresentable:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -7881,13 +8040,18 @@ libfuzzer_sys::fuzz_target!(|input: TlvInput| {
 use proptest::prelude::*;
 use tlv_parser::*;
 
-fn tlv_record_strategy() -&gt; impl Strategy&lt;Value = (u8, Vec&lt;u8&gt;)&gt; {
-    (any::&lt;u8&gt;(), proptest::collection::vec(any::&lt;u8&gt;(), 0..1024))
+fn tlv_message_strategy() -&gt; impl Strategy&lt;Value = Vec&lt;(u8, Vec&lt;u8&gt;)&gt;&gt; {
+    proptest::collection::btree_map(
+        any::&lt;u8&gt;().prop_filter("padding is skipped and duplicates are rejected", |tag| *tag != 0x00),
+        proptest::collection::vec(any::&lt;u8&gt;(), 0..1024),
+        0..20,
+    )
+    .prop_map(|records| records.into_iter().collect())
 }
 
 proptest! {
     #[test]
-    fn parse_roundtrip(records in proptest::collection::vec(tlv_record_strategy(), 0..20)) {
+    fn parse_roundtrip(records in tlv_message_strategy()) {
         // Build message
         let mut bytes = Vec::new();
         for (tag, value) in &amp;records {
@@ -7906,11 +8070,7 @@ proptest! {
         // Re-parse
         let reparsed = TlvMessage::parse(&amp;re_bytes).unwrap();
         
-        // Verify record counts match (excluding padding)
-        let original_non_padding = records.iter()
-            .filter(|(t, _)| *t != 0x00)
-            .count();
-        assert_eq!(original_non_padding, reparsed.records().len());
+        assert_eq!(records.len(), reparsed.records().len());
     }
     
     #[test]
@@ -7938,7 +8098,8 @@ proptest! {
 <li><strong>No panics</strong>: All errors return <code>Result</code>, never panic.</li>
 <li><strong>Type-state pattern</strong>: Protocol states are encoded in types, preventing invalid transitions.</li>
 <li><strong>Fuzzing</strong>: The parser is designed to be fuzzable with no panics on any input.</li>
-<li><strong>Roundtrip property</strong>: Serialization followed by parsing produces equivalent results.</li>
+<li><strong>Canonical encoding</strong>: Duplicate non-padding tags are rejected so higher layers never guess which value “wins”.</li>
+<li><strong>Roundtrip property</strong>: Serialization followed by parsing produces equivalent results for canonical messages.</li>
 </ol>
 <p>In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.</p>
 <h2 id="188-exercises"><a class="header" href="#188-exercises">18.8 Exercises</a></h2>
@@ -7975,6 +8136,7 @@ opt-level = "z"              # Optimize for size (smaller binary, better cache b
 # Optional alternative for crash analysis:
 # debug = 1                  # Use this only when shipping an unstripped artifact
 </code></pre>
+<p><code>panic = "abort"</code> is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips <code>Drop</code> on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.</p>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
 [build]
@@ -8472,6 +8634,7 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <span class="boring">}</span></code></pre>
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
 <p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
+<p>If you also compile with <code>panic = "abort"</code>, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.</p>
 <p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux and can leak through process listing. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]

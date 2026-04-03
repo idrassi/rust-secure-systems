@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5f8c8b06.js";
+            window.path_to_searchindex_js = "../searchindex-6232f64b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -358,6 +358,50 @@ impl AtomicCounter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security note</strong>: Use <code>Ordering::SeqCst</code> (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.</p>
+<h3 id="624-oncelockt-and-lazylockt---one-time-initialization"><a class="header" href="#624-oncelockt-and-lazylockt---one-time-initialization">6.2.4 <code>OnceLock&lt;T&gt;</code> and <code>LazyLock&lt;T&gt;</code> - One-Time Initialization</a></h3>
+<p>For lazily initialized shared state, prefer the standard library primitives over ad hoc double-checked locking:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::sync::{LazyLock, OnceLock};
+
+static TRUST_ANCHORS: OnceLock&lt;Vec&lt;&amp;'static str&gt;&gt; = OnceLock::new();
+static ALLOWED_ALGORITHMS: LazyLock&lt;Vec&lt;&amp;'static str&gt;&gt; =
+    LazyLock::new(|| vec!["ed25519", "x25519"]);
+
+fn trust_anchors() -&gt; &amp;'static [&amp;'static str] {
+    TRUST_ANCHORS.get_or_init(|| vec!["Corp Root CA", "Offline Recovery CA"])
+}
+<span class="boring">}</span></code></pre>
+<p><code>OnceLock</code> is ideal for values loaded once from configuration, certificates, or policy files. <code>LazyLock</code> is convenient when the initializer is fixed at compile time. Both avoid races around first-use initialization without needing an external crate.</p>
+<h3 id="625-condvar---wait-for-state-changes-without-spinning"><a class="header" href="#625-condvar---wait-for-state-changes-without-spinning">6.2.5 <code>Condvar</code> - Wait for State Changes Without Spinning</a></h3>
+<p>Use a condition variable when threads must sleep until a predicate becomes true:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::collections::VecDeque;
+use std::sync::{Condvar, Mutex};
+
+struct Queue {
+    items: Mutex&lt;VecDeque&lt;Vec&lt;u8&gt;&gt;&gt;,
+    available: Condvar,
+}
+
+impl Queue {
+    fn push(&amp;self, item: Vec&lt;u8&gt;) {
+        let mut items = self.items.lock().unwrap();
+        items.push_back(item);
+        self.available.notify_one();
+    }
+
+    fn pop(&amp;self) -&gt; Vec&lt;u8&gt; {
+        let mut items = self.items.lock().unwrap();
+        while items.is_empty() {
+            items = self.available.wait(items).unwrap();
+        }
+        items.pop_front().unwrap()
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Always wait in a <code>while</code> loop, not an <code>if</code>, because wakeups can be spurious and another thread may consume the resource before the current thread reacquires the lock.</p>
 <h2 id="63-message-passing-with-channels"><a class="header" href="#63-message-passing-with-channels">6.3 Message Passing with Channels</a></h2>
 <p>Rust’s channel API encourages a “do not communicate by sharing memory; share memory by communicating” approach:</p>
 <pre class="playground"><code class="language-rust edition2024">use std::sync::mpsc;
@@ -757,6 +801,8 @@ int main() {
 <li><code>Send</code> and <code>Sync</code> traits enforce thread safety at compile time.</li>
 <li><code>Mutex&lt;T&gt;</code> and <code>RwLock&lt;T&gt;</code> provide RAII-based locking that never forgets to unlock.</li>
 <li>Atomics provide lock-free patterns; use <code>SeqCst</code> ordering unless you can prove weaker is safe.</li>
+<li><code>OnceLock</code> and <code>LazyLock</code> provide race-free one-time initialization for shared security state.</li>
+<li><code>Condvar</code> lets threads wait on predicates without busy-waiting; always re-check the condition in a loop.</li>
 <li>Channels enable message-passing concurrency; prefer bounded channels to prevent memory exhaustion.</li>
 <li>Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks—use consistent lock ordering.</li>
 <li>Async/await is efficient for I/O-bound workloads; understand the differences between sync and async mutexes.</li>

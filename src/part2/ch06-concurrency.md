@@ -207,6 +207,56 @@ impl AtomicCounter {
 
 🔒 **Security note**: Use `Ordering::SeqCst` (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.
 
+### 6.2.4 `OnceLock<T>` and `LazyLock<T>` - One-Time Initialization
+
+For lazily initialized shared state, prefer the standard library primitives over ad hoc double-checked locking:
+
+```rust
+use std::sync::{LazyLock, OnceLock};
+
+static TRUST_ANCHORS: OnceLock<Vec<&'static str>> = OnceLock::new();
+static ALLOWED_ALGORITHMS: LazyLock<Vec<&'static str>> =
+    LazyLock::new(|| vec!["ed25519", "x25519"]);
+
+fn trust_anchors() -> &'static [&'static str] {
+    TRUST_ANCHORS.get_or_init(|| vec!["Corp Root CA", "Offline Recovery CA"])
+}
+```
+
+`OnceLock` is ideal for values loaded once from configuration, certificates, or policy files. `LazyLock` is convenient when the initializer is fixed at compile time. Both avoid races around first-use initialization without needing an external crate.
+
+### 6.2.5 `Condvar` - Wait for State Changes Without Spinning
+
+Use a condition variable when threads must sleep until a predicate becomes true:
+
+```rust
+use std::collections::VecDeque;
+use std::sync::{Condvar, Mutex};
+
+struct Queue {
+    items: Mutex<VecDeque<Vec<u8>>>,
+    available: Condvar,
+}
+
+impl Queue {
+    fn push(&self, item: Vec<u8>) {
+        let mut items = self.items.lock().unwrap();
+        items.push_back(item);
+        self.available.notify_one();
+    }
+
+    fn pop(&self) -> Vec<u8> {
+        let mut items = self.items.lock().unwrap();
+        while items.is_empty() {
+            items = self.available.wait(items).unwrap();
+        }
+        items.pop_front().unwrap()
+    }
+}
+```
+
+Always wait in a `while` loop, not an `if`, because wakeups can be spurious and another thread may consume the resource before the current thread reacquires the lock.
+
 ## 6.3 Message Passing with Channels
 
 Rust's channel API encourages a "do not communicate by sharing memory; share memory by communicating" approach:
@@ -649,6 +699,8 @@ fn main() {
 - `Send` and `Sync` traits enforce thread safety at compile time.
 - `Mutex<T>` and `RwLock<T>` provide RAII-based locking that never forgets to unlock.
 - Atomics provide lock-free patterns; use `SeqCst` ordering unless you can prove weaker is safe.
+- `OnceLock` and `LazyLock` provide race-free one-time initialization for shared security state.
+- `Condvar` lets threads wait on predicates without busy-waiting; always re-check the condition in a loop.
 - Channels enable message-passing concurrency; prefer bounded channels to prevent memory exhaustion.
 - Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks—use consistent lock ordering.
 - Async/await is efficient for I/O-bound workloads; understand the differences between sync and async mutexes.

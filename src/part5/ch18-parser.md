@@ -156,7 +156,11 @@ impl TlvMessage {
         self.records.iter().find(|r| r.tag == tag)
     }
     
-    /// Parse a TLV message from raw bytes
+    /// Parse a TLV message from raw bytes.
+    ///
+    /// This format treats every non-padding tag as unique. Rejecting duplicates
+    /// keeps the representation canonical and avoids higher layers disagreeing
+    /// about whether "first wins" or "last wins".
     pub fn parse(data: &[u8]) -> Result<Self, ParseError> {
         if data.len() > MAX_TOTAL_SIZE {
             return Err(ParseError::MessageTooLarge {
@@ -165,7 +169,7 @@ impl TlvMessage {
             });
         }
         
-        let mut records = Vec::new();
+        let mut records: Vec<TlvRecord> = Vec::new();
         let mut offset = 0usize;
         
         while offset < data.len() {
@@ -177,7 +181,7 @@ impl TlvMessage {
             let tag = TlvTag::from_byte(data[offset]);
             offset += 1;
             
-            // Read 4-byte big-endian length
+            // Read 4-byte big-endian length (network byte order)
             let length = u32::from_be_bytes([
                 data[offset],
                 data[offset + 1],
@@ -208,6 +212,9 @@ impl TlvMessage {
             offset = end;
             
             if !matches!(tag, TlvTag::Padding) {
+                if records.iter().any(|record| record.tag == tag) {
+                    return Err(ParseError::DuplicateTag { tag });
+                }
                 records.push(TlvRecord { tag, value });
             }
         }
@@ -231,6 +238,7 @@ pub enum ParseError {
     IncompleteHeader { offset: usize },
     ValueTooLarge { size: usize, max: usize },
     IncompleteValue { expected: usize, available: usize },
+    DuplicateTag { tag: TlvTag },
     IntegerOverflow,
 }
 
@@ -249,6 +257,9 @@ impl fmt::Display for ParseError {
             ParseError::IncompleteValue { expected, available } => {
                 write!(f, "incomplete value: expected {expected} bytes, have {available}")
             }
+            ParseError::DuplicateTag { tag } => {
+                write!(f, "duplicate tag not allowed: {tag:?}")
+            }
             ParseError::IntegerOverflow => f.write_str("integer overflow in length calculation"),
         }
     }
@@ -256,6 +267,8 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 ```
+
+Rejecting duplicate non-padding tags is a deliberate security choice. If your protocol genuinely allows repeated fields, model them explicitly as a multi-valued field rather than relying on an accessor like `get()` to silently pick one occurrence.
 
 ## 18.4 Type-State Pattern for Protocol State Machines
 
@@ -411,13 +424,18 @@ libfuzzer_sys::fuzz_target!(|input: TlvInput| {
 use proptest::prelude::*;
 use tlv_parser::*;
 
-fn tlv_record_strategy() -> impl Strategy<Value = (u8, Vec<u8>)> {
-    (any::<u8>(), proptest::collection::vec(any::<u8>(), 0..1024))
+fn tlv_message_strategy() -> impl Strategy<Value = Vec<(u8, Vec<u8>)>> {
+    proptest::collection::btree_map(
+        any::<u8>().prop_filter("padding is skipped and duplicates are rejected", |tag| *tag != 0x00),
+        proptest::collection::vec(any::<u8>(), 0..1024),
+        0..20,
+    )
+    .prop_map(|records| records.into_iter().collect())
 }
 
 proptest! {
     #[test]
-    fn parse_roundtrip(records in proptest::collection::vec(tlv_record_strategy(), 0..20)) {
+    fn parse_roundtrip(records in tlv_message_strategy()) {
         // Build message
         let mut bytes = Vec::new();
         for (tag, value) in &records {
@@ -436,11 +454,7 @@ proptest! {
         // Re-parse
         let reparsed = TlvMessage::parse(&re_bytes).unwrap();
         
-        // Verify record counts match (excluding padding)
-        let original_non_padding = records.iter()
-            .filter(|(t, _)| *t != 0x00)
-            .count();
-        assert_eq!(original_non_padding, reparsed.records().len());
+        assert_eq!(records.len(), reparsed.records().len());
     }
     
     #[test]
@@ -470,7 +484,8 @@ This parser demonstrates key security principles:
 4. **No panics**: All errors return `Result`, never panic.
 5. **Type-state pattern**: Protocol states are encoded in types, preventing invalid transitions.
 6. **Fuzzing**: The parser is designed to be fuzzable with no panics on any input.
-7. **Roundtrip property**: Serialization followed by parsing produces equivalent results.
+7. **Canonical encoding**: Duplicate non-padding tags are rejected so higher layers never guess which value "wins".
+8. **Roundtrip property**: Serialization followed by parsing produces equivalent results for canonical messages.
 
 In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.
 

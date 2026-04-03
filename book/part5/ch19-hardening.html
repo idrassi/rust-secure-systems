@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5f8c8b06.js";
+            window.path_to_searchindex_js = "../searchindex-6232f64b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -202,6 +202,7 @@ opt-level = "z"              # Optimize for size (smaller binary, better cache b
 # Optional alternative for crash analysis:
 # debug = 1                  # Use this only when shipping an unstripped artifact
 </code></pre>
+<p><code>panic = "abort"</code> is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips <code>Drop</code> on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.</p>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
 [build]
@@ -699,6 +700,7 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <span class="boring">}</span></code></pre>
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
 <p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
+<p>If you also compile with <code>panic = "abort"</code>, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.</p>
 <p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux and can leak through process listing. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]

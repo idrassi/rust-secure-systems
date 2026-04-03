@@ -334,6 +334,37 @@ jobs:
 
 Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.
 
+### 16.8.1 Trusted Publishing for crates.io
+
+For release workflows, prefer crates.io Trusted Publishing via OpenID Connect (OIDC) instead of storing long-lived registry API tokens in CI secrets. crates.io supports trusted publishing from GitHub Actions and GitLab CI.
+
+```yaml
+# .github/workflows/publish.yml
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # reviewed snapshot
+        with:
+          toolchain: stable
+      - run: cargo publish --locked
+```
+
+Configure the trust relationship once in crates.io, then remove stored crates.io tokens from repository secrets. If your CI provider cannot use OIDC, prefer short-lived credentials issued by a secret manager over repository-scoped long-lived tokens.
+
+Keep dependency updates small and reviewable: enable Dependabot or Renovate for Rust crates, GitHub Actions, and container base images so that supply-chain changes arrive as normal code review.
+
 ## 16.9 Summary
 
 - Evaluate every dependency for trustworthiness before adoption.
@@ -345,6 +376,8 @@ Treat CI tooling the same way you treat application dependencies: pin GitHub Act
 - Build in sandboxed environments with `--frozen --offline`.
 - Generate and maintain a Software Bill of Materials (SBOM).
 - Implement supply chain security checks in CI/CD.
+- Prefer Trusted Publishing (OIDC) over long-lived crates.io tokens in CI.
+- Use automated update PRs so dependency drift is reviewed incrementally.
 
 In the next chapter, we begin Part V with a hands-on project: building a hardened TCP server that applies everything we've learned.
 
@@ -354,4 +387,4 @@ In the next chapter, we begin Part V with a hands-on project: building a hardene
 
 2. **Vendored Build**: Configure a project to build fully offline using `cargo vendor`. Verify the build succeeds without network access. Modify one vendored dependency maliciously (add a `println!` that exfiltrates data) and demonstrate that the change is detectable via checksum verification.
 
-3. **Supply Chain CI Pipeline**: Create a GitHub Actions workflow that runs on every PR: `cargo audit` (block on vulnerabilities), `cargo deny check` (enforce license and source policies), `cargo geiger` (report unsafe code count), and `cargo cyclonedx` (generate SBOM). Make the workflow fail if any check does not pass.
+3. **Supply Chain CI Pipeline**: Create a GitHub Actions workflow that runs on every PR: `cargo audit` (block on vulnerabilities), `cargo deny check` (enforce license and source policies), `cargo geiger` (report unsafe code count), and `cargo cyclonedx` (generate SBOM). Make the workflow fail if any check does not pass. As a bonus, add a tag-based publish workflow that uses Trusted Publishing instead of a stored crates.io token.

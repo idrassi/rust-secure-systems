@@ -458,6 +458,32 @@ jobs:
           cargo +nightly miri test
 ```
 
+### 13.6.1 Faster, More Isolated Runs with `cargo-nextest`
+
+`cargo test` is the baseline, but larger security suites often benefit from `cargo-nextest`:
+
+- Better failure reporting and timeout handling
+- Process-level isolation between tests
+- Easier sharding across CI workers
+
+```bash
+cargo install cargo-nextest --locked
+cargo nextest run --workspace --all-features
+```
+
+For parser, auth, and protocol suites, this isolation helps catch hidden cross-test coupling and makes flaky failures easier to diagnose.
+
+### 13.6.2 Coverage Reporting with `cargo-llvm-cov`
+
+Coverage does not prove security, but it quickly shows which validation branches, parser error paths, and unsafe wrappers are still untested:
+
+```bash
+cargo install cargo-llvm-cov --locked
+cargo llvm-cov --workspace --all-features --html
+```
+
+Prioritize coverage review on authentication, parsing, deserialization, unsafe wrappers, and failure paths rather than chasing a global percentage.
+
 ## 13.7 Summary
 
 - Write comprehensive unit tests for all security-critical functions.
@@ -469,6 +495,8 @@ jobs:
 - Test unsafe code wrappers to ensure the safe interface prevents UB.
 - Use doc tests for testable documentation.
 - Run tests across stable, beta, and nightly with Miri for UB detection.
+- Use `cargo-nextest` for faster, better-isolated CI runs on large suites.
+- Use `cargo-llvm-cov` to find untested validation and error-handling paths.
 
 In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn't think to test for.
 

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5f8c8b06.js";
+            window.path_to_searchindex_js = "../searchindex-6232f64b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -459,6 +459,31 @@ jobs:
           cargo cyclonedx
 </code></pre>
 <p>Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.</p>
+<h3 id="1681-trusted-publishing-for-cratesio"><a class="header" href="#1681-trusted-publishing-for-cratesio">16.8.1 Trusted Publishing for crates.io</a></h3>
+<p>For release workflows, prefer crates.io Trusted Publishing via OpenID Connect (OIDC) instead of storing long-lived registry API tokens in CI secrets. crates.io supports trusted publishing from GitHub Actions and GitLab CI.</p>
+<pre><code class="language-yaml"># .github/workflows/publish.yml
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # reviewed snapshot
+        with:
+          toolchain: stable
+      - run: cargo publish --locked
+</code></pre>
+<p>Configure the trust relationship once in crates.io, then remove stored crates.io tokens from repository secrets. If your CI provider cannot use OIDC, prefer short-lived credentials issued by a secret manager over repository-scoped long-lived tokens.</p>
+<p>Keep dependency updates small and reviewable: enable Dependabot or Renovate for Rust crates, GitHub Actions, and container base images so that supply-chain changes arrive as normal code review.</p>
 <h2 id="169-summary"><a class="header" href="#169-summary">16.9 Summary</a></h2>
 <ul>
 <li>Evaluate every dependency for trustworthiness before adoption.</li>
@@ -470,6 +495,8 @@ jobs:
 <li>Build in sandboxed environments with <code>--frozen --offline</code>.</li>
 <li>Generate and maintain a Software Bill of Materials (SBOM).</li>
 <li>Implement supply chain security checks in CI/CD.</li>
+<li>Prefer Trusted Publishing (OIDC) over long-lived crates.io tokens in CI.</li>
+<li>Use automated update PRs so dependency drift is reviewed incrementally.</li>
 </ul>
 <p>In the next chapter, we begin Part V with a hands-on project: building a hardened TCP server that applies everything we’ve learned.</p>
 <h2 id="1610-exercises"><a class="header" href="#1610-exercises">16.10 Exercises</a></h2>
@@ -481,7 +508,7 @@ jobs:
 <p><strong>Vendored Build</strong>: Configure a project to build fully offline using <code>cargo vendor</code>. Verify the build succeeds without network access. Modify one vendored dependency maliciously (add a <code>println!</code> that exfiltrates data) and demonstrate that the change is detectable via checksum verification.</p>
 </li>
 <li>
-<p><strong>Supply Chain CI Pipeline</strong>: Create a GitHub Actions workflow that runs on every PR: <code>cargo audit</code> (block on vulnerabilities), <code>cargo deny check</code> (enforce license and source policies), <code>cargo geiger</code> (report unsafe code count), and <code>cargo cyclonedx</code> (generate SBOM). Make the workflow fail if any check does not pass.</p>
+<p><strong>Supply Chain CI Pipeline</strong>: Create a GitHub Actions workflow that runs on every PR: <code>cargo audit</code> (block on vulnerabilities), <code>cargo deny check</code> (enforce license and source policies), <code>cargo geiger</code> (report unsafe code count), and <code>cargo cyclonedx</code> (generate SBOM). Make the workflow fail if any check does not pass. As a bonus, add a tag-based publish workflow that uses Trusted Publishing instead of a stored crates.io token.</p>
 </li>
 </ol>
 

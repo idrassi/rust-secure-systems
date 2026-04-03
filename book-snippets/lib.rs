@@ -204,6 +204,7 @@ pub mod tlv_parser {
         ValueTooLarge { size: usize, max: usize },
         IncompleteHeader { offset: usize },
         IncompleteValue { expected: usize, available: usize },
+        DuplicateTag { tag: u8 },
         IntegerOverflow,
     }
 
@@ -280,6 +281,9 @@ pub mod tlv_parser {
                 }
 
                 if tag != 0x00 {
+                    if records.iter().any(|record: &TlvRecord| record.tag == tag) {
+                        return Err(ParseError::DuplicateTag { tag });
+                    }
                     records.push(TlvRecord {
                         tag,
                         value: data[offset..end].to_vec(),
