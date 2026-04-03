@@ -24,7 +24,7 @@ This chapter covers how to protect your Rust project from supply chain attacksâ€
 
 - **event-stream (npm, 2018)**: Attacker became maintainer of popular package and added cryptocurrency-stealing code.
 - **ua-parser-js (npm, 2021)**: Maintainer's account compromised, malicious versions published.
-- **Rust crate takedown (2022)**: Several crates were yanked after security issues were discovered.
+- **crates.io typosquatting campaigns**: Malicious crates with lookalike names have been published to steal data or execute code during builds.
 - **colors.js/faker.js (npm, 2022)**: Maintainer deliberately broke their own packages.
 
 ## 16.2 Dependency Selection Criteria
@@ -135,7 +135,7 @@ allow = [
 ]
 unlicensed = "deny"
 # Reject copyleft licenses in proprietary software
-deny = ["GPL-2.0", "GPL-3.0", "AGPL-3.0"]
+deny = ["GPL-2.0-only", "GPL-3.0-only", "AGPL-3.0-only"]
 ```
 
 ### 16.4.2 Ban Dangerous Crates
@@ -188,10 +188,10 @@ A reproducible build produces identical output given the same source code, regar
 
 ```bash
 # Build with reproducibility settings
-RUSTFLAGS="-C link-arg=-s" \
+RUSTFLAGS="--remap-path-prefix=/build/workdir=." \
 CARGO_PROFILE_RELEASE_LTO=true \
 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-cargo build --release --target x86_64-unknown-linux-gnu
+cargo build --release --locked --frozen --target x86_64-unknown-linux-gnu
 ```
 
 Key settings for reproducibility:
@@ -206,8 +206,11 @@ panic = "abort"
 
 # .cargo/config.toml
 [env]
-SOURCE_DATE_EPOCH = "1700000000"  # Fixed timestamp
+RUSTFLAGS = "--remap-path-prefix=/build/workdir=."
+SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 ```
+
+Absolute paths in debug info, non-deterministic linkers, and `build.rs` scripts are common causes of Rust build drift. `SOURCE_DATE_EPOCH` can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.
 
 ### 16.5.2 Binary Verification
 

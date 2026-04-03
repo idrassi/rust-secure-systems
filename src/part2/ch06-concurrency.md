@@ -79,6 +79,30 @@ fn main() {
 }
 ```
 
+### 6.1.3 Scoped Threads Avoid Unnecessary `'static`
+
+`std::thread::spawn` requires the closure to own only `'static` data because the new thread may outlive the caller. When the threads are guaranteed to finish before the current scope exits, prefer `std::thread::scope`:
+
+```rust
+use std::thread;
+
+fn main() {
+    let mut counters = [0u64; 4];
+
+    thread::scope(|scope| {
+        for counter in &mut counters {
+            scope.spawn(move || {
+                *counter += 1;
+            });
+        }
+    });
+
+    assert_eq!(counters, [1, 1, 1, 1]);
+}
+```
+
+This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.
+
 ## 6.2 Synchronization Primitives
 
 ### 6.2.1 `Mutex<T>` — Mutual Exclusion

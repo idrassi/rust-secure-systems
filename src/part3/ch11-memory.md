@@ -31,10 +31,10 @@ struct CNetworkHeader {
     version: u8,    // offset 0
     flags: u8,      // offset 1
     length: u16,    // offset 2
-    seq: u32,       // offset 4 (2 bytes padding after length)
+    seq: u32,       // offset 4
     ack: u32,       // offset 8
 }
-// Size: exactly 12 bytes, with predictable padding
+// Size: exactly 12 bytes on common ABIs, with no interior padding in this layout
 ```
 
 `#[repr(C)]` guarantees:
@@ -191,22 +191,25 @@ struct CacheLineAligned {
 Rust uses the system allocator by default. For security-sensitive applications, you can use a custom allocator:
 
 ```rust
-use std::alloc::{GlobalAlloc, Layout, alloc, dealloc};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::sync::atomic::{compiler_fence, Ordering};
 
 /// A simple allocator that zeroizes memory on free
 struct SecureAllocator;
 
 unsafe impl GlobalAlloc for SecureAllocator {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // Use system allocator
-        std::alloc::alloc(layout)
+        unsafe { System.alloc(layout) }
     }
     
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        // Zero the memory before freeing
-        std::ptr::write_bytes(ptr, 0, layout.size());
-        std::alloc::dealloc(ptr, layout);
+        if !ptr.is_null() {
+            for i in 0..layout.size() {
+                unsafe { ptr.add(i).write_volatile(0); }
+            }
+            compiler_fence(Ordering::SeqCst);
+        }
+        unsafe { System.dealloc(ptr, layout) };
     }
 }
 
@@ -217,6 +220,7 @@ static GLOBAL: SecureAllocator = SecureAllocator;
 ⚠️ **Note**: This is a simplified example. A production secure allocator should also:
 - Lock pages containing keys (prevent swapping to disk)
 - Use `mlock`/`VirtualLock` to prevent paging
+- Use a zeroization primitive that is guaranteed not to be optimized away
 - Guard against heap metadata corruption
 
 ### 11.4.2 The `zeroize` Crate — Practical Memory Wiping
@@ -493,7 +497,7 @@ fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
 | Concern | Mitigation |
 |---------|------------|
 | Side-channel attacks (timing, cache) | Use constant-time Wasm runtimes; consider single-threaded execution |
-| Spectre-type attacks | Wasm runtimes like Lucet/Fastly's implement spectre mitigations |
+| Spectre-type attacks | Use a maintained Wasm runtime (for example, Wasmtime) and follow its documented Spectre mitigations |
 | Resource exhaustion (memory) | Set `Store::limiter()` to cap memory growth |
 | Resource exhaustion (CPU) | Use fuel metering; set timeouts on `Store` operations |
 | Supply chain (malicious Wasm) | Verify Wasm module hashes or signatures before loading |

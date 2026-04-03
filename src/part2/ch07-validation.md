@@ -99,6 +99,8 @@ fn connect(host: Hostname, port: Port) {
 
 🔒 **Security pattern**: "Parse, don't validate." Create types that can only be constructed with valid data. Once you have a `Hostname`, you never need to validate it again. The type itself is proof of validity.
 
+⚠️ **Unicode note**: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.
+
 ### Layer 2: Parse, Don't Validate
 
 The principle comes from functional programming: instead of checking if data is valid and then using it, **parse** the data into a strongly-typed representation that is valid by construction:
@@ -283,6 +285,36 @@ pub fn parse_size(input: &str) -> Result<usize, ValidationError> {
 }
 ```
 
+### 7.2.5 SSRF Prevention Requires Destination Validation
+
+A syntactically valid hostname is not automatically a safe outbound destination. For any server-side fetcher, webhook client, or proxy feature, combine hostname validation with post-resolution IP policy checks:
+
+```rust
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+fn is_public_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => {
+            !(v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4 == Ipv4Addr::BROADCAST
+                || v4.is_documentation()
+                || v4.is_unspecified())
+        }
+        IpAddr::V6(v6) => {
+            !(v6.is_loopback()
+                || v6.is_unique_local()
+                || v6.is_multicast()
+                || v6.is_unspecified()
+                || v6 == Ipv6Addr::LOCALHOST)
+        }
+    }
+}
+```
+
+Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a "valid" hostname into access to internal services.
+
 ## 7.3 Validation for Protocol Parsing
 
 When implementing network protocols, validation is critical at every layer:
@@ -300,7 +332,7 @@ pub enum ParseError {
 #[derive(Debug)]
 pub struct TlsRecord {
     content_type: ContentType,
-    version: TlsVersion,
+    version: TlsRecordVersion,
     length: u16,
     payload: Vec<u8>,
 }
@@ -314,10 +346,10 @@ enum ContentType {
 }
 
 #[derive(Debug)]
-enum TlsVersion {
+enum TlsRecordVersion {
     Tls10,
-    Tls12,
-    Tls13,
+    Tls11,
+    LegacyTls12,
 }
 
 impl TlsRecord {
@@ -335,9 +367,9 @@ impl TlsRecord {
         };
         
         let version = match u16::from_be_bytes([data[1], data[2]]) {
-            0x0301 => TlsVersion::Tls10,
-            0x0303 => TlsVersion::Tls12,
-            0x0304 => TlsVersion::Tls13,
+            0x0301 => TlsRecordVersion::Tls10,
+            0x0302 => TlsRecordVersion::Tls11,
+            0x0303 => TlsRecordVersion::LegacyTls12,
             v => return Err(ParseError::InvalidVersion(v)),
         };
         
@@ -363,9 +395,9 @@ impl TlsRecord {
 - Field ranges (record length limits per spec)
 - Unknown values (reject unknown content types)
 - Consistency (payload length matches header)
-- Version enforcement (reject downgraded versions)
+- Legacy version field sanity (TLS 1.3 still uses `0x0303` at the record layer)
 
-This prevents protocol-level attacks including fuzzing, injection, and downgrade attacks.
+This prevents protocol-level attacks including fuzzing, injection, and downgrade attacks. For TLS 1.3 specifically, perform downgrade checks in the handshake (`supported_versions`), not from the record-layer version field alone.
 
 ## 7.4 The `serde` Ecosystem — Deserialization Safety
 
@@ -442,6 +474,8 @@ fn deserialize_with_limit(data: &[u8]) -> Result<UserInput, Box<dyn std::error::
 - Create **newtypes** that enforce validity at construction time.
 - **Whitelist** allowed inputs; don't blacklist dangerous ones.
 - Prevent path traversal with canonicalization and prefix checking.
+- Normalize and review Unicode input rules before validating non-ASCII identifiers.
+- Treat SSRF as a destination policy problem, not just a hostname syntax problem.
 - Validate protocol fields against specification limits.
 - Use `std::process::Command` with argument vectors instead of shell escaping.
 - Be cautious with serde deserialization of untrusted data—set depth and size limits.

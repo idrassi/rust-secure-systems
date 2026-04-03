@@ -50,7 +50,7 @@ fn main() {
 
 The compiler rejects this code. In C, this would be a potential use-after-free if `push` caused a reallocation. In Rust, it simply does not compile.
 
-🔒 **Security impact**: Eliminates CWE-119, CWE-416, CWE-476, CWE-787, and CWE-125 at compile time for safe Rust code.
+🔒 **Security impact**: Eliminates CWE-119, CWE-416, CWE-787, and CWE-125 at compile time for safe Rust code. NULL dereference prevention comes from the type system (`Option<T>`), not ownership alone.
 
 ### 1.2.2 Type System
 
@@ -161,13 +161,13 @@ Rust is increasingly adopted in security-critical domains:
 | Memory safety | Compile-time | No | GC | GC |
 | No GC overhead | ✅ | ✅ | ❌ | ❌ |
 | Zero-cost abstractions | ✅ | Manual | Partial | ❌ |
-| Data race freedom | Compile-time | No | Partial | No |
+| Compile-time data race freedom | ✅ | ❌ | Partial | Runtime primitives only |
 | Systems-level control | ✅ | ✅ | Partial | ❌ |
 | Predictable performance | ✅ | ✅ | With GC pauses | ❌ |
 | FFI to C | ✅ | N/A | ✅ | ✅ |
 | Deterministic destruction | ✅ | Manual | ❌ | ❌ |
 
-Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# similarly lack compile-time race prevention. Only Rust provides both memory safety and data race freedom at compile time, without runtime overhead.
+Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.
 
 ## 1.6 Summary
 

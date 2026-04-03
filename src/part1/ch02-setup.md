@@ -202,7 +202,16 @@ unknown-git = "deny"
 allow-registry = ["sparse+https://index.crates.io/"]
 ```
 
-### 2.3.5 cargo-outdated — Dependency Freshness
+### 2.3.5 cargo-geiger — Unsafe Code Inventory
+
+```bash
+cargo install cargo-geiger --version 0.13.0 --locked
+cargo geiger --all-features
+```
+
+`cargo-geiger` does not prove a crate is unsafe, but it quickly shows where manual review effort should go. Use it to inventory `unsafe` code in your direct and transitive dependencies before you trust them in security-sensitive deployments.
+
+### 2.3.6 cargo-outdated — Dependency Freshness
 
 ```bash
 cargo install cargo-outdated --version 0.18.0 --locked
@@ -231,15 +240,17 @@ rustflags = [
 [profile.release]
 # Security-relevant profile settings
 overflow-checks = true       # Enable integer overflow checks even in release
-debug = true                 # Include debug info for crash analysis
-strip = false                # Don't strip symbols (useful for debugging)
+debug = true                 # Audit-friendly release profile for local crash analysis
+strip = false                # Keep symbols while debugging locally
 lto = true                   # Link-time optimization (removes dead code)
 codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
-opt-level = "s"              # Optimize for size (reduces attack surface)
+opt-level = "s"              # Optimize for size (smaller binaries, not a substitute for removing features)
 ```
 
 🔒 **Critical setting**: `overflow-checks = true` in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.
+
+⚠️ **Trade-off**: `panic = "abort"` skips `Drop` during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use `Result` for attacker-controlled failures and reserve `panic = "abort"` for codebases where that trade-off is explicit.
 
 ## 2.5 IDE Setup
 
@@ -265,7 +276,7 @@ Enable inlay hints for type information—this is invaluable during security rev
 // VS Code settings.json
 {
     "rust-analyzer.inlayHints.enable": true,
-    "rust-analyzer.checkOnSave.command": "clippy"
+    "rust-analyzer.check.command": "clippy"
 }
 ```
 

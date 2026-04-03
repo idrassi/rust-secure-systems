@@ -13,7 +13,7 @@ unsafe extern "C" {
     // Declare external C functions
     fn malloc(size: usize) -> *mut std::ffi::c_void;
     fn free(ptr: *mut std::ffi::c_void);
-    fn strlen(s: *const i8) -> usize;
+    fn strlen(s: *const std::ffi::c_char) -> usize;
 }
 
 fn c_string_length(s: &std::ffi::CStr) -> usize {
@@ -37,7 +37,7 @@ In Edition 2024, `extern` blocks are explicitly `unsafe` because Rust cannot ver
 Manually writing FFI bindings is error-prone. Use `bindgen` to generate them from C headers:
 
 ```bash
-cargo install bindgen-cli --version 0.72.1 --locked
+cargo install bindgen-cli --version 0.71 --locked
 bindgen /usr/include/openssl/ssl.h -o ssl_bindings.rs
 ```
 
@@ -211,7 +211,7 @@ For complex interop, use `#[repr(C)]` to ensure C-compatible layout:
 ```rust,no_run
 #[repr(C)]
 pub struct FfiResult {
-    pub success: bool,
+    pub success: u8,  // 1 = success, 0 = failure
     pub value: i64,
     pub error_code: i32,
     pub error_message: [u8; 256],
@@ -221,7 +221,7 @@ pub struct FfiResult {
 pub extern "C" fn compute(x: i64, y: i64) -> FfiResult {
     match x.checked_mul(y) {
         Some(value) => FfiResult {
-            success: true,
+            success: 1,
             value,
             error_code: 0,
             error_message: [0; 256],
@@ -231,7 +231,7 @@ pub extern "C" fn compute(x: i64, y: i64) -> FfiResult {
             let err = b"multiplication overflow";
             msg[..err.len()].copy_from_slice(err);
             FfiResult {
-                success: false,
+                success: 0,
                 value: 0,
                 error_code: 1,
                 error_message: msg,
@@ -358,7 +358,7 @@ With `panic = "abort"`:
 
 ⚠️ **Trade-off**: With `panic = "abort"`, you lose the ability to catch panics. Ensure all error handling uses `Result` rather than relying on panic catching.
 
-## 10.4 Ownership Across the FFI Boundary
+## 10.5 Ownership Across the FFI Boundary
 
 The most dangerous aspect of FFI is ownership confusion. Who allocates? Who frees?
 
@@ -371,10 +371,8 @@ pub extern "C" fn create_buffer(size: usize) -> *mut u8 {
     if size == 0 || size > MAX_ALLOCATION {
         return std::ptr::null_mut();
     }
-    let mut buf = Vec::with_capacity(size);
-    let ptr = buf.as_mut_ptr();
-    std::mem::forget(buf);  // Prevent Rust from freeing
-    ptr
+    let boxed = vec![0u8; size].into_boxed_slice();
+    Box::into_raw(boxed) as *mut u8
 }
 
 #[unsafe(no_mangle)]
@@ -384,8 +382,9 @@ pub extern "C" fn create_buffer(size: usize) -> *mut u8 {
 pub unsafe extern "C" fn free_buffer(ptr: *mut u8, size: usize) {
     if !ptr.is_null() {
         unsafe {
-            // Reconstruct the Vec to let Rust free it properly
-            let _ = Vec::from_raw_parts(ptr, 0, size);
+            // Reconstruct the boxed slice to let Rust free it properly.
+            let slice = std::ptr::slice_from_raw_parts_mut(ptr, size);
+            let _ = Box::from_raw(slice);
         }
     }
 }
@@ -418,9 +417,9 @@ impl CBuffer {
 // If C expects Rust to free it, use the appropriate C deallocator.
 ```
 
-🔒 **Golden rule**: Never mix allocators. If C allocates with `malloc`, free with `free`. If Rust allocates with `Vec`, free with `Vec::from_raw_parts`. Mixing them is undefined behavior.
+🔒 **Golden rule**: Never mix allocators. If C allocates with `malloc`, free with `free`. If Rust allocates with `Box<[u8]>` or `Vec`, reconstruct the matching Rust type on the free path. Mixing allocators is undefined behavior.
 
-## 10.5 Callbacks and Function Pointers
+## 10.6 Callbacks and Function Pointers
 
 ### C Calling Rust Callbacks
 
@@ -460,7 +459,7 @@ fn register_callback_safe(cb: Option<Callback>) -> i32 {
 }
 ```
 
-## 10.6 Summary
+## 10.7 Summary
 
 - FFI is inherently unsafe—every boundary crossing requires careful validation.
 - Use `bindgen` to generate bindings instead of writing them manually.
@@ -473,7 +472,7 @@ fn register_callback_safe(cb: Option<Callback>) -> i32 {
 
 In the next chapter, we explore Rust's memory layout controls for systems programming.
 
-## 10.7 Exercises
+## 10.8 Exercises
 
 1. **Safe CString Wrapper**: Write a function `call_c_with_args(cmd: &str, args: &[&str]) -> Result<i32, FfiError>` that converts Rust strings to `CString`, calls a C function (simulate with a mock), and properly handles null bytes, NUL termination, and lifetime issues. Handle all error cases without `unwrap()`.
 

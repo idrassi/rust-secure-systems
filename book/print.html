@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-b46b394a.js";
+            window.path_to_searchindex_js = "searchindex-65a83bc4.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -273,7 +273,7 @@ fn main() {
     println!("{}", first);    // `first` is still in use
 }</code></pre>
 <p>The compiler rejects this code. In C, this would be a potential use-after-free if <code>push</code> caused a reallocation. In Rust, it simply does not compile.</p>
-<p>🔒 <strong>Security impact</strong>: Eliminates CWE-119, CWE-416, CWE-476, CWE-787, and CWE-125 at compile time for safe Rust code.</p>
+<p>🔒 <strong>Security impact</strong>: Eliminates CWE-119, CWE-416, CWE-787, and CWE-125 at compile time for safe Rust code. NULL dereference prevention comes from the type system (<code>Option&lt;T&gt;</code>), not ownership alone.</p>
 <h3 id="122-type-system"><a class="header" href="#122-type-system">1.2.2 Type System</a></h3>
 <p>Rust’s type system is rich and expressive. It uses:</p>
 <ul>
@@ -378,7 +378,7 @@ fn main() {
 <tr><td>Memory safety</td><td>Compile-time</td><td>No</td><td>GC</td><td>GC</td></tr>
 <tr><td>No GC overhead</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>Zero-cost abstractions</td><td>✅</td><td>Manual</td><td>Partial</td><td>❌</td></tr>
-<tr><td>Data race freedom</td><td>Compile-time</td><td>No</td><td>Partial</td><td>No</td></tr>
+<tr><td>Compile-time data race freedom</td><td>✅</td><td>❌</td><td>Partial</td><td>Runtime primitives only</td></tr>
 <tr><td>Systems-level control</td><td>✅</td><td>✅</td><td>Partial</td><td>❌</td></tr>
 <tr><td>Predictable performance</td><td>✅</td><td>✅</td><td>With GC pauses</td><td>❌</td></tr>
 <tr><td>FFI to C</td><td>✅</td><td>N/A</td><td>✅</td><td>✅</td></tr>
@@ -386,7 +386,7 @@ fn main() {
 </tbody>
 </table>
 </div>
-<p>Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# similarly lack compile-time race prevention. Only Rust provides both memory safety and data race freedom at compile time, without runtime overhead.</p>
+<p>Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.</p>
 <h2 id="16-summary"><a class="header" href="#16-summary">1.6 Summary</a></h2>
 <ul>
 <li>Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.</li>
@@ -559,7 +559,12 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["sparse+https://index.crates.io/"]
 </code></pre>
-<h3 id="235-cargo-outdated--dependency-freshness"><a class="header" href="#235-cargo-outdated--dependency-freshness">2.3.5 cargo-outdated — Dependency Freshness</a></h3>
+<h3 id="235-cargo-geiger--unsafe-code-inventory"><a class="header" href="#235-cargo-geiger--unsafe-code-inventory">2.3.5 cargo-geiger — Unsafe Code Inventory</a></h3>
+<pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
+cargo geiger --all-features
+</code></pre>
+<p><code>cargo-geiger</code> does not prove a crate is unsafe, but it quickly shows where manual review effort should go. Use it to inventory <code>unsafe</code> code in your direct and transitive dependencies before you trust them in security-sensitive deployments.</p>
+<h3 id="236-cargo-outdated--dependency-freshness"><a class="header" href="#236-cargo-outdated--dependency-freshness">2.3.6 cargo-outdated — Dependency Freshness</a></h3>
 <pre><code class="language-bash">cargo install cargo-outdated --version 0.18.0 --locked
 cargo outdated
 </code></pre>
@@ -579,14 +584,15 @@ rustflags = [
 [profile.release]
 # Security-relevant profile settings
 overflow-checks = true       # Enable integer overflow checks even in release
-debug = true                 # Include debug info for crash analysis
-strip = false                # Don't strip symbols (useful for debugging)
+debug = true                 # Audit-friendly release profile for local crash analysis
+strip = false                # Keep symbols while debugging locally
 lto = true                   # Link-time optimization (removes dead code)
 codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
-opt-level = "s"              # Optimize for size (reduces attack surface)
+opt-level = "s"              # Optimize for size (smaller binaries, not a substitute for removing features)
 </code></pre>
 <p>🔒 <strong>Critical setting</strong>: <code>overflow-checks = true</code> in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.</p>
+<p>⚠️ <strong>Trade-off</strong>: <code>panic = "abort"</code> skips <code>Drop</code> during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use <code>Result</code> for attacker-controlled failures and reserve <code>panic = "abort"</code> for codebases where that trade-off is explicit.</p>
 <h2 id="25-ide-setup"><a class="header" href="#25-ide-setup">2.5 IDE Setup</a></h2>
 <h3 id="rust-analyzer-recommended"><a class="header" href="#rust-analyzer-recommended">rust-analyzer (Recommended)</a></h3>
 <p><code>rust-analyzer</code> provides IDE-quality features:</p>
@@ -603,7 +609,7 @@ opt-level = "s"              # Optimize for size (reduces attack surface)
 <pre><code class="language-json">// VS Code settings.json
 {
     "rust-analyzer.inlayHints.enable": true,
-    "rust-analyzer.checkOnSave.command": "clippy"
+    "rust-analyzer.check.command": "clippy"
 }
 </code></pre>
 <h2 id="26-project-structure"><a class="header" href="#26-project-structure">2.6 Project Structure</a></h2>
@@ -786,10 +792,8 @@ fn main() {
     let r3 = &amp;mut data;
     // let r4 = &amp;data[0];       // ERROR: cannot borrow immutably while mutably borrowed
     r3.push(6);
+    // let r5 = &amp;mut data;      // ERROR: cannot have two mutable borrows while `r3` is still used below
     println!("{:?}", r3);
-    
-    // Rule 3: Mutable borrows are exclusive
-    // let r5 = &amp;mut data;      // ERROR: cannot have two mutable borrows
 }</code></pre>
 <p>🔒 <strong>Security impact</strong>: These rules eliminate:</p>
 <ul>
@@ -911,6 +915,7 @@ fn main() {
     // When `key` goes out of scope, the buffer is zeroed and freed
 }</code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
+<p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
 <p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. The <code>write_volatile</code> example above shows the low-level mechanics, but in practice you should prefer the <code>zeroize</code> crate:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1957,6 +1962,24 @@ fn main() {
 
     assert_eq!(*counter.lock().unwrap(), 100);
 }</code></pre>
+<h3 id="613-scoped-threads-avoid-unnecessary-static"><a class="header" href="#613-scoped-threads-avoid-unnecessary-static">6.1.3 Scoped Threads Avoid Unnecessary <code>'static</code></a></h3>
+<p><code>std::thread::spawn</code> requires the closure to own only <code>'static</code> data because the new thread may outlive the caller. When the threads are guaranteed to finish before the current scope exits, prefer <code>std::thread::scope</code>:</p>
+<pre class="playground"><code class="language-rust edition2024">use std::thread;
+
+fn main() {
+    let mut counters = [0u64; 4];
+
+    thread::scope(|scope| {
+        for counter in &amp;mut counters {
+            scope.spawn(move || {
+                *counter += 1;
+            });
+        }
+    });
+
+    assert_eq!(counters, [1, 1, 1, 1]);
+}</code></pre>
+<p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
 <h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
 <h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
 <p><code>Mutex&lt;T&gt;</code> provides exclusive access to <code>T</code>. The lock guard pattern ensures the lock is always released:</p>
@@ -2565,6 +2588,7 @@ fn connect(host: Hostname, port: Port) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
+<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
 <h3 id="layer-2-parse-dont-validate"><a class="header" href="#layer-2-parse-dont-validate">Layer 2: Parse, Don’t Validate</a></h3>
 <p>The principle comes from functional programming: instead of checking if data is valid and then using it, <strong>parse</strong> the data into a strongly-typed representation that is valid by construction:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2736,6 +2760,33 @@ pub fn parse_size(input: &amp;str) -&gt; Result&lt;usize, ValidationError&gt; {
     Ok(value)
 }
 <span class="boring">}</span></code></pre>
+<h3 id="725-ssrf-prevention-requires-destination-validation"><a class="header" href="#725-ssrf-prevention-requires-destination-validation">7.2.5 SSRF Prevention Requires Destination Validation</a></h3>
+<p>A syntactically valid hostname is not automatically a safe outbound destination. For any server-side fetcher, webhook client, or proxy feature, combine hostname validation with post-resolution IP policy checks:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+fn is_public_ip(ip: IpAddr) -&gt; bool {
+    match ip {
+        IpAddr::V4(v4) =&gt; {
+            !(v4.is_private()
+                || v4.is_loopback()
+                || v4.is_link_local()
+                || v4 == Ipv4Addr::BROADCAST
+                || v4.is_documentation()
+                || v4.is_unspecified())
+        }
+        IpAddr::V6(v6) =&gt; {
+            !(v6.is_loopback()
+                || v6.is_unique_local()
+                || v6.is_multicast()
+                || v6.is_unspecified()
+                || v6 == Ipv6Addr::LOCALHOST)
+        }
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a “valid” hostname into access to internal services.</p>
 <h2 id="73-validation-for-protocol-parsing"><a class="header" href="#73-validation-for-protocol-parsing">7.3 Validation for Protocol Parsing</a></h2>
 <p>When implementing network protocols, validation is critical at every layer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2752,7 +2803,7 @@ pub enum ParseError {
 #[derive(Debug)]
 pub struct TlsRecord {
     content_type: ContentType,
-    version: TlsVersion,
+    version: TlsRecordVersion,
     length: u16,
     payload: Vec&lt;u8&gt;,
 }
@@ -2766,10 +2817,10 @@ enum ContentType {
 }
 
 #[derive(Debug)]
-enum TlsVersion {
+enum TlsRecordVersion {
     Tls10,
-    Tls12,
-    Tls13,
+    Tls11,
+    LegacyTls12,
 }
 
 impl TlsRecord {
@@ -2787,9 +2838,9 @@ impl TlsRecord {
         };
         
         let version = match u16::from_be_bytes([data[1], data[2]]) {
-            0x0301 =&gt; TlsVersion::Tls10,
-            0x0303 =&gt; TlsVersion::Tls12,
-            0x0304 =&gt; TlsVersion::Tls13,
+            0x0301 =&gt; TlsRecordVersion::Tls10,
+            0x0302 =&gt; TlsRecordVersion::Tls11,
+            0x0303 =&gt; TlsRecordVersion::LegacyTls12,
             v =&gt; return Err(ParseError::InvalidVersion(v)),
         };
         
@@ -2815,9 +2866,9 @@ impl TlsRecord {
 <li>Field ranges (record length limits per spec)</li>
 <li>Unknown values (reject unknown content types)</li>
 <li>Consistency (payload length matches header)</li>
-<li>Version enforcement (reject downgraded versions)</li>
+<li>Legacy version field sanity (TLS 1.3 still uses <code>0x0303</code> at the record layer)</li>
 </ul>
-<p>This prevents protocol-level attacks including fuzzing, injection, and downgrade attacks.</p>
+<p>This prevents protocol-level attacks including fuzzing, injection, and downgrade attacks. For TLS 1.3 specifically, perform downgrade checks in the handshake (<code>supported_versions</code>), not from the record-layer version field alone.</p>
 <h2 id="74-the-serde-ecosystem--deserialization-safety"><a class="header" href="#74-the-serde-ecosystem--deserialization-safety">7.4 The <code>serde</code> Ecosystem — Deserialization Safety</a></h2>
 <p>Serde is Rust’s serialization framework. While powerful, deserialization of untrusted data requires care:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -2894,6 +2945,8 @@ where
 <li>Create <strong>newtypes</strong> that enforce validity at construction time.</li>
 <li><strong>Whitelist</strong> allowed inputs; don’t blacklist dangerous ones.</li>
 <li>Prevent path traversal with canonicalization and prefix checking.</li>
+<li>Normalize and review Unicode input rules before validating non-ASCII identifiers.</li>
+<li>Treat SSRF as a destination policy problem, not just a hostname syntax problem.</li>
 <li>Validate protocol fields against specification limits.</li>
 <li>Use <code>std::process::Command</code> with argument vectors instead of shell escaping.</li>
 <li>Be cautious with serde deserialization of untrusted data—set depth and size limits.</li>
@@ -3011,6 +3064,7 @@ fn decrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], ciphertext_and_tag: &
 <li>For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.</li>
 <li>For counter-based nonces, track the counter securely and never reset it.</li>
 </ol>
+<p>More precisely: nonce reuse in AES-GCM reveals the XOR of plaintexts and leaks the GHASH authentication subkey, which enables message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</p>
 <h3 id="chacha20-poly1305-alternative-to-aes-gcm"><a class="header" href="#chacha20-poly1305-alternative-to-aes-gcm">ChaCha20-Poly1305 (Alternative to AES-GCM)</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3334,7 +3388,7 @@ fn generate_api_token() -&gt; String {
     hex::encode(bytes)
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. Since <code>rand</code> 0.8+, <code>thread_rng()</code> also uses a CSPRNG on most platforms, but <code>SystemRandom</code> makes the security intent clearer and avoids any risk of configuration mistakes (e.g., custom RNG seeding).</p>
+<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
 <h2 id="88-tls-with-rustls"><a class="header" href="#88-tls-with-rustls">8.8 TLS with rustls</a></h2>
 <p>For secure network communication, use <code>rustls</code> instead of OpenSSL:</p>
 <pre><code class="language-toml">[dependencies]
@@ -3373,7 +3427,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <tr><th>Mistake</th><th>C/C++ Consequence</th><th>Rust Prevention</th></tr>
 </thead>
 <tbody>
-<tr><td>Nonce reuse</td><td>catastrophic (GCM)</td><td>Type system can enforce nonce tracking</td></tr>
+<tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>Type system can enforce nonce tracking</td></tr>
 <tr><td>Missing auth</td><td>Padding oracle</td><td><code>ring</code> API requires AEAD</td></tr>
 <tr><td>Timing leak</td><td>Side-channel</td><td><code>ring::constant_time</code> module</td></tr>
 <tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>#[zeroize(drop)]</code></td></tr>
@@ -3552,8 +3606,10 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
     }
     
     fn grow(&amp;mut self, min_cap: usize) {
-        // Ensure we don't overflow
-        let new_cap = min_cap.max(self.cap * 2);
+        assert!(std::mem::size_of::&lt;T&gt;() != 0, "zero-sized types never allocate");
+        let doubled = self.cap.checked_mul(2)
+            .expect("capacity overflow");
+        let new_cap = min_cap.max(doubled);
         let new_layout = std::alloc::Layout::array::&lt;T&gt;(new_cap)
             .expect("allocation overflow");
         
@@ -3636,9 +3692,7 @@ unsafe {
 </span>use std::mem::MaybeUninit;
 
 fn initialize_array() -&gt; [u32; 100] {
-    let mut arr: [MaybeUninit&lt;u32&gt;; 100] = unsafe {
-        MaybeUninit::uninit().assume_init()
-    };
+    let mut arr: [MaybeUninit&lt;u32&gt;; 100] = [const { MaybeUninit::uninit() }; 100];
     
     for elem in arr.iter_mut() {
         elem.write(42);
@@ -3704,10 +3758,10 @@ mod raw_bindings {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>You can also enable <code>unsafe_op_in_unsafe_fn</code> to require explicit <code>unsafe</code> blocks even inside <code>unsafe fn</code>:</p>
+<p>In Edition 2024, <code>unsafe_op_in_unsafe_fn</code> warns by default. On older editions, enable it explicitly to require <code>unsafe</code> blocks even inside <code>unsafe fn</code>:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// In lib.rs — every unsafe operation inside an unsafe fn still needs an unsafe block
+</span>// In lib.rs on Edition 2021 or earlier
 #![warn(unsafe_op_in_unsafe_fn)]
 
 unsafe fn process_raw(ptr: *const u8) -&gt; u8 {
@@ -3761,7 +3815,7 @@ cargo +nightly miri test
 <li>Violation of the aliasing model (Stacked Borrows)</li>
 <li>Invalid values (e.g., <code>None</code> in a <code>NonZero</code> type)</li>
 <li>Use after free</li>
-<li>Data races (with <code>-Zmiri-track-raw-pointers</code>)</li>
+<li>Data races (enabled by default)</li>
 </ul>
 <pre class="playground"><code class="language-rust edition2024">fn main() {
     let mut data = vec![1, 2, 3];
@@ -3773,7 +3827,8 @@ cargo +nightly miri test
     }
 }</code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo miri test</code> in CI for any crate that contains <code>unsafe</code> code. Miri does not prove the <em>absence</em> of bugs, but it is exceptionally effective at finding them.</p>
-<p>⚠️ <strong>Limitations</strong>: Miri cannot run code that interacts with the operating system (file I/O, network, threads). For such code, extract the pure logic into testable functions and run Miri on those.</p>
+<p>For stricter raw-pointer aliasing diagnostics, you can also add <code>-Zmiri-track-raw-pointers</code>. That is separate from the data-race detector.</p>
+<p>⚠️ <strong>Limitations</strong>: Miri supports many <code>std::thread</code> patterns, but it cannot execute arbitrary FFI, real network I/O, or many OS-specific interactions. For such code, extract the pure logic into testable functions and run Miri on those pieces.</p>
 <h4 id="using-loom-for-concurrency-testing"><a class="header" href="#using-loom-for-concurrency-testing">Using Loom for Concurrency Testing</a></h4>
 <p><code>loom</code> is a model checker that systematically explores all possible thread interleavings to find data races and concurrency bugs. It replaces <code>std::sync</code> primitives with mock versions that explore different execution orderings:</p>
 <pre><code class="language-toml"># [dev-dependencies]
@@ -3877,7 +3932,7 @@ impl&lt;V&gt; FastMap&lt;V&gt; {
     // Declare external C functions
     fn malloc(size: usize) -&gt; *mut std::ffi::c_void;
     fn free(ptr: *mut std::ffi::c_void);
-    fn strlen(s: *const i8) -&gt; usize;
+    fn strlen(s: *const std::ffi::c_char) -&gt; usize;
 }
 
 fn c_string_length(s: &amp;std::ffi::CStr) -&gt; usize {
@@ -3897,7 +3952,7 @@ fn c_string_length(s: &amp;std::ffi::CStr) -&gt; usize {
 </ol>
 <h3 id="1012-the-bindgen-tool"><a class="header" href="#1012-the-bindgen-tool">10.1.2 The <code>bindgen</code> Tool</a></h3>
 <p>Manually writing FFI bindings is error-prone. Use <code>bindgen</code> to generate them from C headers:</p>
-<pre><code class="language-bash">cargo install bindgen-cli --version 0.72.1 --locked
+<pre><code class="language-bash">cargo install bindgen-cli --version 0.71 --locked
 bindgen /usr/include/openssl/ssl.h -o ssl_bindings.rs
 </code></pre>
 <p>Or use the <code>build.rs</code> pattern:</p>
@@ -4059,7 +4114,7 @@ Pointer validation does not make the function safe to call from Rust: the caller
 </span><span class="boring">fn main() {
 </span>#[repr(C)]
 pub struct FfiResult {
-    pub success: bool,
+    pub success: u8,  // 1 = success, 0 = failure
     pub value: i64,
     pub error_code: i32,
     pub error_message: [u8; 256],
@@ -4069,7 +4124,7 @@ pub struct FfiResult {
 pub extern "C" fn compute(x: i64, y: i64) -&gt; FfiResult {
     match x.checked_mul(y) {
         Some(value) =&gt; FfiResult {
-            success: true,
+            success: 1,
             value,
             error_code: 0,
             error_message: [0; 256],
@@ -4079,7 +4134,7 @@ pub extern "C" fn compute(x: i64, y: i64) -&gt; FfiResult {
             let err = b"multiplication overflow";
             msg[..err.len()].copy_from_slice(err);
             FfiResult {
-                success: false,
+                success: 0,
                 value: 0,
                 error_code: 1,
                 error_message: msg,
@@ -4179,7 +4234,7 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 <li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
 </ul>
 <p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
-<h2 id="104-ownership-across-the-ffi-boundary"><a class="header" href="#104-ownership-across-the-ffi-boundary">10.4 Ownership Across the FFI Boundary</a></h2>
+<h2 id="105-ownership-across-the-ffi-boundary"><a class="header" href="#105-ownership-across-the-ffi-boundary">10.5 Ownership Across the FFI Boundary</a></h2>
 <p>The most dangerous aspect of FFI is ownership confusion. Who allocates? Who frees?</p>
 <h3 id="pattern-1-rust-allocates-rust-frees"><a class="header" href="#pattern-1-rust-allocates-rust-frees">Pattern 1: Rust Allocates, Rust Frees</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -4190,10 +4245,8 @@ pub extern "C" fn create_buffer(size: usize) -&gt; *mut u8 {
     if size == 0 || size &gt; MAX_ALLOCATION {
         return std::ptr::null_mut();
     }
-    let mut buf = Vec::with_capacity(size);
-    let ptr = buf.as_mut_ptr();
-    std::mem::forget(buf);  // Prevent Rust from freeing
-    ptr
+    let boxed = vec![0u8; size].into_boxed_slice();
+    Box::into_raw(boxed) as *mut u8
 }
 
 #[unsafe(no_mangle)]
@@ -4203,8 +4256,9 @@ pub extern "C" fn create_buffer(size: usize) -&gt; *mut u8 {
 pub unsafe extern "C" fn free_buffer(ptr: *mut u8, size: usize) {
     if !ptr.is_null() {
         unsafe {
-            // Reconstruct the Vec to let Rust free it properly
-            let _ = Vec::from_raw_parts(ptr, 0, size);
+            // Reconstruct the boxed slice to let Rust free it properly.
+            let slice = std::ptr::slice_from_raw_parts_mut(ptr, size);
+            let _ = Box::from_raw(slice);
         }
     }
 }
@@ -4235,8 +4289,8 @@ impl CBuffer {
 // Do NOT implement Drop to free the memory—C owns it.
 // If C expects Rust to free it, use the appropriate C deallocator.
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Golden rule</strong>: Never mix allocators. If C allocates with <code>malloc</code>, free with <code>free</code>. If Rust allocates with <code>Vec</code>, free with <code>Vec::from_raw_parts</code>. Mixing them is undefined behavior.</p>
-<h2 id="105-callbacks-and-function-pointers"><a class="header" href="#105-callbacks-and-function-pointers">10.5 Callbacks and Function Pointers</a></h2>
+<p>🔒 <strong>Golden rule</strong>: Never mix allocators. If C allocates with <code>malloc</code>, free with <code>free</code>. If Rust allocates with <code>Box&lt;[u8]&gt;</code> or <code>Vec</code>, reconstruct the matching Rust type on the free path. Mixing allocators is undefined behavior.</p>
+<h2 id="106-callbacks-and-function-pointers"><a class="header" href="#106-callbacks-and-function-pointers">10.6 Callbacks and Function Pointers</a></h2>
 <h3 id="c-calling-rust-callbacks"><a class="header" href="#c-calling-rust-callbacks">C Calling Rust Callbacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -4273,7 +4327,7 @@ fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
     0
 }
 <span class="boring">}</span></code></pre>
-<h2 id="106-summary"><a class="header" href="#106-summary">10.6 Summary</a></h2>
+<h2 id="107-summary"><a class="header" href="#107-summary">10.7 Summary</a></h2>
 <ul>
 <li>FFI is inherently unsafe—every boundary crossing requires careful validation.</li>
 <li>Use <code>bindgen</code> to generate bindings instead of writing them manually.</li>
@@ -4285,7 +4339,7 @@ fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
 <li>Document ownership semantics clearly at every FFI boundary.</li>
 </ul>
 <p>In the next chapter, we explore Rust’s memory layout controls for systems programming.</p>
-<h2 id="107-exercises"><a class="header" href="#107-exercises">10.7 Exercises</a></h2>
+<h2 id="108-exercises"><a class="header" href="#108-exercises">10.8 Exercises</a></h2>
 <ol>
 <li>
 <p><strong>Safe CString Wrapper</strong>: Write a function <code>call_c_with_args(cmd: &amp;str, args: &amp;[&amp;str]) -&gt; Result&lt;i32, FfiError&gt;</code> that converts Rust strings to <code>CString</code>, calls a C function (simulate with a mock), and properly handles null bytes, NUL termination, and lifetime issues. Handle all error cases without <code>unwrap()</code>.</p>
@@ -4326,10 +4380,10 @@ struct CNetworkHeader {
     version: u8,    // offset 0
     flags: u8,      // offset 1
     length: u16,    // offset 2
-    seq: u32,       // offset 4 (2 bytes padding after length)
+    seq: u32,       // offset 4
     ack: u32,       // offset 8
 }
-// Size: exactly 12 bytes, with predictable padding
+// Size: exactly 12 bytes on common ABIs, with no interior padding in this layout
 <span class="boring">}</span></code></pre>
 <p><code>#[repr(C)]</code> guarantees:</p>
 <ul>
@@ -4472,22 +4526,25 @@ struct CacheLineAligned {
 <p>Rust uses the system allocator by default. For security-sensitive applications, you can use a custom allocator:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>use std::alloc::{GlobalAlloc, Layout, alloc, dealloc};
-use std::sync::atomic::{AtomicBool, Ordering};
+</span>use std::alloc::{GlobalAlloc, Layout, System};
+use std::sync::atomic::{compiler_fence, Ordering};
 
 /// A simple allocator that zeroizes memory on free
 struct SecureAllocator;
 
 unsafe impl GlobalAlloc for SecureAllocator {
     unsafe fn alloc(&amp;self, layout: Layout) -&gt; *mut u8 {
-        // Use system allocator
-        std::alloc::alloc(layout)
+        unsafe { System.alloc(layout) }
     }
     
     unsafe fn dealloc(&amp;self, ptr: *mut u8, layout: Layout) {
-        // Zero the memory before freeing
-        std::ptr::write_bytes(ptr, 0, layout.size());
-        std::alloc::dealloc(ptr, layout);
+        if !ptr.is_null() {
+            for i in 0..layout.size() {
+                unsafe { ptr.add(i).write_volatile(0); }
+            }
+            compiler_fence(Ordering::SeqCst);
+        }
+        unsafe { System.dealloc(ptr, layout) };
     }
 }
 
@@ -4498,6 +4555,7 @@ static GLOBAL: SecureAllocator = SecureAllocator;
 <ul>
 <li>Lock pages containing keys (prevent swapping to disk)</li>
 <li>Use <code>mlock</code>/<code>VirtualLock</code> to prevent paging</li>
+<li>Use a zeroization primitive that is guaranteed not to be optimized away</li>
 <li>Guard against heap metadata corruption</li>
 </ul>
 <h3 id="1142-the-zeroize-crate--practical-memory-wiping"><a class="header" href="#1142-the-zeroize-crate--practical-memory-wiping">11.4.2 The <code>zeroize</code> Crate — Practical Memory Wiping</a></h3>
@@ -4746,7 +4804,7 @@ fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt
 </thead>
 <tbody>
 <tr><td>Side-channel attacks (timing, cache)</td><td>Use constant-time Wasm runtimes; consider single-threaded execution</td></tr>
-<tr><td>Spectre-type attacks</td><td>Wasm runtimes like Lucet/Fastly’s implement spectre mitigations</td></tr>
+<tr><td>Spectre-type attacks</td><td>Use a maintained Wasm runtime (for example, Wasmtime) and follow its documented Spectre mitigations</td></tr>
 <tr><td>Resource exhaustion (memory)</td><td>Set <code>Store::limiter()</code> to cap memory growth</td></tr>
 <tr><td>Resource exhaustion (CPU)</td><td>Use fuel metering; set timeouts on <code>Store</code> operations</td></tr>
 <tr><td>Supply chain (malicious Wasm)</td><td>Verify Wasm module hashes or signatures before loading</td></tr>
@@ -5045,6 +5103,9 @@ fn create_tls_config(
 <li>✅ Use strong certificates (ECDSA P-256 or Ed25519)</li>
 <li>✅ Implement certificate pinning for internal services</li>
 </ul>
+<h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
+<p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
+<p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
 <h2 id="123-defense-against-network-attacks"><a class="header" href="#123-defense-against-network-attacks">12.3 Defense Against Network Attacks</a></h2>
 <h3 id="1231-preventing-buffer-overflows-in-parsers"><a class="header" href="#1231-preventing-buffer-overflows-in-parsers">12.3.1 Preventing Buffer Overflows in Parsers</a></h3>
 <p>Rust’s safe code is immune to buffer overflows, but parser logic errors can still cause denial of service:</p>
@@ -5330,9 +5391,7 @@ fn test_authentication_flow() {
 </code></pre>
 <h2 id="132-security-specific-test-patterns"><a class="header" href="#132-security-specific-test-patterns">13.2 Security-Specific Test Patterns</a></h2>
 <h3 id="1321-boundary-value-testing"><a class="header" href="#1321-boundary-value-testing">13.2.1 Boundary Value Testing</a></h3>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
+<pre><code class="language-rust ignore">#[cfg(test)]
 mod boundary_tests {
     use super::*;
     
@@ -5367,14 +5426,11 @@ mod boundary_tests {
         assert_eq!(safe_add(u64::MAX, 0), Some(u64::MAX));
         assert_eq!(safe_add(u64::MAX, 1), None);  // Overflow
         assert_eq!(safe_add(0, 0), Some(0));
-        assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), None);
+        assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), Some(u64::MAX));
     }
-}
-<span class="boring">}</span></code></pre>
+}</code></pre>
 <h3 id="1322-negative-testing--testing-failure-modes"><a class="header" href="#1322-negative-testing--testing-failure-modes">13.2.2 Negative Testing — Testing Failure Modes</a></h3>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
+<pre><code class="language-rust ignore">#[cfg(test)]
 mod negative_tests {
     use super::*;
     
@@ -5413,12 +5469,9 @@ mod negative_tests {
         assert!(parse_username("").is_err());
         assert!(parse_username("   ").is_err());
     }
-}
-<span class="boring">}</span></code></pre>
+}</code></pre>
 <h3 id="1323-property-based-security-invariants"><a class="header" href="#1323-property-based-security-invariants">13.2.3 Property-Based Security Invariants</a></h3>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
+<pre><code class="language-rust ignore">#[cfg(test)]
 mod invariant_tests {
     use super::*;
     
@@ -5479,12 +5532,9 @@ mod invariant_tests {
         let result = decrypt(&amp;key, &amp;nonce, &amp;ciphertext);
         assert!(result.is_err(), "Tampered ciphertext should be rejected");
     }
-}
-<span class="boring">}</span></code></pre>
+}</code></pre>
 <h3 id="1324-testing-error-messages-dont-leak-sensitive-data"><a class="header" href="#1324-testing-error-messages-dont-leak-sensitive-data">13.2.4 Testing Error Messages Don’t Leak Sensitive Data</a></h3>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
+<pre><code class="language-rust ignore">#[cfg(test)]
 mod information_disclosure_tests {
     use super::*;
     
@@ -5510,12 +5560,9 @@ mod information_disclosure_tests {
             format!("{}", result2.unwrap_err())
         );
     }
-}
-<span class="boring">}</span></code></pre>
+}</code></pre>
 <h2 id="133-testing-concurrent-code"><a class="header" href="#133-testing-concurrent-code">13.3 Testing Concurrent Code</a></h2>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
+<pre><code class="language-rust ignore">#[cfg(test)]
 mod concurrency_tests {
     use super::*;
     use std::sync::Arc;
@@ -5562,12 +5609,9 @@ mod concurrency_tests {
         
         assert_eq!(counter.load(Ordering::SeqCst), 10_000);
     }
-}
-<span class="boring">}</span></code></pre>
+}</code></pre>
 <h2 id="134-testing-unsafe-code"><a class="header" href="#134-testing-unsafe-code">13.4 Testing Unsafe Code</a></h2>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>#[cfg(test)]
+<pre><code class="language-rust ignore">#[cfg(test)]
 mod unsafe_tests {
     use super::*;
     
@@ -5589,8 +5633,7 @@ mod unsafe_tests {
         let result = SafeBuffer::from_raw(std::ptr::null_mut(), 10);
         assert!(result.is_err());
     }
-}
-<span class="boring">}</span></code></pre>
+}</code></pre>
 <h2 id="135-doc-tests--testable-documentation"><a class="header" href="#135-doc-tests--testable-documentation">13.5 Doc Tests — Testable Documentation</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -5823,7 +5866,7 @@ proptest! {
         let header_line = format!("{}: {}", name, value);
         let parsed = parse_http_header(&amp;header_line).unwrap();
         prop_assert_eq!(parsed.name, name);
-        prop_assert_eq!(parsed.value, value);
+        prop_assert_eq!(parsed.value, value.trim_start_matches(|c| c == ' ' || c == '\t'));
     }
 }
 
@@ -6358,8 +6401,27 @@ Failed in:
 <li><input disabled="" type="checkbox"> Are <code>Send</code>/<code>Sync</code> implementations correct for custom types?</li>
 <li><input disabled="" type="checkbox"> Is shared mutable state properly synchronized?</li>
 </ul>
-<h2 id="156-formal-verification-with-prusti"><a class="header" href="#156-formal-verification-with-prusti">15.6 Formal Verification with Prusti</a></h2>
-<p>For the highest assurance levels, Prusti verifies Rust programs using formal methods:</p>
+<h2 id="156-formal-methods-kani-and-prusti"><a class="header" href="#156-formal-methods-kani-and-prusti">15.6 Formal Methods: Kani and Prusti</a></h2>
+<h3 id="1561-kani-for-bounded-model-checking"><a class="header" href="#1561-kani-for-bounded-model-checking">15.6.1 Kani for Bounded Model Checking</a></h3>
+<p>Kani is especially useful for parser arithmetic, bounds checks, and state-machine invariants because it exhaustively explores bounded inputs instead of relying on random testing:</p>
+<pre><code class="language-bash"># Install Kani
+cargo install kani-verifier --locked
+
+# Run proofs in the current crate
+cargo kani
+</code></pre>
+<pre><code class="language-rust ignore">#[kani::proof]
+fn frame_length_never_overflows() {
+    let payload_len: usize = kani::any();
+    kani::assume(payload_len &lt;= 16 * 1024);
+
+    let frame_len = payload_len.checked_add(4).unwrap();
+    assert!(frame_len &gt;= 4);
+    assert!(frame_len &lt;= 16 * 1024 + 4);
+}</code></pre>
+<p>Use Kani when you want high assurance on bounded properties such as “length arithmetic never overflows”, “this index stays in bounds”, or “all enum states transition legally”.</p>
+<h3 id="1562-prusti-for-contracts"><a class="header" href="#1562-prusti-for-contracts">15.6.2 Prusti for Contracts</a></h3>
+<p>For contract-style verification, Prusti lets you express preconditions, postconditions, and invariants:</p>
 <pre><code class="language-bash"># Install Prusti (requires specific Rust version)
 # See: https://github.com/viperproject/prusti-dev
 </code></pre>
@@ -6382,7 +6444,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li>Use <code>cargo vet</code> or <code>cargo crev</code> for supply chain auditing.</li>
 <li>Use <code>cargo semver-checks</code> to detect accidental breaking API changes that could compromise downstream security.</li>
 <li>Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.</li>
-<li>Consider formal verification (Prusti) for the highest assurance levels.</li>
+<li>Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.</li>
 </ul>
 <p>In the next chapter, we cover supply chain security—protecting your build pipeline from tampering and compromise.</p>
 <h2 id="158-exercises"><a class="header" href="#158-exercises">15.8 Exercises</a></h2>
@@ -6426,7 +6488,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <ul>
 <li><strong>event-stream (npm, 2018)</strong>: Attacker became maintainer of popular package and added cryptocurrency-stealing code.</li>
 <li><strong>ua-parser-js (npm, 2021)</strong>: Maintainer’s account compromised, malicious versions published.</li>
-<li><strong>Rust crate takedown (2022)</strong>: Several crates were yanked after security issues were discovered.</li>
+<li><strong>crates.io typosquatting campaigns</strong>: Malicious crates with lookalike names have been published to steal data or execute code during builds.</li>
 <li><strong>colors.js/faker.js (npm, 2022)</strong>: Maintainer deliberately broke their own packages.</li>
 </ul>
 <h2 id="162-dependency-selection-criteria"><a class="header" href="#162-dependency-selection-criteria">16.2 Dependency Selection Criteria</a></h2>
@@ -6517,7 +6579,7 @@ allow = [
 ]
 unlicensed = "deny"
 # Reject copyleft licenses in proprietary software
-deny = ["GPL-2.0", "GPL-3.0", "AGPL-3.0"]
+deny = ["GPL-2.0-only", "GPL-3.0-only", "AGPL-3.0-only"]
 </code></pre>
 <h3 id="1642-ban-dangerous-crates"><a class="header" href="#1642-ban-dangerous-crates">16.4.2 Ban Dangerous Crates</a></h3>
 <pre><code class="language-toml"># deny.toml
@@ -6558,10 +6620,10 @@ include-dependencies = true
 <h3 id="1651-reproducible-builds"><a class="header" href="#1651-reproducible-builds">16.5.1 Reproducible Builds</a></h3>
 <p>A reproducible build produces identical output given the same source code, regardless of the build environment. This enables third-party verification that a binary was built from the claimed source.</p>
 <pre><code class="language-bash"># Build with reproducibility settings
-RUSTFLAGS="-C link-arg=-s" \
+RUSTFLAGS="--remap-path-prefix=/build/workdir=." \
 CARGO_PROFILE_RELEASE_LTO=true \
 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-cargo build --release --target x86_64-unknown-linux-gnu
+cargo build --release --locked --frozen --target x86_64-unknown-linux-gnu
 </code></pre>
 <p>Key settings for reproducibility:</p>
 <pre><code class="language-toml"># Cargo.toml
@@ -6573,8 +6635,10 @@ panic = "abort"
 
 # .cargo/config.toml
 [env]
-SOURCE_DATE_EPOCH = "1700000000"  # Fixed timestamp
+RUSTFLAGS = "--remap-path-prefix=/build/workdir=."
+SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 </code></pre>
+<p>Absolute paths in debug info, non-deterministic linkers, and <code>build.rs</code> scripts are common causes of Rust build drift. <code>SOURCE_DATE_EPOCH</code> can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.</p>
 <h3 id="1652-binary-verification"><a class="header" href="#1652-binary-verification">16.5.2 Binary Verification</a></h3>
 <pre><code class="language-bash"># Compare builds
 sha256sum target/release/my-binary
@@ -7904,10 +7968,10 @@ lto = true                   # Link-time optimization (removes dead code, reduce
 codegen-units = 1            # Single codegen unit (better optimization, no parallel shortcuts)
 panic = "abort"              # Abort on panic (smaller binary, no unwinding table attack surface)
 strip = "symbols"            # Strip debug symbols from release binary
-opt-level = "z"              # Optimize for size (smaller attack surface)
+opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
 
-# Optional: customize debug info for crash analysis
-debug = 1                    # Line tables only (enough for stack traces, no full debug info)
+# Optional alternative for crash analysis:
+# debug = 1                  # Use this only when shipping an unstripped artifact
 </code></pre>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
@@ -7922,7 +7986,7 @@ rustflags = [
     "-C", "link-arg=-Wl,-z,now",            # Full RELRO (resolve all symbols at load)
     
     # Position-independent executable (required for ASLR)
-    "-C", "relocation-model=pic",
+    "-C", "relocation-model=pie",
 ]
 
 # Stable Rust/Linux already enables PIE, NX, and RELRO for ordinary binaries.
@@ -7968,7 +8032,7 @@ rustflags = [
 <tr><td><strong>ASLR</strong></td><td>Fixed-address attacks</td><td>PIE enabled by default</td><td><code>/DYNAMICBASE</code></td></tr>
 <tr><td><strong>Stack canaries</strong></td><td>Stack buffer overflow</td><td><code>-fstack-protector</code> for C/C++ code; Rust SSP is nightly-only today</td><td><code>/GS</code> for MSVC-compiled C/C++</td></tr>
 <tr><td><strong>RELRO</strong></td><td>GOT overwrite</td><td>Full RELRO enabled by default on mainstream targets</td><td>N/A (ELF-specific mitigation)</td></tr>
-<tr><td><strong>CFG</strong></td><td>Indirect-call hijacking</td><td>Target-specific hardware hardening, not a general stable default</td><td><code>-C control-flow-guard=yes</code></td></tr>
+<tr><td><strong>Indirect-call hardening</strong></td><td>Indirect-call hijacking</td><td>CET/LLVM CFI when your toolchain and CPU support them</td><td><code>-C control-flow-guard=yes</code></td></tr>
 <tr><td><strong>Fortify</strong></td><td>glibc buffer overflow</td><td><code>-D_FORTIFY_SOURCE=2</code> for C dependencies</td><td>N/A</td></tr>
 </tbody>
 </table>
@@ -8405,6 +8469,7 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
+<p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
 <p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux and can leak through process listing. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -8665,7 +8730,7 @@ aa-genprof /usr/local/bin/secure-server
 <tbody>
 <tr><td><code>ring</code></td><td>Cryptography</td><td>High (BoringSSL-derived, audited)</td></tr>
 <tr><td><code>rustls</code></td><td>TLS</td><td>High (memory-safe, audited)</td></tr>
-<tr><td><code>serde</code></td><td>Serialization</td><td>High (rust-lang org)</td></tr>
+<tr><td><code>serde</code></td><td>Serialization</td><td>High (serde-rs project, widely used)</td></tr>
 <tr><td><code>zeroize</code></td><td>Memory wiping</td><td>High (widely audited)</td></tr>
 <tr><td><code>secrecy</code></td><td>Secret encapsulation</td><td>High</td></tr>
 <tr><td><code>thiserror</code></td><td>Error types</td><td>High</td></tr>

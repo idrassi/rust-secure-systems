@@ -272,6 +272,12 @@ fn create_tls_config(
 - ✅ Use strong certificates (ECDSA P-256 or Ed25519)
 - ✅ Implement certificate pinning for internal services
 
+### 12.2.2 Mutual TLS for Service-to-Service Traffic
+
+`with_no_client_auth()` is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.
+
+Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.
+
 ## 12.3 Defense Against Network Attacks
 
 ### 12.3.1 Preventing Buffer Overflows in Parsers

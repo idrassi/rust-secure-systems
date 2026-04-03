@@ -102,10 +102,8 @@ fn main() {
     let r3 = &mut data;
     // let r4 = &data[0];       // ERROR: cannot borrow immutably while mutably borrowed
     r3.push(6);
+    // let r5 = &mut data;      // ERROR: cannot have two mutable borrows while `r3` is still used below
     println!("{:?}", r3);
-    
-    // Rule 3: Mutable borrows are exclusive
-    // let r5 = &mut data;      // ERROR: cannot have two mutable borrows
 }
 ```
 
@@ -258,6 +256,8 @@ fn main() {
 ```
 
 🔒 **Security pattern**: Use `Drop` to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling `SecureZeroMemory` on Windows or `explicit_bzero` on POSIX before releasing the buffer.
+
+⚠️ **Panic behavior matters**: `Drop` runs on normal return and during unwinding, but it does not run if the process aborts. If you set `panic = "abort"` for FFI or hardening reasons, do not assume `Drop`-based wiping protects panic paths.
 
 ⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. The `write_volatile` example above shows the low-level mechanics, but in practice you should prefer the `zeroize` crate:
 

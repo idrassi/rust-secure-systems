@@ -304,9 +304,37 @@ For each `unsafe` block:
 - [ ] Are `Send`/`Sync` implementations correct for custom types?
 - [ ] Is shared mutable state properly synchronized?
 
-## 15.6 Formal Verification with Prusti
+## 15.6 Formal Methods: Kani and Prusti
 
-For the highest assurance levels, Prusti verifies Rust programs using formal methods:
+### 15.6.1 Kani for Bounded Model Checking
+
+Kani is especially useful for parser arithmetic, bounds checks, and state-machine invariants because it exhaustively explores bounded inputs instead of relying on random testing:
+
+```bash
+# Install Kani
+cargo install kani-verifier --locked
+
+# Run proofs in the current crate
+cargo kani
+```
+
+```rust,ignore
+#[kani::proof]
+fn frame_length_never_overflows() {
+    let payload_len: usize = kani::any();
+    kani::assume(payload_len <= 16 * 1024);
+
+    let frame_len = payload_len.checked_add(4).unwrap();
+    assert!(frame_len >= 4);
+    assert!(frame_len <= 16 * 1024 + 4);
+}
+```
+
+Use Kani when you want high assurance on bounded properties such as "length arithmetic never overflows", "this index stays in bounds", or "all enum states transition legally".
+
+### 15.6.2 Prusti for Contracts
+
+For contract-style verification, Prusti lets you express preconditions, postconditions, and invariants:
 
 ```bash
 # Install Prusti (requires specific Rust version)
@@ -333,7 +361,7 @@ fn safe_get(slice: &[u8], idx: usize) -> u8 {
 - Use `cargo vet` or `cargo crev` for supply chain auditing.
 - Use `cargo semver-checks` to detect accidental breaking API changes that could compromise downstream security.
 - Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.
-- Consider formal verification (Prusti) for the highest assurance levels.
+- Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.
 
 In the next chapter, we cover supply chain security—protecting your build pipeline from tampering and compromise.
 

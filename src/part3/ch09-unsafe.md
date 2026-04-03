@@ -148,8 +148,10 @@ impl<T> RawVec<T> {
     }
     
     fn grow(&mut self, min_cap: usize) {
-        // Ensure we don't overflow
-        let new_cap = min_cap.max(self.cap * 2);
+        assert!(std::mem::size_of::<T>() != 0, "zero-sized types never allocate");
+        let doubled = self.cap.checked_mul(2)
+            .expect("capacity overflow");
+        let new_cap = min_cap.max(doubled);
         let new_layout = std::alloc::Layout::array::<T>(new_cap)
             .expect("allocation overflow");
         
@@ -239,9 +241,7 @@ unsafe {
 use std::mem::MaybeUninit;
 
 fn initialize_array() -> [u32; 100] {
-    let mut arr: [MaybeUninit<u32>; 100] = unsafe {
-        MaybeUninit::uninit().assume_init()
-    };
+    let mut arr: [MaybeUninit<u32>; 100] = [const { MaybeUninit::uninit() }; 100];
     
     for elem in arr.iter_mut() {
         elem.write(42);
@@ -318,10 +318,10 @@ mod raw_bindings {
 }
 ```
 
-You can also enable `unsafe_op_in_unsafe_fn` to require explicit `unsafe` blocks even inside `unsafe fn`:
+In Edition 2024, `unsafe_op_in_unsafe_fn` warns by default. On older editions, enable it explicitly to require `unsafe` blocks even inside `unsafe fn`:
 
 ```rust
-// In lib.rs — every unsafe operation inside an unsafe fn still needs an unsafe block
+// In lib.rs on Edition 2021 or earlier
 #![warn(unsafe_op_in_unsafe_fn)]
 
 unsafe fn process_raw(ptr: *const u8) -> u8 {
@@ -377,7 +377,7 @@ Miri detects:
 - Violation of the aliasing model (Stacked Borrows)
 - Invalid values (e.g., `None` in a `NonZero` type)
 - Use after free
-- Data races (with `-Zmiri-track-raw-pointers`)
+- Data races (enabled by default)
 
 ```rust
 fn main() {
@@ -393,7 +393,9 @@ fn main() {
 
 🔒 **Security practice**: Run `cargo miri test` in CI for any crate that contains `unsafe` code. Miri does not prove the *absence* of bugs, but it is exceptionally effective at finding them.
 
-⚠️ **Limitations**: Miri cannot run code that interacts with the operating system (file I/O, network, threads). For such code, extract the pure logic into testable functions and run Miri on those.
+For stricter raw-pointer aliasing diagnostics, you can also add `-Zmiri-track-raw-pointers`. That is separate from the data-race detector.
+
+⚠️ **Limitations**: Miri supports many `std::thread` patterns, but it cannot execute arbitrary FFI, real network I/O, or many OS-specific interactions. For such code, extract the pure logic into testable functions and run Miri on those pieces.
 
 #### Using Loom for Concurrency Testing
 

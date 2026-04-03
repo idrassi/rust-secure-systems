@@ -13,7 +13,7 @@ edition = "2024"
 [output.html]
 default-theme = "navy"
 git-repository-url = "https://github.com/idrassi/rust-secure-systems"
-edit-url-template = "https://github.com/idrassi/rust-secure-systems/edit/main/{path}"
+edit-url-template = "https://github.com/idrassi/rust-secure-systems/edit/master/{path}"
 site-url = "https://amcrypto.jp/rust-secure-systems/"
 additional-css = ["theme/brand.css"]
 

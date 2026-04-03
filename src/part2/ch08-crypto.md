@@ -106,6 +106,8 @@ fn decrypt(key: &[u8; 32], nonce_bytes: &[u8; 12], ciphertext_and_tag: &[u8]) ->
 2. For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.
 3. For counter-based nonces, track the counter securely and never reset it.
 
+More precisely: nonce reuse in AES-GCM reveals the XOR of plaintexts and leaks the GHASH authentication subkey, which enables message forgery. It does **not** directly reveal the AES key, but it is still catastrophic.
+
 ### ChaCha20-Poly1305 (Alternative to AES-GCM)
 
 ```rust,no_run
@@ -458,7 +460,7 @@ fn generate_api_token() -> String {
 }
 ```
 
-⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. Since `rand` 0.8+, `thread_rng()` also uses a CSPRNG on most platforms, but `SystemRandom` makes the security intent clearer and avoids any risk of configuration mistakes (e.g., custom RNG seeding).
+⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. In `rand` 0.8, `thread_rng()` is also backed by a CSPRNG, but `SystemRandom` makes the security intent clearer and keeps key generation tied directly to the operating system RNG.
 
 ## 8.8 TLS with rustls
 
@@ -498,7 +500,7 @@ fn create_tls_client_config() -> ClientConfig {
 
 | Mistake | C/C++ Consequence | Rust Prevention |
 |---------|-------------------|-----------------|
-| Nonce reuse |catastrophic (GCM) | Type system can enforce nonce tracking |
+| Nonce reuse | Catastrophic (GCM) | Type system can enforce nonce tracking |
 | Missing auth | Padding oracle | `ring` API requires AEAD |
 | Timing leak | Side-channel | `ring::constant_time` module |
 | Key not zeroed | Memory disclosure | `zeroize` crate with `#[zeroize(drop)]` |

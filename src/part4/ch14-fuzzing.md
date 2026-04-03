@@ -138,7 +138,7 @@ proptest! {
         let header_line = format!("{}: {}", name, value);
         let parsed = parse_http_header(&header_line).unwrap();
         prop_assert_eq!(parsed.name, name);
-        prop_assert_eq!(parsed.value, value);
+        prop_assert_eq!(parsed.value, value.trim_start_matches(|c| c == ' ' || c == '\t'));
     }
 }
 

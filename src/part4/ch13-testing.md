@@ -114,7 +114,7 @@ tests/
 
 ### 13.2.1 Boundary Value Testing
 
-```rust
+```rust,ignore
 #[cfg(test)]
 mod boundary_tests {
     use super::*;
@@ -150,14 +150,14 @@ mod boundary_tests {
         assert_eq!(safe_add(u64::MAX, 0), Some(u64::MAX));
         assert_eq!(safe_add(u64::MAX, 1), None);  // Overflow
         assert_eq!(safe_add(0, 0), Some(0));
-        assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), None);
+        assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), Some(u64::MAX));
     }
 }
 ```
 
 ### 13.2.2 Negative Testing — Testing Failure Modes
 
-```rust
+```rust,ignore
 #[cfg(test)]
 mod negative_tests {
     use super::*;
@@ -202,7 +202,7 @@ mod negative_tests {
 
 ### 13.2.3 Property-Based Security Invariants
 
-```rust
+```rust,ignore
 #[cfg(test)]
 mod invariant_tests {
     use super::*;
@@ -269,7 +269,7 @@ mod invariant_tests {
 
 ### 13.2.4 Testing Error Messages Don't Leak Sensitive Data
 
-```rust
+```rust,ignore
 #[cfg(test)]
 mod information_disclosure_tests {
     use super::*;
@@ -301,7 +301,7 @@ mod information_disclosure_tests {
 
 ## 13.3 Testing Concurrent Code
 
-```rust
+```rust,ignore
 #[cfg(test)]
 mod concurrency_tests {
     use super::*;
@@ -354,7 +354,7 @@ mod concurrency_tests {
 
 ## 13.4 Testing Unsafe Code
 
-```rust
+```rust,ignore
 #[cfg(test)]
 mod unsafe_tests {
     use super::*;

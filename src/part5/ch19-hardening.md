@@ -19,10 +19,10 @@ lto = true                   # Link-time optimization (removes dead code, reduce
 codegen-units = 1            # Single codegen unit (better optimization, no parallel shortcuts)
 panic = "abort"              # Abort on panic (smaller binary, no unwinding table attack surface)
 strip = "symbols"            # Strip debug symbols from release binary
-opt-level = "z"              # Optimize for size (smaller attack surface)
+opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
 
-# Optional: customize debug info for crash analysis
-debug = 1                    # Line tables only (enough for stack traces, no full debug info)
+# Optional alternative for crash analysis:
+# debug = 1                  # Use this only when shipping an unstripped artifact
 ```
 
 ### 19.1.2 Linker Hardening Flags
@@ -40,7 +40,7 @@ rustflags = [
     "-C", "link-arg=-Wl,-z,now",            # Full RELRO (resolve all symbols at load)
     
     # Position-independent executable (required for ASLR)
-    "-C", "relocation-model=pic",
+    "-C", "relocation-model=pie",
 ]
 
 # Stable Rust/Linux already enables PIE, NX, and RELRO for ordinary binaries.
@@ -87,7 +87,7 @@ rustflags = [
 | **ASLR** | Fixed-address attacks | PIE enabled by default | `/DYNAMICBASE` |
 | **Stack canaries** | Stack buffer overflow | `-fstack-protector` for C/C++ code; Rust SSP is nightly-only today | `/GS` for MSVC-compiled C/C++ |
 | **RELRO** | GOT overwrite | Full RELRO enabled by default on mainstream targets | N/A (ELF-specific mitigation) |
-| **CFG** | Indirect-call hijacking | Target-specific hardware hardening, not a general stable default | `-C control-flow-guard=yes` |
+| **Indirect-call hardening** | Indirect-call hijacking | CET/LLVM CFI when your toolchain and CPU support them | `-C control-flow-guard=yes` |
 | **Fortify** | glibc buffer overflow | `-D_FORTIFY_SOURCE=2` for C dependencies | N/A |
 
 ## 19.2 Container Security
@@ -562,6 +562,8 @@ fn load_secret(key: &str) -> Result<Vec<u8>, SecretError> {
 
 The companion implementation uses this exact pattern in `companion/ch19-hardening/src/secrets.rs`, so the secret buffer is zeroized on both success and decode failure.
 
+For long-lived secrets such as TLS private keys, pair zeroization with page locking (`mlock`/`VirtualLock`) when the platform allows it so the secret is less likely to be swapped to disk.
+
 ⚠️ **Limitation**: Environment variables are visible in `/proc/<pid>/environ` on Linux and can leak through process listing. In Edition 2024, mutating the process environment with `std::env::set_var` or `std::env::remove_var` is `unsafe`, so "read then delete" is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.
 
 ### 19.5.2 Files with Restricted Permissions
@@ -835,7 +837,7 @@ This concludes the book. You now have the knowledge and practical skills to writ
 |-------|---------|-------------|
 | `ring` | Cryptography | High (BoringSSL-derived, audited) |
 | `rustls` | TLS | High (memory-safe, audited) |
-| `serde` | Serialization | High (rust-lang org) |
+| `serde` | Serialization | High (serde-rs project, widely used) |
 | `zeroize` | Memory wiping | High (widely audited) |
 | `secrecy` | Secret encapsulation | High |
 | `thiserror` | Error types | High |
