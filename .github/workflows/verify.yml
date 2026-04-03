@@ -3,10 +3,21 @@ name: Verify
 on:
   push:
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -18,16 +29,16 @@ jobs:
         run: cargo install mdbook --version 0.5.2 --locked
 
       - name: Lint companion workspace
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
       - name: Test companion workspace
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
       - name: Build mdBook
         run: mdbook build
 
       - name: Build snippet helper crate
-        run: cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
+        run: cargo check -p rust-secure-systems-book --locked --target-dir target/book-snippets-check
 
       - name: Test mdBook snippets
         run: mdbook test -L target/book-snippets-check/debug/deps
