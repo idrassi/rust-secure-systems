@@ -190,7 +190,7 @@ struct CacheLineAligned {
 
 Rust uses the system allocator by default. For security-sensitive applications, you can use a custom allocator:
 
-```rust
+```rust,no_run
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{compiler_fence, Ordering};
 
@@ -311,6 +311,8 @@ impl PacketBuffer {
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
+# #[cfg(unix)]
+# use rust_secure_systems_book::deps::libc as libc;
 # use rust_secure_systems_book::deps::windows_sys as windows_sys;
 #[cfg(unix)]
 fn lock_memory(ptr: *const u8, len: usize) -> Result<(), std::io::Error> {

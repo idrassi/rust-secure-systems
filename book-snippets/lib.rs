@@ -18,6 +18,7 @@ pub mod deps {
     pub use ed25519_dalek;
     pub use env_logger;
     pub use hex;
+    pub use libc;
     pub use libfuzzer_sys;
     pub use log;
     pub use loom;

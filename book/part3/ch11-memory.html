@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-65a83bc4.js";
+            window.path_to_searchindex_js = "../searchindex-5f8c8b06.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -353,7 +353,7 @@ struct CacheLineAligned {
 <h2 id="114-working-with-raw-memory"><a class="header" href="#114-working-with-raw-memory">11.4 Working with Raw Memory</a></h2>
 <h3 id="1141-the-global-allocator"><a class="header" href="#1141-the-global-allocator">11.4.1 The Global Allocator</a></h3>
 <p>Rust uses the system allocator by default. For security-sensitive applications, you can use a custom allocator:</p>
-<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::atomic::{compiler_fence, Ordering};
@@ -467,6 +467,8 @@ impl PacketBuffer {
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">#[cfg(unix)]
+</span><span class="boring">use rust_secure_systems_book::deps::libc as libc;
 </span><span class="boring">use rust_secure_systems_book::deps::windows_sys as windows_sys;
 </span>#[cfg(unix)]
 fn lock_memory(ptr: *const u8, len: usize) -&gt; Result&lt;(), std::io::Error&gt; {
