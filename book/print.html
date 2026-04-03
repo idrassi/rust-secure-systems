@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-6232f64b.js";
+            window.path_to_searchindex_js = "searchindex-709c88b3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -3143,6 +3143,23 @@ fn create_chacha20_key(key_bytes: &amp;[u8; 32]) -&gt; UnboundKey {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>When to prefer ChaCha20-Poly1305</strong>: On platforms without AES hardware acceleration, ChaCha20 is faster and constant-time. On modern x86/ARM with AES-NI, AES-GCM is typically faster.</p>
+<h3 id="nonce-misuse-resistant-alternatives"><a class="header" href="#nonce-misuse-resistant-alternatives">Nonce-Misuse-Resistant Alternatives</a></h3>
+<p>If your system cannot reliably guarantee nonce uniqueness across crashes, replicas, offline clients, or multi-writer deployments, prefer an AEAD that degrades more safely under nonce mistakes:</p>
+<pre><code class="language-toml">[dependencies]
+aes-gcm-siv = "0.11"
+chacha20poly1305 = "0.10"
+</code></pre>
+<ul>
+<li><strong>AES-GCM-SIV</strong> (RFC 8452) is a misuse-resistant variant of GCM. Accidental nonce reuse is still a bug, but it is much less catastrophic than nonce reuse in classic AES-GCM.</li>
+<li><strong>XChaCha20-Poly1305</strong> extends the nonce to 192 bits (24 bytes), which makes random-nonce designs much easier to operate safely in distributed systems and local-encryption tools.</li>
+<li><code>ring</code> does not currently expose these constructions, so use well-reviewed RustCrypto crates when you need them.</li>
+</ul>
+<p>🔒 <strong>Design guidance</strong>:</p>
+<ul>
+<li>If you need an AES-based construction and are worried about occasional nonce duplication, consider AES-GCM-SIV.</li>
+<li>If random nonces are operationally simpler than durable counters, XChaCha20-Poly1305 is often the easiest safe choice.</li>
+<li>Misuse resistance is not permission to reuse nonces deliberately. You still need uniqueness, replay handling, and a clear key lifecycle.</li>
+</ul>
 <h2 id="83-key-derivation"><a class="header" href="#83-key-derivation">8.3 Key Derivation</a></h2>
 <p>Never use passwords directly as encryption keys. Use a key derivation function (KDF):</p>
 <h3 id="hkdf-for-deriving-keys-from-a-shared-secret"><a class="header" href="#hkdf-for-deriving-keys-from-a-shared-secret">HKDF (for deriving keys from a shared secret)</a></h3>
@@ -3345,6 +3362,16 @@ fn key_exchange_pipeline() {
 <li>Use HKDF to derive encryption keys — never use the raw shared secret directly.</li>
 <li>Include context info in HKDF expansion (e.g., <code>b"encryption-key"</code>, <code>b"mac-key"</code>) to derive different keys for different purposes.</li>
 </ul>
+<h3 id="851-key-rotation-and-key-lifetimes"><a class="header" href="#851-key-rotation-and-key-lifetimes">8.5.1 Key Rotation and Key Lifetimes</a></h3>
+<p>Cryptography often fails operationally, not mathematically. A secure design needs a rotation plan before the first key is deployed:</p>
+<ul>
+<li><strong>Version every long-lived key</strong> and attach a key ID to ciphertexts, signatures, or wrapped data.</li>
+<li><strong>Decrypt with old versions, encrypt/sign with the newest version</strong> during rollouts. This “dual-read, single-write” pattern lets you rotate without flag days.</li>
+<li><strong>Separate key-encryption keys from data/session keys</strong> so most rotations only require re-wrapping smaller keys instead of bulk re-encryption.</li>
+<li><strong>Define normal lifetime and emergency revocation rules</strong> for each key class: TLS certificates, signing keys, API credentials, master keys, and derived data keys should not all share the same schedule.</li>
+<li><strong>Rehearse compromised-key response</strong>: how you revoke trust, distribute new keys, invalidate old sessions, and audit which data was exposed.</li>
+</ul>
+<p>🔒 <strong>Practical rule</strong>: Session keys should usually be ephemeral and rotated automatically. Long-lived keys should have explicit creation dates, activation windows, retirement windows, and owners.</p>
 <h2 id="86-secrets-management"><a class="header" href="#86-secrets-management">8.6 Secrets Management</a></h2>
 <h3 id="861-the-zeroize-crate--secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate--secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate — Secure Memory Wiping</a></h3>
 <p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default—variables on the stack or heap may persist until the memory is reused.</p>
@@ -3479,6 +3506,15 @@ fn create_tls_client_config() -&gt; ClientConfig {
         .with_no_client_auth()
 }
 <span class="boring">}</span></code></pre>
+<h3 id="881-certificate-pinning-for-internal-services"><a class="header" href="#881-certificate-pinning-for-internal-services">8.8.1 Certificate Pinning for Internal Services</a></h3>
+<p>For private APIs, control planes, and service-to-service calls, CA validation alone may be too broad. Certificate pinning adds an application-controlled trust decision on top of normal PKI validation:</p>
+<ul>
+<li>Prefer pinning a <strong>public key</strong> (for example, the SPKI hash), not an entire leaf certificate, so routine certificate renewal does not force an outage.</li>
+<li>Maintain at least one <strong>backup pin</strong> before deployment. Pinning without a backup is an outage plan, not a security plan.</li>
+<li>Keep <strong>hostname and chain validation enabled</strong>. Pinning complements PKI; it does not replace it.</li>
+<li>Use pinning for a <strong>small, known set of internal endpoints</strong>. Do not apply hardcoded pins to arbitrary public websites or general-purpose clients.</li>
+</ul>
+<p>With <code>rustls</code>, the usual pattern is to keep the normal verifier and add one more check that compares the validated peer certificate’s public key against an out-of-band allowlist. Avoid “dangerous” configurations that disable certificate verification entirely.</p>
 <p>🔒 <strong>Why rustls over OpenSSL</strong>:</p>
 <ul>
 <li>Memory-safe implementation (no buffer overflows in TLS parsing)</li>
@@ -3507,11 +3543,14 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <li>Use <code>ring</code> or well-audited RustCrypto crates—never implement crypto primitives yourself.</li>
 <li>Always use <strong>authenticated encryption</strong> (AES-GCM, ChaCha20-Poly1305).</li>
 <li><strong>Never reuse nonces</strong> with the same key for AEAD ciphers.</li>
+<li>Prefer nonce-misuse-resistant AEADs such as AES-GCM-SIV or XChaCha20-Poly1305 when nonce coordination is operationally hard.</li>
 <li>Derive keys from passwords using Argon2id (preferred) or PBKDF2 with proper parameters and salts.</li>
 <li>Use Ed25519 for digital signatures; use X25519 + HKDF for key exchange.</li>
+<li>Plan key rotation and emergency revocation up front; cryptographic agility is an operational requirement.</li>
 <li>Use <code>zeroize</code> to wipe secrets from memory; use <code>secrecy</code> to encapsulate them.</li>
 <li>Always use constant-time comparison for secrets.</li>
 <li>Use <code>rustls</code> for TLS instead of OpenSSL.</li>
+<li>Use certificate pinning only as an additional control for a narrow set of internal endpoints.</li>
 <li>Use <code>SystemRandom</code> for all cryptographic random number generation.</li>
 </ul>
 <p>In the next chapter, we enter the world of <code>unsafe</code> Rust—where the compiler’s safety guarantees are manually maintained.</p>
@@ -3534,6 +3573,9 @@ fn create_tls_client_config() -&gt; ClientConfig {
 </li>
 <li>
 <p><strong>Key Exchange Simulation</strong>: Implement the X25519 → HKDF → AES-256-GCM pipeline for two parties (Alice and Bob). Verify that: (a) both derive the same encryption key, (b) Alice can encrypt a message that Bob decrypts, (c) using a different key pair produces a different shared secret (forward secrecy), (d) tampering with a ciphertext causes decryption to fail.</p>
+</li>
+<li>
+<p><strong>Rotation and Pinning Plan</strong>: Design a key-management plan for an internal service. Define which keys are ephemeral, which are long-lived, how key IDs are encoded, how “decrypt old / encrypt new” rollout works, how compromised keys are revoked, and how an SPKI pin set with at least one backup pin is distributed to clients.</p>
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -6434,7 +6476,28 @@ criteria = "safe-to-deploy"
 version = "1.2.3"
 notes = "Reviewed for memory safety, no unsafe code, constant-time operations verified"
 </code></pre>
-<h2 id="154-automated-code-review-with-cargo-semver-checks"><a class="header" href="#154-automated-code-review-with-cargo-semver-checks">15.4 Automated Code Review with <code>cargo-semver-checks</code></a></h2>
+<h2 id="154-additional-audit-tooling"><a class="header" href="#154-additional-audit-tooling">15.4 Additional Audit Tooling</a></h2>
+<h3 id="1541-cargo-careful--extra-runtime-checking"><a class="header" href="#1541-cargo-careful--extra-runtime-checking">15.4.1 <code>cargo-careful</code> — Extra Runtime Checking</a></h3>
+<p><code>cargo-careful</code> complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.</p>
+<pre><code class="language-bash">cargo install cargo-careful
+cargo +nightly careful test
+</code></pre>
+<p>What it is good for:</p>
+<ul>
+<li>Re-running larger integration suites with extra checking around undefined behavior</li>
+<li>Exercising <code>unsafe</code>-heavy code paths that are too slow or too environment-dependent for Miri</li>
+<li>Building a nightly-only audit job that is stricter than regular <code>cargo test</code></li>
+</ul>
+<p>Optional sanitizer integration is also available:</p>
+<pre><code class="language-bash">cargo +nightly careful test -Zcareful-sanitizer=address
+</code></pre>
+<p>⚠️ <strong>Operational notes</strong>:</p>
+<ul>
+<li><code>cargo-careful</code> requires a recent nightly toolchain.</li>
+<li>On first use it may need the <code>rustc-src</code> component so it can prepare the careful sysroot.</li>
+<li>Treat it as <strong>complementary</strong> to Miri, not a replacement. Use Miri for smaller, precise UB-focused tests; use <code>cargo-careful</code> for broader suites that need more realistic execution.</li>
+</ul>
+<h3 id="1542-cargo-semver-checks"><a class="header" href="#1542-cargo-semver-checks">15.4.2 <code>cargo-semver-checks</code></a></h3>
 <p>For library maintainers, <code>cargo-semver-checks</code> detects accidental API-breaking changes between versions. This is critical because a breaking change in a security library can silently break downstream security guarantees:</p>
 <pre><code class="language-bash">cargo install cargo-semver-checks --version 0.47.0 --locked
 
@@ -6564,6 +6627,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li>Run <code>cargo audit</code> in CI to catch known dependency vulnerabilities.</li>
 <li>Use <code>cargo geiger</code> to quantify unsafe code in dependencies.</li>
 <li>Use <code>cargo vet</code> or <code>cargo crev</code> for supply chain auditing.</li>
+<li>Use <code>cargo-careful</code> on nightly for broader runtime checking of unsafe-heavy code and integration tests.</li>
 <li>Use <code>cargo semver-checks</code> to detect accidental breaking API changes that could compromise downstream security.</li>
 <li>Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.</li>
 <li>Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.</li>
@@ -6579,6 +6643,9 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 </li>
 <li>
 <p><strong>Custom Audit Checklist</strong>: Create a project-specific audit checklist by combining the checklists from §15.5 with your own domain-specific requirements (e.g., “no <code>unwrap</code> in authentication paths”, “all file paths validated against directory traversal”). Apply it to one of the projects from Chapters 17 or 18 and report findings.</p>
+</li>
+<li>
+<p><strong>Careful Nightly Audit</strong>: Install <code>cargo-careful</code> and run <code>cargo +nightly careful test</code> on a crate that contains parsing logic or <code>unsafe</code> code. Compare the result and runtime against regular <code>cargo test</code> and, if feasible, against <code>cargo +nightly miri test</code>. Document which bugs each tool class is best at finding.</p>
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>

@@ -122,6 +122,25 @@ fn create_chacha20_key(key_bytes: &[u8; 32]) -> UnboundKey {
 
 🔒 **When to prefer ChaCha20-Poly1305**: On platforms without AES hardware acceleration, ChaCha20 is faster and constant-time. On modern x86/ARM with AES-NI, AES-GCM is typically faster.
 
+### Nonce-Misuse-Resistant Alternatives
+
+If your system cannot reliably guarantee nonce uniqueness across crashes, replicas, offline clients, or multi-writer deployments, prefer an AEAD that degrades more safely under nonce mistakes:
+
+```toml
+[dependencies]
+aes-gcm-siv = "0.11"
+chacha20poly1305 = "0.10"
+```
+
+- **AES-GCM-SIV** (RFC 8452) is a misuse-resistant variant of GCM. Accidental nonce reuse is still a bug, but it is much less catastrophic than nonce reuse in classic AES-GCM.
+- **XChaCha20-Poly1305** extends the nonce to 192 bits (24 bytes), which makes random-nonce designs much easier to operate safely in distributed systems and local-encryption tools.
+- `ring` does not currently expose these constructions, so use well-reviewed RustCrypto crates when you need them.
+
+🔒 **Design guidance**:
+- If you need an AES-based construction and are worried about occasional nonce duplication, consider AES-GCM-SIV.
+- If random nonces are operationally simpler than durable counters, XChaCha20-Poly1305 is often the easiest safe choice.
+- Misuse resistance is not permission to reuse nonces deliberately. You still need uniqueness, replay handling, and a clear key lifecycle.
+
 ## 8.3 Key Derivation
 
 Never use passwords directly as encryption keys. Use a key derivation function (KDF):
@@ -337,6 +356,18 @@ fn key_exchange_pipeline() {
 - Use HKDF to derive encryption keys — never use the raw shared secret directly.
 - Include context info in HKDF expansion (e.g., `b"encryption-key"`, `b"mac-key"`) to derive different keys for different purposes.
 
+### 8.5.1 Key Rotation and Key Lifetimes
+
+Cryptography often fails operationally, not mathematically. A secure design needs a rotation plan before the first key is deployed:
+
+- **Version every long-lived key** and attach a key ID to ciphertexts, signatures, or wrapped data.
+- **Decrypt with old versions, encrypt/sign with the newest version** during rollouts. This "dual-read, single-write" pattern lets you rotate without flag days.
+- **Separate key-encryption keys from data/session keys** so most rotations only require re-wrapping smaller keys instead of bulk re-encryption.
+- **Define normal lifetime and emergency revocation rules** for each key class: TLS certificates, signing keys, API credentials, master keys, and derived data keys should not all share the same schedule.
+- **Rehearse compromised-key response**: how you revoke trust, distribute new keys, invalidate old sessions, and audit which data was exposed.
+
+🔒 **Practical rule**: Session keys should usually be ephemeral and rotated automatically. Long-lived keys should have explicit creation dates, activation windows, retirement windows, and owners.
+
 ## 8.6 Secrets Management
 
 ### 8.6.1 The `zeroize` Crate — Secure Memory Wiping
@@ -490,6 +521,17 @@ fn create_tls_client_config() -> ClientConfig {
 }
 ```
 
+### 8.8.1 Certificate Pinning for Internal Services
+
+For private APIs, control planes, and service-to-service calls, CA validation alone may be too broad. Certificate pinning adds an application-controlled trust decision on top of normal PKI validation:
+
+- Prefer pinning a **public key** (for example, the SPKI hash), not an entire leaf certificate, so routine certificate renewal does not force an outage.
+- Maintain at least one **backup pin** before deployment. Pinning without a backup is an outage plan, not a security plan.
+- Keep **hostname and chain validation enabled**. Pinning complements PKI; it does not replace it.
+- Use pinning for a **small, known set of internal endpoints**. Do not apply hardcoded pins to arbitrary public websites or general-purpose clients.
+
+With `rustls`, the usual pattern is to keep the normal verifier and add one more check that compares the validated peer certificate's public key against an out-of-band allowlist. Avoid "dangerous" configurations that disable certificate verification entirely.
+
 🔒 **Why rustls over OpenSSL**:
 - Memory-safe implementation (no buffer overflows in TLS parsing)
 - No unsafe code in the TLS state machine
@@ -512,11 +554,14 @@ fn create_tls_client_config() -> ClientConfig {
 - Use `ring` or well-audited RustCrypto crates—never implement crypto primitives yourself.
 - Always use **authenticated encryption** (AES-GCM, ChaCha20-Poly1305).
 - **Never reuse nonces** with the same key for AEAD ciphers.
+- Prefer nonce-misuse-resistant AEADs such as AES-GCM-SIV or XChaCha20-Poly1305 when nonce coordination is operationally hard.
 - Derive keys from passwords using Argon2id (preferred) or PBKDF2 with proper parameters and salts.
 - Use Ed25519 for digital signatures; use X25519 + HKDF for key exchange.
+- Plan key rotation and emergency revocation up front; cryptographic agility is an operational requirement.
 - Use `zeroize` to wipe secrets from memory; use `secrecy` to encapsulate them.
 - Always use constant-time comparison for secrets.
 - Use `rustls` for TLS instead of OpenSSL.
+- Use certificate pinning only as an additional control for a narrow set of internal endpoints.
 - Use `SystemRandom` for all cryptographic random number generation.
 
 In the next chapter, we enter the world of `unsafe` Rust—where the compiler's safety guarantees are manually maintained.
@@ -534,3 +579,5 @@ In the next chapter, we enter the world of `unsafe` Rust—where the compiler's 
 5. **Argon2 Password Hasher**: Implement a user registration and login flow using Argon2id. Store the PHC-format hash string (which includes salt and parameters). Verify that: (a) correct passwords succeed, (b) wrong passwords fail, (c) the hash string reveals no information about the password, (d) verification takes approximately the same time for valid and invalid users.
 
 6. **Key Exchange Simulation**: Implement the X25519 → HKDF → AES-256-GCM pipeline for two parties (Alice and Bob). Verify that: (a) both derive the same encryption key, (b) Alice can encrypt a message that Bob decrypts, (c) using a different key pair produces a different shared secret (forward secrecy), (d) tampering with a ciphertext causes decryption to fail.
+
+7. **Rotation and Pinning Plan**: Design a key-management plan for an internal service. Define which keys are ephemeral, which are long-lived, how key IDs are encoded, how "decrypt old / encrypt new" rollout works, how compromised keys are revoked, and how an SPKI pin set with at least one backup pin is distributed to clients.

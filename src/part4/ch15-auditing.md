@@ -202,7 +202,35 @@ version = "1.2.3"
 notes = "Reviewed for memory safety, no unsafe code, constant-time operations verified"
 ```
 
-## 15.4 Automated Code Review with `cargo-semver-checks`
+## 15.4 Additional Audit Tooling
+
+### 15.4.1 `cargo-careful` — Extra Runtime Checking
+
+`cargo-careful` complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.
+
+```bash
+cargo install cargo-careful
+cargo +nightly careful test
+```
+
+What it is good for:
+
+- Re-running larger integration suites with extra checking around undefined behavior
+- Exercising `unsafe`-heavy code paths that are too slow or too environment-dependent for Miri
+- Building a nightly-only audit job that is stricter than regular `cargo test`
+
+Optional sanitizer integration is also available:
+
+```bash
+cargo +nightly careful test -Zcareful-sanitizer=address
+```
+
+⚠️ **Operational notes**:
+- `cargo-careful` requires a recent nightly toolchain.
+- On first use it may need the `rustc-src` component so it can prepare the careful sysroot.
+- Treat it as **complementary** to Miri, not a replacement. Use Miri for smaller, precise UB-focused tests; use `cargo-careful` for broader suites that need more realistic execution.
+
+### 15.4.2 `cargo-semver-checks`
 
 For library maintainers, `cargo-semver-checks` detects accidental API-breaking changes between versions. This is critical because a breaking change in a security library can silently break downstream security guarantees:
 
@@ -359,6 +387,7 @@ fn safe_get(slice: &[u8], idx: usize) -> u8 {
 - Run `cargo audit` in CI to catch known dependency vulnerabilities.
 - Use `cargo geiger` to quantify unsafe code in dependencies.
 - Use `cargo vet` or `cargo crev` for supply chain auditing.
+- Use `cargo-careful` on nightly for broader runtime checking of unsafe-heavy code and integration tests.
 - Use `cargo semver-checks` to detect accidental breaking API changes that could compromise downstream security.
 - Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.
 - Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.
@@ -372,3 +401,5 @@ In the next chapter, we cover supply chain security—protecting your build pipe
 2. **Dependency Audit Report**: Run `cargo audit`, `cargo geiger`, and `cargo deny check` on a real project. For each crate that contains `unsafe` code (per `cargo geiger`), investigate whether it has been audited, how many open issues it has, and when it was last updated. Write a risk assessment for the top 3 most concerning dependencies.
 
 3. **Custom Audit Checklist**: Create a project-specific audit checklist by combining the checklists from §15.5 with your own domain-specific requirements (e.g., "no `unwrap` in authentication paths", "all file paths validated against directory traversal"). Apply it to one of the projects from Chapters 17 or 18 and report findings.
+
+4. **Careful Nightly Audit**: Install `cargo-careful` and run `cargo +nightly careful test` on a crate that contains parsing logic or `unsafe` code. Compare the result and runtime against regular `cargo test` and, if feasible, against `cargo +nightly miri test`. Document which bugs each tool class is best at finding.
