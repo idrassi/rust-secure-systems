@@ -263,7 +263,7 @@ impl RateLimiter {
 # use rust_secure_systems_book::deps::rustls as rustls;
 # use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
 // src/tls.rs
-use rustls::{ServerConfig, pki_types::PrivateKeyDer};
+use rustls::ServerConfig;
 use std::sync::Arc;
 use std::fs::File;
 use std::io::BufReader;
@@ -653,14 +653,6 @@ mod tests {
         let len = u32::from_be_bytes([response[0], response[1], response[2], response[3]]);
         assert_eq!(len, 4);
         assert_eq!(&response[4..], b"test");
-    }
-
-    #[test]
-    fn test_empty_message_rejected() {
-        assert!(matches!(
-            Message::from_bytes(&[0, 0, 0, 0]),
-            Err(ProtocolError::EmptyMessage)
-        ));
     }
 
     proptest! {

@@ -101,12 +101,12 @@ fn decrypt(key: &[u8; 32], nonce_bytes: &[u8; 12], ciphertext_and_tag: &[u8]) ->
 }
 ```
 
+⚠️ **API note**: `LessSafeKey` is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a `BoundKey` plus a `NonceSequence` when one component owns nonce generation.
+
 🔒 **Critical rules for nonce management**:
-1. **Never reuse a nonce** with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the authentication key.
+1. **Never reuse a nonce** with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does **not** directly reveal the AES key, but it is still catastrophic.
 2. For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.
 3. For counter-based nonces, track the counter securely and never reset it.
-
-More precisely: nonce reuse in AES-GCM reveals the XOR of plaintexts and leaks the GHASH authentication subkey, which enables message forgery. It does **not** directly reveal the AES key, but it is still catastrophic.
 
 ### ChaCha20-Poly1305 (Alternative to AES-GCM)
 
@@ -299,6 +299,14 @@ fn sign_example() {
 - Ed25519 uses deterministic signatures (no per-signature randomness needed), eliminating the catastrophic nonce-reuse vulnerability that affects ECDSA.
 - Always verify signatures before trusting signed data.
 
+### 8.4.1 RSA for Legacy Interoperability
+
+Ed25519 should be your default for new designs, but RSA is still common in X.509 PKI, S/MIME, PGP ecosystems, HSM-backed deployments, and older compliance-driven environments. When you must interoperate with RSA:
+
+- Prefer RSA-PSS for signatures over PKCS#1 v1.5.
+- Use at least 2048-bit keys, with 3072-bit keys common for longer-lived deployments.
+- Treat RSA as compatibility baggage, not a model for new protocol design.
+
 ## 8.5 Key Exchange
 
 ### X25519 → HKDF → AEAD Pipeline
@@ -382,10 +390,9 @@ zeroize = { version = "1", features = ["derive"] }
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # extern crate zeroize;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]  // Automatically zeroize on Drop
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecretKey {
     key: [u8; 32],
     nonce: [u8; 12],
@@ -404,7 +411,7 @@ fn use_key() {
 }
 ```
 
-🔒 **Critical pattern**: Always use `#[zeroize(drop)]` for types containing secrets. This ensures memory is wiped even if the function exits early (e.g., via `?` operator).
+🔒 **Critical pattern**: Use `#[derive(Zeroize, ZeroizeOnDrop)]` for types containing secrets. This ensures memory is wiped on ordinary drop paths even if the function exits early (for example via `?`).
 
 ### 8.6.2 The `secrecy` Crate — Encapsulating Secrets
 
@@ -545,7 +552,7 @@ With `rustls`, the usual pattern is to keep the normal verifier and add one more
 | Nonce reuse | Catastrophic (GCM) | Type system can enforce nonce tracking |
 | Missing auth | Padding oracle | `ring` API requires AEAD |
 | Timing leak | Side-channel | `ring::constant_time` module |
-| Key not zeroed | Memory disclosure | `zeroize` crate with `#[zeroize(drop)]` |
+| Key not zeroed | Memory disclosure | `zeroize` crate with `ZeroizeOnDrop` |
 | Weak RNG | Predictable keys | `SystemRandom` is always a CSPRNG |
 | Hardcoded keys | Source code leak | Use `Secret<T>`, env variables, or vaults |
 

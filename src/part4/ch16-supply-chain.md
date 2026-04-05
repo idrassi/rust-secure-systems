@@ -191,8 +191,10 @@ A reproducible build produces identical output given the same source code, regar
 RUSTFLAGS="--remap-path-prefix=/build/workdir=." \
 CARGO_PROFILE_RELEASE_LTO=true \
 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-cargo build --release --locked --frozen --target x86_64-unknown-linux-gnu
+cargo build --release --frozen --target x86_64-unknown-linux-gnu
 ```
+
+`--frozen` already implies `--locked` and `--offline`, so you do not need to spell those flags separately.
 
 Key settings for reproducibility:
 
@@ -275,10 +277,10 @@ fn main() {
 1. Audit all `build.rs` scripts in your dependency tree.
 2. Use `cargo deny check bans` with a `[bans.build]` policy to inventory and gate compile-time crates, scripts, and embedded executables.
 3. Build in sandboxed environments (Docker, chroot).
-4. Use `--frozen` flag to prevent network access during builds:
+4. Use `--frozen` to require an existing lockfile and prevent network access during builds:
 
 ```bash
-cargo build --frozen --offline
+cargo build --frozen
 ```
 
 ## 16.8 CI/CD Pipeline Security
@@ -333,6 +335,8 @@ jobs:
 ```
 
 Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.
+
+For release artifacts, pair SBOM generation with binary metadata or provenance. `cargo auditable`, Sigstore signing, and SLSA-style attestations strengthen the link between the reviewed source tree and the artifact you actually ship.
 
 ### 16.8.1 Trusted Publishing for crates.io
 

@@ -196,7 +196,7 @@ struct User {
 
 enum Role {
     Guest,
-    User,
+    Member,
     Admin,
 }
 
@@ -289,6 +289,8 @@ fn bind(port: Port) {
 ```
 
 🔒 **Security pattern**: Use `TryFrom` for all conversions where the source type is wider than the target type (e.g., `u32` → `u16`, `usize` → `u8`). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).
+
+When zero has no valid meaning, prefer `NonZeroU32` or `NonZeroUsize` over a plain integer. This lets the type system reject sentinel `0` values up front and can make `Option<NonZeroU32>` more compact than `Option<u32>`.
 
 ## 4.6 Pattern Matching Deep Dive
 

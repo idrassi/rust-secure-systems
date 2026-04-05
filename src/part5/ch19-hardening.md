@@ -57,7 +57,7 @@ rustflags = [
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
-    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support
+    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support (some LLVM/targets use +ibt,+shstk instead)
 ]
 ```
 
@@ -528,6 +528,12 @@ impl ServerMetrics {
             auth_failures: self.auth_failures.load(Ordering::Relaxed),
             rate_limits_triggered: self.rate_limits_triggered.load(Ordering::Relaxed),
         }
+    }
+}
+
+impl Default for ServerMetrics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

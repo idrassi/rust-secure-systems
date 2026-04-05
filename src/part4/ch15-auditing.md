@@ -170,6 +170,8 @@ Functions  Expressions  Impls  Traits  Methods  Dependency
 - FFI to C libraries
 - Custom allocators
 
+⚠️ **Tooling note**: `cargo-geiger` is useful, but it can lag the newest compiler releases. Pin the version you rely on in CI and keep a manual fallback such as `rg -n "\\bunsafe\\b"` for quick inventory work.
+
 ### 15.3.3 `cargo crev` — Community Code Review
 
 ```bash
@@ -265,7 +267,7 @@ Example output:
 Description:
 A public struct field has been removed. This breaks code that accesses or constructs the struct using the field name.
 
-Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.36.0/src/lints/struct_pub_field_missing.ron
+Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.47.0/src/lints/struct_pub_field_missing.ron
 
 Failed in:
   struct SecurityConfig: missing field key_rotation_days in ./src/config.rs:15
@@ -276,7 +278,7 @@ Failed in:
 Description:
 A method was removed from a public trait. This breaks any implementation of that trait.
 
-Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.36.0/src/lints/trait_method_missing.ron
+Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.47.0/src/lints/trait_method_missing.ron
 
 Failed in:
   trait Authenticator: missing method validate_token in ./src/auth.rs:8
@@ -379,6 +381,8 @@ fn safe_get(slice: &[u8], idx: usize) -> u8 {
     slice[idx]
 }
 ```
+
+Creusot is another option in this space when you want Rust-oriented deductive verification with machine-checked contracts. Like Prusti, it demands more annotation work than testing or fuzzing, so reserve it for small high-assurance components such as parsers, authorization kernels, and arithmetic-heavy invariants.
 
 ## 15.7 Summary
 

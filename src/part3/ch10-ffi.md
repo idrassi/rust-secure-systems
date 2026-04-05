@@ -204,6 +204,17 @@ Avoid sentinel return values for arithmetic helpers unless the ABI guarantees on
 5. ✅ Use `#[unsafe(no_mangle)]` (Edition 2024) and `extern "C"` for a stable ABI.
 6. ✅ Never panic across the FFI boundary—it's undefined behavior.
 
+When the foreign side is explicitly prepared to receive unwinding, stable Rust also offers `extern "C-unwind"`:
+
+```rust
+#[unsafe(no_mangle)]
+pub extern "C-unwind" fn rust_callback_entry() {
+    // Use this ABI only when the non-Rust caller documents unwind support.
+}
+```
+
+Use `extern "C"` by default. `extern "C-unwind"` defines the ABI for interfaces that intentionally participate in unwinding; it is not a general excuse to let ordinary panics escape.
+
 ### 10.2.2 Exporting Rust Types
 
 For complex interop, use `#[repr(C)]` to ensure C-compatible layout:

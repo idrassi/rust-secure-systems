@@ -421,7 +421,7 @@ use tokio::net::TcpStream;
 # fn process_message(_body: &[u8]) {}
 
 /// WARNING: This function is NOT cancellation-safe.
-async fn read_exact_two_messages(stream: &mut TcpStream) -> std::io::Result<()> {
+async fn read_one_message_exact(stream: &mut TcpStream) -> std::io::Result<()> {
     // If we are cancelled after reading the first message header
     // but before reading its body, the stream is now in an inconsistent
     // state. The first message's bytes have been consumed, but we have
@@ -436,13 +436,13 @@ async fn read_exact_two_messages(stream: &mut TcpStream) -> std::io::Result<()> 
 }
 ```
 
-If `read_exact_two_messages` is used inside `tokio::select!` and the other branch wins, the partial read is lost:
+If `read_one_message_exact` is used inside `tokio::select!` and the other branch wins, the partial read is lost:
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::tokio as tokio;
 # use std::time::Duration;
-# async fn read_exact_two_messages(
+# async fn read_one_message_exact(
 #     _stream: &mut tokio::net::TcpStream,
 # ) -> std::io::Result<()> {
 #     Ok(())
@@ -450,7 +450,7 @@ If `read_exact_two_messages` is used inside `tokio::select!` and the other branc
 # async fn demo(stream: &mut tokio::net::TcpStream) {
 // DANGEROUS: may silently drop partial reads
 tokio::select! {
-    result = read_exact_two_messages(stream) => { /* ... */ }
+    result = read_one_message_exact(stream) => { /* ... */ }
     _ = tokio::time::sleep(Duration::from_secs(30)) => {
         // Timeout! But we may have already consumed some bytes from `stream`.
         // The stream is now in an inconsistent state.
@@ -574,7 +574,7 @@ bytes = "1"
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::bytes as bytes;
 # use rust_secure_systems_book::deps::tokio_util as tokio_util;
-use tokio_util::codec::{Decoder, Encoder, Framed};
+use tokio_util::codec::Decoder;
 use bytes::{BytesMut, Buf, BufMut};
 
 struct LengthPrefixedCodec {
@@ -648,7 +648,7 @@ fn main() {
 }
 ```
 
-🔒 **Mitigation**: Use a consistent lock ordering, or use a single lock to protect multiple resources. Consider using `parking_lot` crate's reentrant mutex detection.
+🔒 **Mitigation**: Use a consistent lock ordering, or use a single lock to protect multiple resources. If you need timed locking or better deadlock diagnostics, `parking_lot` is a common production alternative to `std::sync`.
 
 ### 6.6.2 Use-After-Free in Concurrent Contexts
 

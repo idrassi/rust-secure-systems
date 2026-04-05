@@ -269,7 +269,7 @@ unsafe {
 }
 ```
 
-🔒 **Security rule**: Avoid `transmute`. Use `from_bytes`, `to_bytes`, or `bytemuck` crate for safe type punning.
+🔒 **Security rule**: Avoid `transmute` for type punning and unrelated layout conversions. Prefer dedicated APIs such as `from_ne_bytes`, `to_be_bytes`, `MaybeUninit`, or crates like `zerocopy`/`bytemuck` where appropriate.
 
 ### 9.4.3 Uninitialized Memory
 
@@ -277,14 +277,15 @@ unsafe {
 use std::mem::MaybeUninit;
 
 fn initialize_array() -> [u32; 100] {
-    let mut arr: [MaybeUninit<u32>; 100] = [const { MaybeUninit::uninit() }; 100];
-    
-    for elem in arr.iter_mut() {
-        elem.write(42);
+    let mut arr = MaybeUninit::<[u32; 100]>::uninit();
+    let ptr = arr.as_mut_ptr() as *mut u32;
+
+    for i in 0..100 {
+        unsafe { ptr.add(i).write(42) };
     }
-    
-    // SAFETY: All elements are initialized above
-    unsafe { std::mem::transmute::<[MaybeUninit<u32>; 100], [u32; 100]>(arr) }
+
+    // SAFETY: Every element was initialized exactly once above.
+    unsafe { arr.assume_init() }
 }
 ```
 

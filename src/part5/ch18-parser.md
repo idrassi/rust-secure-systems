@@ -42,9 +42,6 @@ const MAX_VALUE_SIZE: usize = 1024 * 1024;
 /// Maximum total message size (16 MiB)
 const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
 
-/// Maximum nesting depth for recursive TLVs
-const MAX_DEPTH: usize = 16;
-
 /// TLV type tags with semantic meaning.
 ///
 /// Note: We do **not** use `#[repr(u8)]` here because this enum has a
@@ -215,7 +212,7 @@ impl TlvMessage {
                 if records.iter().any(|record| record.tag == tag) {
                     return Err(ParseError::DuplicateTag { tag });
                 }
-                records.push(TlvRecord { tag, value });
+                records.push(TlvRecord::new(tag, value)?);
             }
         }
         

@@ -37,9 +37,9 @@ rustup --version
 Your exact output will vary, but `rustc` must be **1.85.0 or newer** for Edition 2024. For example:
 
 ```text
-rustc 1.85.0 or newer
-cargo 1.85.0 or newer
-rustup recent stable
+rustc 1.94.1 (e408947bf 2026-03-25)
+cargo 1.94.1 (29ea6fb6a 2026-03-24)
+rustup 1.29.0 (28d1352db 2026-03-05)
 ```
 
 ## 2.2 Toolchain Management
@@ -165,6 +165,16 @@ Severity:  7.5 (high)
 
 🔒 **Security practice**: Run `cargo audit` in your CI pipeline and block merges on known vulnerabilities.
 
+For first-party review attestations, also evaluate `cargo-vet`:
+
+```bash
+cargo install cargo-vet --version 0.10.1 --locked
+cargo vet init
+cargo vet
+```
+
+`cargo-vet` records which crates and versions your team has reviewed, making dependency trust decisions explicit rather than tribal knowledge.
+
 ### 2.3.4 cargo-deny — Policy Enforcement
 
 ```bash
@@ -266,7 +276,7 @@ Configure for your editor:
 
 - **VS Code**: Install the `rust-analyzer` extension
 - **Vim/Neovim**: Use `coc.nvim` or `nvim-lspconfig`
-- **IntelliJ IDEA**: Use the Rust plugin (bundled in IDEA Ultimate)
+- **JetBrains**: Prefer RustRover. If your team is already standardized on IntelliJ IDEA Ultimate, use the bundled Rust plugin there.
 
 ### Inlay Hints and Diagnostics
 

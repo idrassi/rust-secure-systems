@@ -77,7 +77,7 @@ proptest! {
     }
     
     #[test]
-    fn parse_port_rejects_invalid(input in "\\PC*") {
+    fn parse_port_rejects_invalid(input in any::<String>()) {
         // Skip only values that are already valid ports.
         if input.parse::<u16>().is_ok() {
             return Ok(());
@@ -241,13 +241,15 @@ cargo +nightly fuzz run parse_message -- -max_total_time=3600
 cargo +nightly fuzz run parse_message -s none -- -max_total_time=3600
 
 # Run with address sanitizer (detects buffer overflows, use-after-free)
-RUSTFLAGS="-Zsanitizer=address" cargo +nightly fuzz run parse_message
+cargo +nightly fuzz run parse_message -s address
 
 # Reproduce a crash
 cargo +nightly fuzz run parse_message fuzz/artifacts/parse_message/crash-<hash>
 ```
 
 ### 14.2.4 Fuzzing Best Practices
+
+`cargo-fuzz` is the default choice for libFuzzer-based coverage-guided fuzzing in Rust, but it is not the only engine. AFL.rs is also worth knowing when you want AFL/AFL++ style workflows or need to compare engines on the same parser.
 
 🔒 **Fuzzing strategy for security-critical code**:
 
@@ -313,6 +315,8 @@ for file in fuzz/corpus/parse_message/*; do
 done
 ```
 
+⚠️ **Practicality note**: Running Miri once per corpus file is extremely slow. Use it on minimized corpora, targeted reproducers, or periodic CI jobs rather than every large fuzz corpus on every edit.
+
 ```rust,ignore
 // tests/miri_corpus.rs — test harness for running Miri on corpus files
 # extern crate rust_secure_systems_book;
@@ -338,7 +342,7 @@ While fuzzing doesn't directly detect timing side channels, you can fuzz the *er
 # extern crate libfuzzer_sys;
 # use rust_secure_systems_book::my_secure_app::authenticate;
 libfuzzer_sys::fuzz_target!(|data: &[u8]| {
-    // Both of these should take the same time and produce the same error type
+    // Both of these should produce the same externally observable error type.
     let result1 = authenticate("unknown_user", data);
     let result2 = authenticate("known_user", data);
     

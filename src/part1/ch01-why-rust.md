@@ -116,7 +116,7 @@ fn main() {
 }
 ```
 
-🔒 **Security impact**: Eliminates CWE-362 (race conditions) and CWE-366 (data races) for safe Rust code.
+🔒 **Security impact**: Eliminates CWE-366 (data races) in safe Rust code. It does **not** eliminate higher-level race conditions such as TOCTOU (CWE-362).
 
 ## 1.3 What Rust Does NOT Protect Against
 
@@ -126,6 +126,7 @@ Honesty is important. Rust is not a complete security solution:
 |----------------|----------------|
 | Memory safety bugs | ✅ Yes (in safe code) |
 | Data races | ✅ Yes (in safe code) |
+| Race conditions / TOCTOU | ❌ No |
 | NULL dereferences | ✅ Yes (in safe code) |
 | Logic errors | ❌ No |
 | Integer overflow (release) | ⚠️ Wraps by default; use checked arithmetic |
@@ -139,6 +140,7 @@ The `unsafe` keyword is Rust's escape hatch. It allows you to bypass the compile
 - Dereferencing raw pointers
 - Calling unsafe functions (including FFI)
 - Accessing or modifying mutable statics
+- Accessing fields of unions
 - Implementing unsafe traits
 
 ⚠️ **Critical rule**: All `unsafe` code must be audited manually. We dedicate Chapter 9 to this topic.

@@ -215,6 +215,17 @@ pub mod tlv_parser {
     }
 
     impl TlvRecord {
+        pub fn new(tag: u8, value: Vec<u8>) -> Result<Self, ParseError> {
+            if value.len() > MAX_VALUE_SIZE {
+                return Err(ParseError::ValueTooLarge {
+                    size: value.len(),
+                    max: MAX_VALUE_SIZE,
+                });
+            }
+
+            Ok(Self { tag, value })
+        }
+
         pub fn tag(&self) -> u8 {
             self.tag
         }
@@ -284,10 +295,7 @@ pub mod tlv_parser {
                     if records.iter().any(|record: &TlvRecord| record.tag == tag) {
                         return Err(ParseError::DuplicateTag { tag });
                     }
-                    records.push(TlvRecord {
-                        tag,
-                        value: data[offset..end].to_vec(),
-                    });
+                    records.push(TlvRecord::new(tag, data[offset..end].to_vec())?);
                 }
                 offset = end;
             }

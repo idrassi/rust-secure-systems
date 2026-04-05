@@ -26,6 +26,16 @@ struct ServerState {
     connection_count: std::sync::atomic::AtomicUsize,
 }
 
+fn try_acquire_connection(state: &ServerState) -> bool {
+    state.connection_count
+        .fetch_update(
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+            |current| (current < MAX_CONNECTIONS).then_some(current + 1),
+        )
+        .is_ok()
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(ServerState {
@@ -42,11 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let state = Arc::clone(&state);
         
         // Connection limiting
-        let current = state.connection_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        if current >= MAX_CONNECTIONS {
-            state.connection_count
-                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        if !try_acquire_connection(&state) {
             log::warn!("Rejecting connection from {}: limit reached", addr);
             drop(stream);
             continue;
@@ -215,6 +221,27 @@ impl RateLimiter {
 
 🔒 **Security impact**: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.
 
+If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::tokio as tokio;
+use std::sync::Arc;
+use std::time::Duration;
+
+# struct RateLimiter;
+# impl RateLimiter { fn cleanup(&self) {} }
+fn spawn_rate_limiter_cleanup(limiter: Arc<RateLimiter>) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            limiter.cleanup();
+        }
+    });
+}
+```
+
 ## 12.2 TLS Configuration
 
 ### 12.2.1 Server TLS with rustls
@@ -230,7 +257,7 @@ rustls-pemfile = "2"
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::rustls as rustls;
 # use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-use rustls::{ServerConfig, RootCertStore};
+use rustls::ServerConfig;
 use std::sync::Arc;
 
 fn create_tls_config(
@@ -263,6 +290,53 @@ fn create_tls_config(
 }
 ```
 
+The config object is only half the story. You still need to wrap accepted TCP streams with `tokio-rustls`:
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::rustls as rustls;
+# use rust_secure_systems_book::deps::tokio as tokio;
+# use rust_secure_systems_book::deps::tokio_rustls as tokio_rustls;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
+
+# fn create_tls_config(
+#     cert_path: &str,
+#     key_path: &str,
+# ) -> Result<Arc<rustls::ServerConfig>, Box<dyn std::error::Error>> {
+#     unimplemented!()
+# }
+# async fn handle_tls_client<S>(_stream: S) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+# where
+#     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+# {
+#     Ok(())
+# }
+# #[tokio::main]
+# async fn main() -> Result<(), Box<dyn std::error::Error>> {
+let config = create_tls_config("server.crt", "server.key")?;
+let acceptor = TlsAcceptor::from(config);
+let listener = TcpListener::bind("0.0.0.0:8443").await?;
+
+loop {
+    let (tcp_stream, addr) = listener.accept().await?;
+    let acceptor = acceptor.clone();
+
+    tokio::spawn(async move {
+        match acceptor.accept(tcp_stream).await {
+            Ok(tls_stream) => {
+                if let Err(err) = handle_tls_client(tls_stream).await {
+                    eprintln!("{}: {}", addr, err);
+                }
+            }
+            Err(err) => eprintln!("TLS handshake failed for {}: {}", addr, err),
+        }
+    });
+}
+# }
+```
+
 🔒 **TLS hardening checklist**:
 - ✅ Use TLS 1.2 minimum (prefer TLS 1.3)
 - ✅ Use AEAD ciphers only (AES-GCM, ChaCha20-Poly1305)
@@ -277,6 +351,39 @@ fn create_tls_config(
 `with_no_client_auth()` is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.
 
 Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::rustls as rustls;
+# use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
+use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
+use std::io::BufReader;
+use std::sync::Arc;
+
+fn create_mtls_config(
+    cert_path: &str,
+    key_path: &str,
+    client_ca_path: &str,
+) -> Result<Arc<ServerConfig>, Box<dyn std::error::Error>> {
+    let certs = rustls_pemfile::certs(&mut BufReader::new(std::fs::File::open(cert_path)?))
+        .collect::<Result<Vec<_>, _>>()?;
+    let key = rustls_pemfile::private_key(&mut BufReader::new(std::fs::File::open(key_path)?))?
+        .ok_or("no private key found")?;
+
+    let mut client_roots = RootCertStore::empty();
+    for cert in rustls_pemfile::certs(&mut BufReader::new(std::fs::File::open(client_ca_path)?)) {
+        client_roots.add(cert?)?;
+    }
+
+    let client_verifier = WebPkiClientVerifier::builder(client_roots.into()).build()?;
+
+    let config = ServerConfig::builder()
+        .with_client_cert_verifier(client_verifier)
+        .with_single_cert(certs, key)?;
+
+    Ok(Arc::new(config))
+}
+```
 
 ## 12.3 Defense Against Network Attacks
 
@@ -327,6 +434,8 @@ fn safe_length_add(a: usize, b: usize) -> Option<usize> {
 1. Validate declared lengths against limits.
 2. Use checked arithmetic for length calculations.
 3. Never trust a length field from the network without bounds checking.
+
+DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.
 
 ### 12.3.3 Preventing Amplification Attacks
 

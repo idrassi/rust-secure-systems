@@ -64,7 +64,7 @@ Instead of transferring ownership, you can **borrow** a value via references. Th
 - **Mutable references** (`&mut T`): Allow modification. Only **one** mutable borrow is allowed at a time, and it cannot coexist with any immutable borrows.
 
 ```rust
-fn calculate_length(s: &String) -> usize {  // borrow immutably
+fn calculate_length(s: &str) -> usize {  // borrow immutably
     s.len()
 }   // s goes out of scope but since it doesn't have ownership, nothing happens
 
@@ -223,6 +223,8 @@ impl<'a> Parser<'a> {
 
 This ensures the `Parser` cannot outlive the `input` string it references.
 
+⚠️ **Performance note**: `chars().nth(self.position)` is `O(n)` because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once.
+
 ## 3.4 Common Patterns for Security Developers
 
 ### 3.4.1 The `Drop` Trait — Deterministic Cleanup
@@ -264,10 +266,9 @@ fn main() {
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # extern crate zeroize;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]  // Automatically zeroize on Drop
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecureBuffer {
     data: Vec<u8>,
 }

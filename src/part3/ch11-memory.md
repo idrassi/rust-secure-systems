@@ -184,6 +184,12 @@ struct CacheLineAligned {
 
 🔒 **Security relevance**: Reduces false sharing between threads, which can otherwise increase timing noise and contention. Treat this as a performance and isolation aid, not as a standalone side-channel defense.
 
+### 11.3.3 `Pin<T>` and Address Stability
+
+Most Rust values may move when ownership changes. That is fine for ordinary data, but self-referential types, intrusive data structures, and many async state machines rely on a stable address once initialized. `Pin<&mut T>` and `Pin<Box<T>>` are the tools that express "this value must not move again in safe code."
+
+Security relevance: if a type stores internal raw pointers or hands its address to foreign code, accidental movement can invalidate those pointers and turn a logic bug into memory unsafety in the surrounding `unsafe` code. Pinning does not make a type safe by itself, but it is a core part of making address-sensitive abstractions sound.
+
 ## 11.4 Working with Raw Memory
 
 ### 11.4.1 The Global Allocator
@@ -235,7 +241,7 @@ zeroize = { version = "1", features = ["derive"] }
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # extern crate zeroize;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 struct CryptoKey {
     material: [u8; 32],
@@ -248,8 +254,7 @@ impl Drop for CryptoKey {
 }
 
 // Or use the derive macro for automatic zeroization:
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SessionKey {
     key: [u8; 32],
     iv: [u8; 12],
@@ -257,8 +262,7 @@ struct SessionKey {
 // On normal drop paths, both `key` and `iv` are zeroized before release.
 
 // Also works with Vec and other heap-allocated types:
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecureBuffer {
     data: Vec<u8>,
 }
@@ -359,17 +363,7 @@ Rust's default allocator does **not** place guard pages between heap allocations
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 ```
 
-```toml
-[dependencies]
-tikv-jemallocator = "0.6"
-```
-
-```rust,no_run
-// Replace `System` with a custom allocator crate if your deployment needs
-// allocator-specific hardening features.
-#[global_allocator]
-static GLOBAL: std::alloc::System = std::alloc::System;
-```
+If you do not need allocator-specific behavior, omit `#[global_allocator]` entirely. Rebinding `std::alloc::System` to itself is a no-op; either keep the default allocator implicitly or install a real replacement allocator / hardened wrapper such as the earlier `SecureAllocator` example.
 
 ## 11.6 WebAssembly (Wasm) for Security Sandboxing
 

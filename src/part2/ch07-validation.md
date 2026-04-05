@@ -97,7 +97,7 @@ fn connect(host: Hostname, port: Port) {
 }
 ```
 
-🔒 **Security pattern**: "Parse, don't validate." Create types that can only be constructed with valid data. Once you have a `Hostname`, you never need to validate it again. The type itself is proof of validity.
+🔒 **Security pattern**: "Parse, don't validate." Borrowing Alexis King's phrasing, create types that can only be constructed with valid data. Once you have a `Hostname`, you never need to validate it again. The type itself is proof of validity.
 
 ⚠️ **Unicode note**: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.
 
@@ -186,6 +186,11 @@ fn list_directory(path: &Path) -> io::Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 ```
+
+Sanitization is context-specific:
+
+- **SQL**: Use parameterized queries or your ORM's bind API (`sqlx`, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.
+- **HTML / XSS**: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.
 
 ## 7.2 Common Validation Patterns
 

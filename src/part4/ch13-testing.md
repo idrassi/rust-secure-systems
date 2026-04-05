@@ -1,6 +1,6 @@
 # Chapter 13 — Testing Strategies for Secure Code
 
-> *"Testing shows the presence of bugs, not their absence. But for security, presence is better than ignorance."*
+> *"Program testing can be used to show the presence of bugs, but never to show their absence."* — Edsger W. Dijkstra
 
 Testing security-critical code requires a different mindset than testing functionality. You're not just verifying that the code works correctly for valid inputs—you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.
 
@@ -70,6 +70,24 @@ mod tests {
 ```
 
 Run with: `cargo test`
+
+Rust also gives you two pragmatic test attributes that matter in security work:
+
+```rust
+#[test]
+#[should_panic(expected = "internal invariant violated")]
+fn invariant_checks_trip_in_tests() {
+    panic!("internal invariant violated");
+}
+
+#[test]
+#[ignore = "slow integration test against external dependency"]
+fn hsm_roundtrip() {
+    // Run explicitly with: cargo test -- --ignored
+}
+```
+
+Use `#[should_panic]` for invariants and programmer errors, not for attacker-controlled input paths that should return `Result`.
 
 ### 13.1.2 Integration Tests
 

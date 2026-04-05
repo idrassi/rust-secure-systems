@@ -251,7 +251,7 @@ fn hex_nibble(c: char) -> u8 {
 }
 ```
 
-⚠️ **Security concern**: In server applications, a panic unwinds the stack and may leave data in an inconsistent state. Do not use panics for attacker-controlled input such as packet lengths or request indexes; return a `Result` instead. Use `panic = "abort"` in `Cargo.toml` for a cleaner failure mode, or catch panics with `std::panic::catch_unwind` at FFI boundaries.
+⚠️ **Security concern**: In server applications, a panic unwinds the stack and may leave data in an inconsistent state. Do not use panics for attacker-controlled input such as packet lengths or request indexes; return a `Result` instead. Use `panic = "abort"` in `Cargo.toml` for a cleaner failure mode, or use `std::panic::catch_unwind` at FFI boundaries in builds that keep `panic = "unwind"`.
 
 ### Catching Panics at FFI Boundaries
 
@@ -276,7 +276,9 @@ extern "C" fn exported_function(data: *const u8, len: usize) -> i32 {
 }
 ```
 
-🔒 **Security pattern**: Always wrap Rust functions called from C with `catch_unwind`. A Rust panic that crosses an FFI boundary is undefined behavior.
+⚠️ **Profile interaction**: `catch_unwind` only catches unwinding panics. If your release profile sets `panic = "abort"`, the process aborts before this wrapper can recover. For FFI-facing libraries, either keep exported entry points panic-free or ship them in an unwind-enabled profile.
+
+🔒 **Security pattern**: Wrap Rust functions called from C with `catch_unwind` when the ABI must survive panics and the build uses `panic = "unwind"`. A Rust panic that crosses an FFI boundary is undefined behavior.
 
 ## 5.6 Error Handling Patterns for Secure Code
 
