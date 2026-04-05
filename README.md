@@ -38,6 +38,8 @@ mdbook build
 mdbook test -L target/book-snippets-check/debug/deps
 ```
 
+If you rerun the snippet tests locally after editing the helper crate, clear `target/book-snippets-check/` first or choose a fresh `--target-dir`. Otherwise `mdbook test` can see multiple stale metadata files for `rust-secure-systems-book` and fail with duplicate-crate errors.
+
 The generated site is written to `book/`.
 
 ## Publishing

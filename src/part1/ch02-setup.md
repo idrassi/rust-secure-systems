@@ -361,7 +361,9 @@ jobs:
         run: mdbook build
 
       - name: Build snippet helper crate
-        run: cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
+        run: |
+          rm -rf target/book-snippets-check
+          cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
 
       - name: Test book snippets
         run: mdbook test -L target/book-snippets-check/debug/deps

@@ -43,7 +43,7 @@ Throughout this book:
 
 - Code examples use **Rust Edition 2024** unless noted otherwise. Edition 2024 stabilized in **Rust 1.85.0**, so install **Rust 1.85.0 or later** before working through the chapters. If `rustc --version` reports an older toolchain, run `rustup update stable` first. Nightly-only features are called out explicitly when they appear.
 - Standalone Rust snippets are written to be `mdbook test` friendly whenever practical. Multi-file, async-runtime, or external-crate examples that stay marked `ignore` are illustrative excerpts; their tested counterparts live in the companion crates under `companion/`.
-- CI verifies the companion code with `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo test --workspace`, `mdbook build`, `cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check`, and `mdbook test -L target/book-snippets-check/debug/deps`.
+- CI verifies the companion code with `cargo clippy --workspace --all-targets --all-features -- -D warnings`, `cargo test --workspace`, `mdbook build`, a fresh `cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check`, and `mdbook test -L target/book-snippets-check/debug/deps`.
 - Security-relevant tips are marked with a 🔒 icon.
 - Common pitfalls are marked with a ⚠️ icon.
 - CWE references are provided where relevant, e.g., `CWE-119` for buffer overflows.
