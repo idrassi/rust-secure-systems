@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -547,7 +547,7 @@ Severity:  high
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in your CI pipeline and block merges on known vulnerabilities.</p>
 <p>For first-party review attestations, also evaluate <code>cargo-vet</code>:</p>
-<pre><code class="language-bash">cargo install cargo-vet --version 0.10.1 --locked
+<pre><code class="language-bash">cargo install cargo-vet --version 0.10.2 --locked
 cargo vet init
 cargo vet
 </code></pre>
@@ -726,7 +726,7 @@ jobs:
 <h2 id="29-exercises"><a class="header" href="#29-exercises">2.9 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Environment Setup</strong>: Install Rust via <code>rustup</code>, then install <code>clippy</code>, <code>rustfmt</code>, <code>cargo-audit</code>, and <code>cargo-deny</code>. Create a new project with <code>cargo init</code> and configure the following:</p>
+<p><strong>Environment Setup</strong>: Install Rust via <code>rustup</code>, then install <code>clippy</code>, <code>rustfmt</code>, <code>cargo-audit</code>, and <code>cargo-deny</code>. Create a new project with <code>cargo new secure-project</code> and configure the following:</p>
 <ul>
 <li><code>overflow-checks = true</code> in the release profile</li>
 <li>A <code>.cargo/config.toml</code> with strict warning flags</li>
@@ -1184,7 +1184,7 @@ fn handle_error(err: AuthError) {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on all public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code will still compile — but the wildcard arm ensures it handles the new case gracefully rather than crashing. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change that may cause downstream <code>match</code> expressions to fail to compile or, worse, silently skip the new case if a <code>_</code> catch-all was already present.</p>
+<p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change: downstream <code>match</code> expressions without a wildcard fail to compile, while matches that already use <code>_</code> continue compiling and may route the new case through a generic fallback path.</p>
 <h2 id="44-structs-and-tuples"><a class="header" href="#44-structs-and-tuples">4.4 Structs and Tuples</a></h2>
 <h3 id="structs"><a class="header" href="#structs">Structs</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2420,8 +2420,12 @@ impl FramedReader {
         Ok(Some(message))
     }
 
-    /// Call after successfully processing a message.
+    /// Call after successfully processing a message returned by `read_message()`.
     fn advance(&amp;mut self) {
+        debug_assert!(
+            self.read_pos &gt;= 4,
+            "advance() requires a previously buffered frame header"
+        );
         let message_end = 4 + self.current_message_len();
         let remaining = self.read_pos - message_end;
         if remaining &gt; 0 {
@@ -2616,7 +2620,8 @@ pub enum ValidationError {
     InvalidLabel,
     InvalidCharacter,
     InvalidHyphenPosition,
-    SystemPort,
+    ReservedPortZero,
+    PrivilegedPort,
 }
 
 #[derive(Debug)]
@@ -2659,9 +2664,8 @@ pub struct Port(u16);
 
 impl Port {
     pub fn new(value: u16) -&gt; Result&lt;Self, ValidationError&gt; {
-        // Reject system ports for non-root processes
-        if value &lt; 1024 {
-            return Err(ValidationError::SystemPort);
+        if value == 0 {
+            return Err(ValidationError::ReservedPortZero);
         }
         Ok(Port(value))
     }
@@ -2671,8 +2675,25 @@ impl Port {
     }
 }
 
+#[derive(Debug)]
+pub struct BindPort(Port);
+
+impl BindPort {
+    pub fn new(value: u16) -&gt; Result&lt;Self, ValidationError&gt; {
+        let port = Port::new(value)?;
+        if port.value() &lt; 1024 {
+            return Err(ValidationError::PrivilegedPort);
+        }
+        Ok(BindPort(port))
+    }
+}
+
 fn connect(host: Hostname, port: Port) {
-    // Guaranteed: host is a valid hostname, port is valid
+    // Guaranteed: host is a valid hostname, port is a valid destination port
+}
+
+fn bind(port: BindPort) {
+    // Guaranteed: port satisfies this service's binding policy
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
@@ -2762,6 +2783,16 @@ fn list_directory(path: &amp;Path) -&gt; io::Result&lt;String&gt; {
 <li><strong>SQL</strong>: Use parameterized queries or your ORM’s bind API (<code>sqlx</code>, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.</li>
 <li><strong>HTML / XSS</strong>: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.</li>
 </ul>
+<p>For example, with <code>sqlx</code>:</p>
+<pre><code class="language-rust ignore">// BAD: attacker input changes the SQL structure
+let sql = format!("SELECT * FROM users WHERE email = '{}'", email);
+
+// GOOD: attacker input stays data, not SQL syntax
+let row = sqlx::query("SELECT id, email FROM users WHERE email = ?")
+    .bind(email)
+    .fetch_optional(&amp;pool)
+    .await?;</code></pre>
+<p>For PostgreSQL, use <code>$1</code>, <code>$2</code>, … placeholders instead of <code>?</code>.</p>
 <h2 id="72-common-validation-patterns"><a class="header" href="#72-common-validation-patterns">7.2 Common Validation Patterns</a></h2>
 <h3 id="721-length-limits"><a class="header" href="#721-length-limits">7.2.1 Length Limits</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3143,13 +3174,18 @@ x25519-dalek = { version = "2", features = ["zeroize"] }
 </span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
 </span>use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
-fn encrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], plaintext: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+fn encrypt(
+    key: &amp;[u8; 32],
+    nonce_bytes: &amp;[u8; 12],
+    aad: &amp;[u8],
+    plaintext: &amp;[u8],
+) -&gt; Vec&lt;u8&gt; {
     let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = plaintext.to_vec();
-    let tag = key.seal_in_place_separate_tag(nonce, Aad::empty(), &amp;mut in_out)
+    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &amp;mut in_out)
         .unwrap();
     
     // Append authentication tag to ciphertext
@@ -3158,19 +3194,25 @@ fn encrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], plaintext: &amp;[u8])
     result
 }
 
-fn decrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], ciphertext_and_tag: &amp;[u8]) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
+fn decrypt(
+    key: &amp;[u8; 32],
+    nonce_bytes: &amp;[u8; 12],
+    aad: &amp;[u8],
+    ciphertext_and_tag: &amp;[u8],
+) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
     let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = ciphertext_and_tag.to_vec();
-    let plaintext_len = key.open_in_place(nonce, Aad::empty(), &amp;mut in_out)
+    let plaintext_len = key.open_in_place(nonce, Aad::from(aad), &amp;mut in_out)
         .ok()?
         .len();
     
     Some(in_out[..plaintext_len].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
 <p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
@@ -3426,6 +3468,15 @@ fn key_exchange_pipeline() {
 <li><strong>Rehearse compromised-key response</strong>: how you revoke trust, distribute new keys, invalidate old sessions, and audit which data was exposed.</li>
 </ul>
 <p>🔒 <strong>Practical rule</strong>: Session keys should usually be ephemeral and rotated automatically. Long-lived keys should have explicit creation dates, activation windows, retirement windows, and owners.</p>
+<h3 id="852-post-quantum-readiness"><a class="header" href="#852-post-quantum-readiness">8.5.2 Post-Quantum Readiness</a></h3>
+<p>NIST approved its first post-quantum FIPS standards on August 13, 2024: ML-KEM for key establishment, plus ML-DSA and SLH-DSA for signatures. For Rust systems being designed now, the immediate goal is not “replace everything overnight” but “make migration operationally possible.”</p>
+<ul>
+<li><strong>Design for crypto agility</strong>: encode algorithm identifiers, key IDs, version fields, and negotiation rules so you can rotate algorithms without redesigning the protocol.</li>
+<li><strong>Protect long-lived confidentiality</strong>: if captured traffic must stay secret for many years, evaluate hybrid key establishment that combines a classical component such as X25519 with a post-quantum KEM when your protocol stack supports it.</li>
+<li><strong>Separate experimentation from deployment</strong>: benchmark size, latency, certificate-chain impact, and interoperability before promoting post-quantum algorithms into production defaults.</li>
+<li><strong>Use established ecosystems</strong>: for Rust, the <code>pqcrypto</code> family and RustCrypto crates such as <code>ml-kem</code> and <code>ml-dsa</code> are the obvious starting points for evaluation.</li>
+</ul>
+<p>⚠️ <strong>Migration rule</strong>: Prefer hybrid and crypto-agile designs during transition periods. Do not invent your own KEM combiner or signature format.</p>
 <h2 id="86-secrets-management"><a class="header" href="#86-secrets-management">8.6 Secrets Management</a></h2>
 <h3 id="861-the-zeroize-crate--secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate--secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate — Secure Memory Wiping</a></h3>
 <p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default—variables on the stack or heap may persist until the memory is reused.</p>
@@ -3514,6 +3565,7 @@ fn verify_token(provided: &amp;[u8], expected: &amp;[u8]) -&gt; bool {
 <p>🔒 <strong>Security impact</strong>: Prevents timing side-channel attacks (CWE-208). A normal <code>==</code> comparison returns <code>false</code> as soon as it finds a mismatching byte, leaking information about which bytes match.</p>
 <h3 id="864-constant-time-selection-and-branching"><a class="header" href="#864-constant-time-selection-and-branching">8.6.4 Constant-Time Selection and Branching</a></h3>
 <p>Constant-time comparison is only part of the story. Secret-dependent branching such as <code>if secret_bit == 1 { ... }</code> or <code>match secret_byte { ... }</code> can still leak timing information through control flow, cache activity, and branch prediction.</p>
+<p>Rust does not make Spectre-style or cache side channels disappear. Constant-time source code still needs review against compiler transformations and the behavior of the target CPU and runtime environment.</p>
 <p>For low-level cryptographic code, prefer the <code>subtle</code> crate’s constant-time building blocks:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3531,6 +3583,9 @@ fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
 }
 <span class="boring">}</span></code></pre>
 <p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
+<h3 id="865-hardware-backed-and-os-managed-key-storage"><a class="header" href="#865-hardware-backed-and-os-managed-key-storage">8.6.5 Hardware-Backed and OS-Managed Key Storage</a></h3>
+<p>For high-value long-lived keys, keep private-key operations inside a keystore or hardware boundary rather than loading raw key bytes into the application process. Typical options include PKCS#11 devices and HSMs (<code>cryptoki</code>), TPM-backed keys (<code>tss-esapi</code> over <code>tpm2-tss</code>), and OS-managed stores such as DPAPI, Credential Manager, macOS Keychain, Linux keyrings, or Secret Service.</p>
+<p>Use these when host compromise, compliance requirements, or signing authority justify the operational cost. Design the application around key handles and operations such as sign, decrypt, or unwrap; avoid exporting the private key unless migration or backup requires it. Chapter 19 returns to the production deployment tradeoffs.</p>
 <h2 id="87-random-number-generation"><a class="header" href="#87-random-number-generation">8.7 Random Number Generation</a></h2>
 <p>Use cryptographically secure random number generators (CSPRNGs) for all security-sensitive operations:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -3548,7 +3603,6 @@ fn generate_nonce() -&gt; [u8; 12] {
 }
 
 fn generate_api_token() -&gt; String {
-    use ring::rand::SecureRandom;
     let rng = SystemRandom::new();
     let mut bytes = [0u8; 32];
     rng.fill(&amp;mut bytes).unwrap();
@@ -3596,6 +3650,16 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <li>Simpler API reduces misuse risk</li>
 <li>Active security auditing</li>
 </ul>
+<h3 id="882-token-based-authentication-jwt-and-paseto"><a class="header" href="#882-token-based-authentication-jwt-and-paseto">8.8.2 Token-Based Authentication: JWT and PASETO</a></h3>
+<p>Bearer tokens are common for API authentication, but verification must be stricter than “the library decoded it successfully.”</p>
+<ul>
+<li><strong>Pin the algorithm in configuration</strong> and reject tokens whose header does not match it. Never let the token choose the verification algorithm.</li>
+<li><strong>Verify the signature first</strong>, then validate claims such as <code>exp</code>, <code>nbf</code>, <code>iss</code>, <code>aud</code>, and any application-specific scope or tenant claims.</li>
+<li><strong>Keep expirations short</strong> and rotate signing keys with explicit <code>kid</code> values. Reject unknown key IDs instead of falling back to a default key.</li>
+<li><strong>Treat claims as authorization input only after issuer and audience validation succeeds</strong>.</li>
+</ul>
+<p>If you need JWT ecosystem interoperability, crates such as <code>jsonwebtoken</code> are common choices. If you control both ends of the protocol and do not need JWT compatibility, PASETO crates such as <code>pasetors</code> reduce some historical footguns by making algorithm choices less header-driven.</p>
+<p>⚠️ <strong>Do not</strong> accept <code>alg: none</code>, mix symmetric and asymmetric algorithms for the same issuer, or trust unsigned header fields to select keys or verification behavior.</p>
 <h2 id="89-common-cryptographic-mistakes-and-how-rust-helps"><a class="header" href="#89-common-cryptographic-mistakes-and-how-rust-helps">8.9 Common Cryptographic Mistakes (and How Rust Helps)</a></h2>
 <div class="table-wrapper">
 <table>
@@ -3616,15 +3680,19 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <ul>
 <li>Use <code>ring</code> or well-audited RustCrypto crates—never implement crypto primitives yourself.</li>
 <li>Always use <strong>authenticated encryption</strong> (AES-GCM, ChaCha20-Poly1305).</li>
+<li>Use AAD to authenticate unencrypted headers and protocol metadata.</li>
 <li><strong>Never reuse nonces</strong> with the same key for AEAD ciphers.</li>
 <li>Prefer nonce-misuse-resistant AEADs such as AES-GCM-SIV or XChaCha20-Poly1305 when nonce coordination is operationally hard.</li>
 <li>Derive keys from passwords using Argon2id (preferred) or PBKDF2 with proper parameters and salts.</li>
 <li>Use Ed25519 for digital signatures; use X25519 + HKDF for key exchange.</li>
 <li>Plan key rotation and emergency revocation up front; cryptographic agility is an operational requirement.</li>
 <li>Use <code>zeroize</code> to wipe secrets from memory; use <code>secrecy</code> to encapsulate them.</li>
+<li>Use hardware-backed or OS-managed keystores for high-value long-lived keys.</li>
 <li>Always use constant-time comparison for secrets.</li>
+<li>Plan post-quantum migration now for long-lived systems, and prefer hybrid transitions over abrupt algorithm replacement.</li>
 <li>Use <code>rustls</code> for TLS instead of OpenSSL.</li>
 <li>Use certificate pinning only as an additional control for a narrow set of internal endpoints.</li>
+<li>Treat token verification as cryptography plus policy: pin algorithms, verify signatures, and validate claims.</li>
 <li>Use <code>SystemRandom</code> for all cryptographic random number generation.</li>
 </ul>
 <p>In the next chapter, we enter the world of <code>unsafe</code> Rust—where the compiler’s safety guarantees are manually maintained.</p>
@@ -4115,7 +4183,7 @@ fn test_atomic_counter() {
 <h2 id="97-exercises"><a class="header" href="#97-exercises">9.7 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Soundness Audit</strong>: Review the following unsound code. Identify the bug, explain which safety invariant is violated, and fix it:</p>
+<p><strong>Soundness Audit</strong>: Review the following unsound code. Identify both bugs, explain which safety invariant is violated, and fix it:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub struct FastMap&lt;V&gt; {
@@ -4130,6 +4198,7 @@ impl&lt;V&gt; FastMap&lt;V&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Consider both the empty-table case (<code>self.entries.len() == 0</code>, so the modulo panics) and the unchecked write path.</p>
 </li>
 <li>
 <p><strong>Safe Wrapper</strong>: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use <code>MaybeUninit&lt;T&gt;</code> for the backing array. The public API must be fully safe: <code>push()</code>, <code>pop()</code>, and <code>get()</code> should never cause UB regardless of how they are called. Add a <code># Safety</code> comment to every <code>unsafe</code> block.</p>
@@ -5264,6 +5333,7 @@ loop {
 <h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
 <p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
 <p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
+<p>In zero-trust terms, the network path is not the trust boundary. mTLS gives you a cryptographic identity for each peer, but you still need per-service authorization, narrow trust domains, and audit trails for which identity invoked which action.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
@@ -7745,7 +7815,7 @@ mod tests {
 </ol>
 <p>In the next chapter, we build a secure binary parser—another common security-critical component.</p>
 <blockquote>
-<p><strong>Note</strong>: This server uses the <code>log</code> crate for simplicity. Chapter 19 introduces the <code>tracing</code> crate, which provides structured JSON logging, request spans, and better async integration — recommended for production deployments.</p>
+<p><strong>Note</strong>: This server uses the <code>log</code> crate for simplicity. See §19.4.1 for a drop-in path to replace <code>log</code>/<code>env_logger</code> with <code>tracing</code> once you need structured JSON logs, request spans, or SIEM-friendly fields.</p>
 </blockquote>
 <h2 id="1711-exercises"><a class="header" href="#1711-exercises">17.11 Exercises</a></h2>
 <ol>
@@ -8584,7 +8654,7 @@ checksec --file=target/release/$APP_BIN
 <h3 id="manual-verification"><a class="header" href="#manual-verification">Manual Verification</a></h3>
 <pre><code class="language-bash"># Check for NX (non-executable stack)
 readelf -l target/release/$APP_BIN | grep GNU_STACK
-# Should show: RWE → RW (no execute)
+# Should show flags: RW (no E = not executable)
 
 # Check for PIE (position-independent)
 readelf -h target/release/$APP_BIN | grep Type
@@ -8958,6 +9028,16 @@ where
     Ok(secret_string.into_bytes())
 }
 <span class="boring">}</span></code></pre>
+<h3 id="1954-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1954-hardware-backed-keys-and-platform-keystores">19.5.4 Hardware-Backed Keys and Platform Keystores</a></h3>
+<p>When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.</p>
+<p>Practical options in Rust:</p>
+<ul>
+<li><strong>HSM / smartcard / cloud HSM via PKCS#11</strong>: use a PKCS#11 wrapper such as <code>cryptoki</code> and keep signing, unwrap, or decrypt operations inside the device boundary.</li>
+<li><strong>TPM 2.0</strong>: use <code>tss-esapi</code> (backed by the platform <code>tpm2-tss</code> stack) when you need machine-bound keys, measured-boot attestation, or sealed secrets tied to platform state.</li>
+<li><strong>Platform keystores</strong>: prefer OS-managed stores such as DPAPI or Credential Manager on Windows, macOS Keychain, Linux kernel keyring, or desktop Secret Service integrations for application credentials.</li>
+</ul>
+<p>🔒 <strong>Design rule</strong>: Prefer handles and cryptographic operations over exporting raw key bytes. Your application should ask the keystore to sign, decrypt, or unwrap; it should not routinely materialize long-lived private keys in heap memory.</p>
+<p>⚠️ <strong>Operational note</strong>: Hardware-backed storage does not replace rotation, backup, quorum controls, or audit logging. Plan for key loss, device replacement, and recovery before moving production secrets into hardware.</p>
 <h2 id="196-os-level-hardening"><a class="header" href="#196-os-level-hardening">19.6 OS-Level Hardening</a></h2>
 <h3 id="1961-systemd-service-hardening"><a class="header" href="#1961-systemd-service-hardening">19.6.1 systemd Service Hardening</a></h3>
 <p>For Linux deployments using systemd, apply security directives to restrict the service at the OS level:</p>
@@ -9124,6 +9204,7 @@ aa-genprof /usr/local/bin/secure-server
 <li>Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.</li>
 <li>Verify hardening with <code>checksec</code> or manual checks.</li>
 <li>Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.</li>
+<li>Use hardware-backed or platform-managed keystores for high-value long-lived keys when compromise of the host must not reveal raw key material.</li>
 <li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
 <li>Integrate logs with a SIEM for automated alerting on security events.</li>
 <li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>

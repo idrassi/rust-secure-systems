@@ -556,8 +556,12 @@ impl FramedReader {
         Ok(Some(message))
     }
 
-    /// Call after successfully processing a message.
+    /// Call after successfully processing a message returned by `read_message()`.
     fn advance(&mut self) {
+        debug_assert!(
+            self.read_pos >= 4,
+            "advance() requires a previously buffered frame header"
+        );
         let message_end = 4 + self.current_message_len();
         let remaining = self.read_pos - message_end;
         if remaining > 0 {

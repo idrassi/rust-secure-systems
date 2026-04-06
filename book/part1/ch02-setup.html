@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -317,7 +317,7 @@ Severity:  high
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in your CI pipeline and block merges on known vulnerabilities.</p>
 <p>For first-party review attestations, also evaluate <code>cargo-vet</code>:</p>
-<pre><code class="language-bash">cargo install cargo-vet --version 0.10.1 --locked
+<pre><code class="language-bash">cargo install cargo-vet --version 0.10.2 --locked
 cargo vet init
 cargo vet
 </code></pre>
@@ -496,7 +496,7 @@ jobs:
 <h2 id="29-exercises"><a class="header" href="#29-exercises">2.9 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Environment Setup</strong>: Install Rust via <code>rustup</code>, then install <code>clippy</code>, <code>rustfmt</code>, <code>cargo-audit</code>, and <code>cargo-deny</code>. Create a new project with <code>cargo init</code> and configure the following:</p>
+<p><strong>Environment Setup</strong>: Install Rust via <code>rustup</code>, then install <code>clippy</code>, <code>rustfmt</code>, <code>cargo-audit</code>, and <code>cargo-deny</code>. Create a new project with <code>cargo new secure-project</code> and configure the following:</p>
 <ul>
 <li><code>overflow-checks = true</code> in the release profile</li>
 <li>A <code>.cargo/config.toml</code> with strict warning flags</li>

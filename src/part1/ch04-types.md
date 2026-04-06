@@ -180,7 +180,7 @@ fn handle_error(err: AuthError) {
 }
 ```
 
-🔒 **Security pattern**: Use `#[non_exhaustive]` on all public enums in library APIs. If you add a new error variant (e.g., `CertificateRevoked`), downstream code will still compile — but the wildcard arm ensures it handles the new case gracefully rather than crashing. Without `#[non_exhaustive]`, adding a variant is a breaking change that may cause downstream `match` expressions to fail to compile or, worse, silently skip the new case if a `_` catch-all was already present.
+🔒 **Security pattern**: Use `#[non_exhaustive]` on public enums in library APIs. If you add a new error variant (e.g., `CertificateRevoked`), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without `#[non_exhaustive]`, adding a variant is a breaking change: downstream `match` expressions without a wildcard fail to compile, while matches that already use `_` continue compiling and may route the new case through a generic fallback path.
 
 ## 4.4 Structs and Tuples
 

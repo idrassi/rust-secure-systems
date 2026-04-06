@@ -696,7 +696,7 @@ This server demonstrates the practical application of secure Rust development:
 
 In the next chapter, we build a secure binary parser—another common security-critical component.
 
-> **Note**: This server uses the `log` crate for simplicity. Chapter 19 introduces the `tracing` crate, which provides structured JSON logging, request spans, and better async integration — recommended for production deployments.
+> **Note**: This server uses the `log` crate for simplicity. See §19.4.1 for a drop-in path to replace `log`/`env_logger` with `tracing` once you need structured JSON logs, request spans, or SIEM-friendly fields.
 
 ## 17.11 Exercises
 

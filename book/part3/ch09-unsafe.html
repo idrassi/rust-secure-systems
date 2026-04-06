@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -643,7 +643,7 @@ fn test_atomic_counter() {
 <h2 id="97-exercises"><a class="header" href="#97-exercises">9.7 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Soundness Audit</strong>: Review the following unsound code. Identify the bug, explain which safety invariant is violated, and fix it:</p>
+<p><strong>Soundness Audit</strong>: Review the following unsound code. Identify both bugs, explain which safety invariant is violated, and fix it:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>pub struct FastMap&lt;V&gt; {
@@ -658,6 +658,7 @@ impl&lt;V&gt; FastMap&lt;V&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Consider both the empty-table case (<code>self.entries.len() == 0</code>, so the modulo panics) and the unchecked write path.</p>
 </li>
 <li>
 <p><strong>Safe Wrapper</strong>: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use <code>MaybeUninit&lt;T&gt;</code> for the backing array. The public API must be fully safe: <code>push()</code>, <code>pop()</code>, and <code>get()</code> should never cause UB regardless of how they are called. Add a <code># Safety</code> comment to every <code>unsafe</code> block.</p>

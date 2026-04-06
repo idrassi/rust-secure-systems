@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -338,7 +338,7 @@ fn handle_error(err: AuthError) {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on all public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code will still compile — but the wildcard arm ensures it handles the new case gracefully rather than crashing. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change that may cause downstream <code>match</code> expressions to fail to compile or, worse, silently skip the new case if a <code>_</code> catch-all was already present.</p>
+<p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change: downstream <code>match</code> expressions without a wildcard fail to compile, while matches that already use <code>_</code> continue compiling and may route the new case through a generic fallback path.</p>
 <h2 id="44-structs-and-tuples"><a class="header" href="#44-structs-and-tuples">4.4 Structs and Tuples</a></h2>
 <h3 id="structs"><a class="header" href="#structs">Structs</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

@@ -353,6 +353,8 @@ loop {
 
 Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.
 
+In zero-trust terms, the network path is not the trust boundary. mTLS gives you a cryptographic identity for each peer, but you still need per-service authorization, narrow trust domains, and audit trails for which identity invoked which action.
+
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::rustls as rustls;

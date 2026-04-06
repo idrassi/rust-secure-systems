@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -499,7 +499,7 @@ checksec --file=target/release/$APP_BIN
 <h3 id="manual-verification"><a class="header" href="#manual-verification">Manual Verification</a></h3>
 <pre><code class="language-bash"># Check for NX (non-executable stack)
 readelf -l target/release/$APP_BIN | grep GNU_STACK
-# Should show: RWE → RW (no execute)
+# Should show flags: RW (no E = not executable)
 
 # Check for PIE (position-independent)
 readelf -h target/release/$APP_BIN | grep Type
@@ -873,6 +873,16 @@ where
     Ok(secret_string.into_bytes())
 }
 <span class="boring">}</span></code></pre>
+<h3 id="1954-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1954-hardware-backed-keys-and-platform-keystores">19.5.4 Hardware-Backed Keys and Platform Keystores</a></h3>
+<p>When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.</p>
+<p>Practical options in Rust:</p>
+<ul>
+<li><strong>HSM / smartcard / cloud HSM via PKCS#11</strong>: use a PKCS#11 wrapper such as <code>cryptoki</code> and keep signing, unwrap, or decrypt operations inside the device boundary.</li>
+<li><strong>TPM 2.0</strong>: use <code>tss-esapi</code> (backed by the platform <code>tpm2-tss</code> stack) when you need machine-bound keys, measured-boot attestation, or sealed secrets tied to platform state.</li>
+<li><strong>Platform keystores</strong>: prefer OS-managed stores such as DPAPI or Credential Manager on Windows, macOS Keychain, Linux kernel keyring, or desktop Secret Service integrations for application credentials.</li>
+</ul>
+<p>🔒 <strong>Design rule</strong>: Prefer handles and cryptographic operations over exporting raw key bytes. Your application should ask the keystore to sign, decrypt, or unwrap; it should not routinely materialize long-lived private keys in heap memory.</p>
+<p>⚠️ <strong>Operational note</strong>: Hardware-backed storage does not replace rotation, backup, quorum controls, or audit logging. Plan for key loss, device replacement, and recovery before moving production secrets into hardware.</p>
 <h2 id="196-os-level-hardening"><a class="header" href="#196-os-level-hardening">19.6 OS-Level Hardening</a></h2>
 <h3 id="1961-systemd-service-hardening"><a class="header" href="#1961-systemd-service-hardening">19.6.1 systemd Service Hardening</a></h3>
 <p>For Linux deployments using systemd, apply security directives to restrict the service at the OS level:</p>
@@ -1039,6 +1049,7 @@ aa-genprof /usr/local/bin/secure-server
 <li>Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.</li>
 <li>Verify hardening with <code>checksec</code> or manual checks.</li>
 <li>Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.</li>
+<li>Use hardware-backed or platform-managed keystores for high-value long-lived keys when compromise of the host must not reveal raw key material.</li>
 <li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
 <li>Integrate logs with a SIEM for automated alerting on security events.</li>
 <li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>

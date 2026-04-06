@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -243,13 +243,18 @@ x25519-dalek = { version = "2", features = ["zeroize"] }
 </span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
 </span>use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 
-fn encrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], plaintext: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+fn encrypt(
+    key: &amp;[u8; 32],
+    nonce_bytes: &amp;[u8; 12],
+    aad: &amp;[u8],
+    plaintext: &amp;[u8],
+) -&gt; Vec&lt;u8&gt; {
     let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = plaintext.to_vec();
-    let tag = key.seal_in_place_separate_tag(nonce, Aad::empty(), &amp;mut in_out)
+    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &amp;mut in_out)
         .unwrap();
     
     // Append authentication tag to ciphertext
@@ -258,19 +263,25 @@ fn encrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], plaintext: &amp;[u8])
     result
 }
 
-fn decrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], ciphertext_and_tag: &amp;[u8]) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
+fn decrypt(
+    key: &amp;[u8; 32],
+    nonce_bytes: &amp;[u8; 12],
+    aad: &amp;[u8],
+    ciphertext_and_tag: &amp;[u8],
+) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
     let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = ciphertext_and_tag.to_vec();
-    let plaintext_len = key.open_in_place(nonce, Aad::empty(), &amp;mut in_out)
+    let plaintext_len = key.open_in_place(nonce, Aad::from(aad), &amp;mut in_out)
         .ok()?
         .len();
     
     Some(in_out[..plaintext_len].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
 <p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
@@ -526,6 +537,15 @@ fn key_exchange_pipeline() {
 <li><strong>Rehearse compromised-key response</strong>: how you revoke trust, distribute new keys, invalidate old sessions, and audit which data was exposed.</li>
 </ul>
 <p>🔒 <strong>Practical rule</strong>: Session keys should usually be ephemeral and rotated automatically. Long-lived keys should have explicit creation dates, activation windows, retirement windows, and owners.</p>
+<h3 id="852-post-quantum-readiness"><a class="header" href="#852-post-quantum-readiness">8.5.2 Post-Quantum Readiness</a></h3>
+<p>NIST approved its first post-quantum FIPS standards on August 13, 2024: ML-KEM for key establishment, plus ML-DSA and SLH-DSA for signatures. For Rust systems being designed now, the immediate goal is not “replace everything overnight” but “make migration operationally possible.”</p>
+<ul>
+<li><strong>Design for crypto agility</strong>: encode algorithm identifiers, key IDs, version fields, and negotiation rules so you can rotate algorithms without redesigning the protocol.</li>
+<li><strong>Protect long-lived confidentiality</strong>: if captured traffic must stay secret for many years, evaluate hybrid key establishment that combines a classical component such as X25519 with a post-quantum KEM when your protocol stack supports it.</li>
+<li><strong>Separate experimentation from deployment</strong>: benchmark size, latency, certificate-chain impact, and interoperability before promoting post-quantum algorithms into production defaults.</li>
+<li><strong>Use established ecosystems</strong>: for Rust, the <code>pqcrypto</code> family and RustCrypto crates such as <code>ml-kem</code> and <code>ml-dsa</code> are the obvious starting points for evaluation.</li>
+</ul>
+<p>⚠️ <strong>Migration rule</strong>: Prefer hybrid and crypto-agile designs during transition periods. Do not invent your own KEM combiner or signature format.</p>
 <h2 id="86-secrets-management"><a class="header" href="#86-secrets-management">8.6 Secrets Management</a></h2>
 <h3 id="861-the-zeroize-crate--secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate--secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate — Secure Memory Wiping</a></h3>
 <p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default—variables on the stack or heap may persist until the memory is reused.</p>
@@ -614,6 +634,7 @@ fn verify_token(provided: &amp;[u8], expected: &amp;[u8]) -&gt; bool {
 <p>🔒 <strong>Security impact</strong>: Prevents timing side-channel attacks (CWE-208). A normal <code>==</code> comparison returns <code>false</code> as soon as it finds a mismatching byte, leaking information about which bytes match.</p>
 <h3 id="864-constant-time-selection-and-branching"><a class="header" href="#864-constant-time-selection-and-branching">8.6.4 Constant-Time Selection and Branching</a></h3>
 <p>Constant-time comparison is only part of the story. Secret-dependent branching such as <code>if secret_bit == 1 { ... }</code> or <code>match secret_byte { ... }</code> can still leak timing information through control flow, cache activity, and branch prediction.</p>
+<p>Rust does not make Spectre-style or cache side channels disappear. Constant-time source code still needs review against compiler transformations and the behavior of the target CPU and runtime environment.</p>
 <p>For low-level cryptographic code, prefer the <code>subtle</code> crate’s constant-time building blocks:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -631,6 +652,9 @@ fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
 }
 <span class="boring">}</span></code></pre>
 <p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
+<h3 id="865-hardware-backed-and-os-managed-key-storage"><a class="header" href="#865-hardware-backed-and-os-managed-key-storage">8.6.5 Hardware-Backed and OS-Managed Key Storage</a></h3>
+<p>For high-value long-lived keys, keep private-key operations inside a keystore or hardware boundary rather than loading raw key bytes into the application process. Typical options include PKCS#11 devices and HSMs (<code>cryptoki</code>), TPM-backed keys (<code>tss-esapi</code> over <code>tpm2-tss</code>), and OS-managed stores such as DPAPI, Credential Manager, macOS Keychain, Linux keyrings, or Secret Service.</p>
+<p>Use these when host compromise, compliance requirements, or signing authority justify the operational cost. Design the application around key handles and operations such as sign, decrypt, or unwrap; avoid exporting the private key unless migration or backup requires it. Chapter 19 returns to the production deployment tradeoffs.</p>
 <h2 id="87-random-number-generation"><a class="header" href="#87-random-number-generation">8.7 Random Number Generation</a></h2>
 <p>Use cryptographically secure random number generators (CSPRNGs) for all security-sensitive operations:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -648,7 +672,6 @@ fn generate_nonce() -&gt; [u8; 12] {
 }
 
 fn generate_api_token() -&gt; String {
-    use ring::rand::SecureRandom;
     let rng = SystemRandom::new();
     let mut bytes = [0u8; 32];
     rng.fill(&amp;mut bytes).unwrap();
@@ -696,6 +719,16 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <li>Simpler API reduces misuse risk</li>
 <li>Active security auditing</li>
 </ul>
+<h3 id="882-token-based-authentication-jwt-and-paseto"><a class="header" href="#882-token-based-authentication-jwt-and-paseto">8.8.2 Token-Based Authentication: JWT and PASETO</a></h3>
+<p>Bearer tokens are common for API authentication, but verification must be stricter than “the library decoded it successfully.”</p>
+<ul>
+<li><strong>Pin the algorithm in configuration</strong> and reject tokens whose header does not match it. Never let the token choose the verification algorithm.</li>
+<li><strong>Verify the signature first</strong>, then validate claims such as <code>exp</code>, <code>nbf</code>, <code>iss</code>, <code>aud</code>, and any application-specific scope or tenant claims.</li>
+<li><strong>Keep expirations short</strong> and rotate signing keys with explicit <code>kid</code> values. Reject unknown key IDs instead of falling back to a default key.</li>
+<li><strong>Treat claims as authorization input only after issuer and audience validation succeeds</strong>.</li>
+</ul>
+<p>If you need JWT ecosystem interoperability, crates such as <code>jsonwebtoken</code> are common choices. If you control both ends of the protocol and do not need JWT compatibility, PASETO crates such as <code>pasetors</code> reduce some historical footguns by making algorithm choices less header-driven.</p>
+<p>⚠️ <strong>Do not</strong> accept <code>alg: none</code>, mix symmetric and asymmetric algorithms for the same issuer, or trust unsigned header fields to select keys or verification behavior.</p>
 <h2 id="89-common-cryptographic-mistakes-and-how-rust-helps"><a class="header" href="#89-common-cryptographic-mistakes-and-how-rust-helps">8.9 Common Cryptographic Mistakes (and How Rust Helps)</a></h2>
 <div class="table-wrapper">
 <table>
@@ -716,15 +749,19 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <ul>
 <li>Use <code>ring</code> or well-audited RustCrypto crates—never implement crypto primitives yourself.</li>
 <li>Always use <strong>authenticated encryption</strong> (AES-GCM, ChaCha20-Poly1305).</li>
+<li>Use AAD to authenticate unencrypted headers and protocol metadata.</li>
 <li><strong>Never reuse nonces</strong> with the same key for AEAD ciphers.</li>
 <li>Prefer nonce-misuse-resistant AEADs such as AES-GCM-SIV or XChaCha20-Poly1305 when nonce coordination is operationally hard.</li>
 <li>Derive keys from passwords using Argon2id (preferred) or PBKDF2 with proper parameters and salts.</li>
 <li>Use Ed25519 for digital signatures; use X25519 + HKDF for key exchange.</li>
 <li>Plan key rotation and emergency revocation up front; cryptographic agility is an operational requirement.</li>
 <li>Use <code>zeroize</code> to wipe secrets from memory; use <code>secrecy</code> to encapsulate them.</li>
+<li>Use hardware-backed or OS-managed keystores for high-value long-lived keys.</li>
 <li>Always use constant-time comparison for secrets.</li>
+<li>Plan post-quantum migration now for long-lived systems, and prefer hybrid transitions over abrupt algorithm replacement.</li>
 <li>Use <code>rustls</code> for TLS instead of OpenSSL.</li>
 <li>Use certificate pinning only as an additional control for a narrow set of internal endpoints.</li>
+<li>Treat token verification as cryptography plus policy: pin algorithms, verify signatures, and validate claims.</li>
 <li>Use <code>SystemRandom</code> for all cryptographic random number generation.</li>
 </ul>
 <p>In the next chapter, we enter the world of <code>unsafe</code> Rust—where the compiler’s safety guarantees are manually maintained.</p>

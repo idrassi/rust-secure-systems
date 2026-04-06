@@ -37,7 +37,8 @@ pub enum ValidationError {
     InvalidLabel,
     InvalidCharacter,
     InvalidHyphenPosition,
-    SystemPort,
+    ReservedPortZero,
+    PrivilegedPort,
 }
 
 #[derive(Debug)]
@@ -80,9 +81,8 @@ pub struct Port(u16);
 
 impl Port {
     pub fn new(value: u16) -> Result<Self, ValidationError> {
-        // Reject system ports for non-root processes
-        if value < 1024 {
-            return Err(ValidationError::SystemPort);
+        if value == 0 {
+            return Err(ValidationError::ReservedPortZero);
         }
         Ok(Port(value))
     }
@@ -92,8 +92,25 @@ impl Port {
     }
 }
 
+#[derive(Debug)]
+pub struct BindPort(Port);
+
+impl BindPort {
+    pub fn new(value: u16) -> Result<Self, ValidationError> {
+        let port = Port::new(value)?;
+        if port.value() < 1024 {
+            return Err(ValidationError::PrivilegedPort);
+        }
+        Ok(BindPort(port))
+    }
+}
+
 fn connect(host: Hostname, port: Port) {
-    // Guaranteed: host is a valid hostname, port is valid
+    // Guaranteed: host is a valid hostname, port is a valid destination port
+}
+
+fn bind(port: BindPort) {
+    // Guaranteed: port satisfies this service's binding policy
 }
 ```
 
@@ -191,6 +208,21 @@ Sanitization is context-specific:
 
 - **SQL**: Use parameterized queries or your ORM's bind API (`sqlx`, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.
 - **HTML / XSS**: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.
+
+For example, with `sqlx`:
+
+```rust,ignore
+// BAD: attacker input changes the SQL structure
+let sql = format!("SELECT * FROM users WHERE email = '{}'", email);
+
+// GOOD: attacker input stays data, not SQL syntax
+let row = sqlx::query("SELECT id, email FROM users WHERE email = ?")
+    .bind(email)
+    .fetch_optional(&pool)
+    .await?;
+```
+
+For PostgreSQL, use `$1`, `$2`, ... placeholders instead of `?`.
 
 ## 7.2 Common Validation Patterns
 

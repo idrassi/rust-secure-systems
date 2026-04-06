@@ -514,7 +514,7 @@ In the next chapter, we explore the Foreign Function Interface—calling C code 
 
 ## 9.7 Exercises
 
-1. **Soundness Audit**: Review the following unsound code. Identify the bug, explain which safety invariant is violated, and fix it:
+1. **Soundness Audit**: Review the following unsound code. Identify both bugs, explain which safety invariant is violated, and fix it:
    ```rust,no_run
    pub struct FastMap<V> {
        entries: Vec<Option<(String, V)>>,
@@ -528,6 +528,7 @@ In the next chapter, we explore the Foreign Function Interface—calling C code 
        }
    }
    ```
+   Consider both the empty-table case (`self.entries.len() == 0`, so the modulo panics) and the unchecked write path.
 
 2. **Safe Wrapper**: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use `MaybeUninit<T>` for the backing array. The public API must be fully safe: `push()`, `pop()`, and `get()` should never cause UB regardless of how they are called. Add a `# Safety` comment to every `unsafe` block.
 

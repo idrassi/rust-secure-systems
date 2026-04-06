@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -674,8 +674,12 @@ impl FramedReader {
         Ok(Some(message))
     }
 
-    /// Call after successfully processing a message.
+    /// Call after successfully processing a message returned by `read_message()`.
     fn advance(&amp;mut self) {
+        debug_assert!(
+            self.read_pos &gt;= 4,
+            "advance() requires a previously buffered frame header"
+        );
         let message_end = 4 + self.current_message_len();
         let remaining = self.read_pos - message_end;
         if remaining &gt; 0 {

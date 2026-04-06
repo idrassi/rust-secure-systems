@@ -354,7 +354,7 @@ checksec --file=target/release/$APP_BIN
 ```bash
 # Check for NX (non-executable stack)
 readelf -l target/release/$APP_BIN | grep GNU_STACK
-# Should show: RWE → RW (no execute)
+# Should show flags: RW (no E = not executable)
 
 # Check for PIE (position-independent)
 readelf -h target/release/$APP_BIN | grep Type
@@ -751,6 +751,20 @@ where
 }
 ```
 
+### 19.5.4 Hardware-Backed Keys and Platform Keystores
+
+When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.
+
+Practical options in Rust:
+
+- **HSM / smartcard / cloud HSM via PKCS#11**: use a PKCS#11 wrapper such as `cryptoki` and keep signing, unwrap, or decrypt operations inside the device boundary.
+- **TPM 2.0**: use `tss-esapi` (backed by the platform `tpm2-tss` stack) when you need machine-bound keys, measured-boot attestation, or sealed secrets tied to platform state.
+- **Platform keystores**: prefer OS-managed stores such as DPAPI or Credential Manager on Windows, macOS Keychain, Linux kernel keyring, or desktop Secret Service integrations for application credentials.
+
+🔒 **Design rule**: Prefer handles and cryptographic operations over exporting raw key bytes. Your application should ask the keystore to sign, decrypt, or unwrap; it should not routinely materialize long-lived private keys in heap memory.
+
+⚠️ **Operational note**: Hardware-backed storage does not replace rotation, backup, quorum controls, or audit logging. Plan for key loss, device replacement, and recovery before moving production secrets into hardware.
+
 ## 19.6 OS-Level Hardening
 
 ### 19.6.1 systemd Service Hardening
@@ -930,6 +944,7 @@ Before deploying a Rust application to production:
 - Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.
 - Verify hardening with `checksec` or manual checks.
 - Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.
+- Use hardware-backed or platform-managed keystores for high-value long-lived keys when compromise of the host must not reveal raw key material.
 - **Use structured tracing** (`tracing` crate with JSON output) for security event logging, with consistent event types and spans that carry request context.
 - Integrate logs with a SIEM for automated alerting on security events.
 - Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.

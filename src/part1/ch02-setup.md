@@ -189,7 +189,7 @@ Severity:  high
 For first-party review attestations, also evaluate `cargo-vet`:
 
 ```bash
-cargo install cargo-vet --version 0.10.1 --locked
+cargo install cargo-vet --version 0.10.2 --locked
 cargo vet init
 cargo vet
 ```
@@ -419,7 +419,7 @@ In the next chapter, we dive into Rust's ownership model—the foundation of its
 
 ## 2.9 Exercises
 
-1. **Environment Setup**: Install Rust via `rustup`, then install `clippy`, `rustfmt`, `cargo-audit`, and `cargo-deny`. Create a new project with `cargo init` and configure the following:
+1. **Environment Setup**: Install Rust via `rustup`, then install `clippy`, `rustfmt`, `cargo-audit`, and `cargo-deny`. Create a new project with `cargo new secure-project` and configure the following:
    - `overflow-checks = true` in the release profile
    - A `.cargo/config.toml` with strict warning flags
    - A `deny.toml` that restricts licenses to MIT/Apache-2.0/BSD

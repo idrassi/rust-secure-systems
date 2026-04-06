@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -517,6 +517,7 @@ loop {
 <h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
 <p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
 <p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
+<p>In zero-trust terms, the network path is not the trust boundary. mTLS gives you a cryptographic identity for each peer, but you still need per-service authorization, narrow trust domains, and audit trails for which identity invoked which action.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;

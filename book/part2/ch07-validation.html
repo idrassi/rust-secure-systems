@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
+            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -213,7 +213,8 @@ pub enum ValidationError {
     InvalidLabel,
     InvalidCharacter,
     InvalidHyphenPosition,
-    SystemPort,
+    ReservedPortZero,
+    PrivilegedPort,
 }
 
 #[derive(Debug)]
@@ -256,9 +257,8 @@ pub struct Port(u16);
 
 impl Port {
     pub fn new(value: u16) -&gt; Result&lt;Self, ValidationError&gt; {
-        // Reject system ports for non-root processes
-        if value &lt; 1024 {
-            return Err(ValidationError::SystemPort);
+        if value == 0 {
+            return Err(ValidationError::ReservedPortZero);
         }
         Ok(Port(value))
     }
@@ -268,8 +268,25 @@ impl Port {
     }
 }
 
+#[derive(Debug)]
+pub struct BindPort(Port);
+
+impl BindPort {
+    pub fn new(value: u16) -&gt; Result&lt;Self, ValidationError&gt; {
+        let port = Port::new(value)?;
+        if port.value() &lt; 1024 {
+            return Err(ValidationError::PrivilegedPort);
+        }
+        Ok(BindPort(port))
+    }
+}
+
 fn connect(host: Hostname, port: Port) {
-    // Guaranteed: host is a valid hostname, port is valid
+    // Guaranteed: host is a valid hostname, port is a valid destination port
+}
+
+fn bind(port: BindPort) {
+    // Guaranteed: port satisfies this service's binding policy
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
@@ -359,6 +376,16 @@ fn list_directory(path: &amp;Path) -&gt; io::Result&lt;String&gt; {
 <li><strong>SQL</strong>: Use parameterized queries or your ORM’s bind API (<code>sqlx</code>, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.</li>
 <li><strong>HTML / XSS</strong>: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.</li>
 </ul>
+<p>For example, with <code>sqlx</code>:</p>
+<pre><code class="language-rust ignore">// BAD: attacker input changes the SQL structure
+let sql = format!("SELECT * FROM users WHERE email = '{}'", email);
+
+// GOOD: attacker input stays data, not SQL syntax
+let row = sqlx::query("SELECT id, email FROM users WHERE email = ?")
+    .bind(email)
+    .fetch_optional(&amp;pool)
+    .await?;</code></pre>
+<p>For PostgreSQL, use <code>$1</code>, <code>$2</code>, … placeholders instead of <code>?</code>.</p>
 <h2 id="72-common-validation-patterns"><a class="header" href="#72-common-validation-patterns">7.2 Common Validation Patterns</a></h2>
 <h3 id="721-length-limits"><a class="header" href="#721-length-limits">7.2.1 Length Limits</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
