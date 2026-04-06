@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -185,7 +185,7 @@
 <blockquote>
 <p><em>“Data races are not just bugs—they are security vulnerabilities.”</em></p>
 </blockquote>
-<p>Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don’t deadlock. The result is a constant stream of data race vulnerabilities (CWE-362, CWE-366).</p>
+<p>Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don’t deadlock. The result is a constant stream of concurrency vulnerabilities: unsynchronized shared-state bugs (CWE-362) and higher-level logic races such as TOCTOU (CWE-367).</p>
 <p>Rust’s ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is “fearless concurrency”—not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.</p>
 <h2 id="61-thread-safety-guarantees"><a class="header" href="#61-thread-safety-guarantees">6.1 Thread Safety Guarantees</a></h2>
 <h3 id="611-the-send-and-sync-traits"><a class="header" href="#611-the-send-and-sync-traits">6.1.1 The <code>Send</code> and <code>Sync</code> Traits</a></h3>
@@ -533,6 +533,19 @@ async fn handle_connection(
 <li>Use <code>tokio::sync::Mutex</code> when you need to hold the lock across <code>.await</code> points.</li>
 </ul>
 <p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
+<h3 id="641-async-fn-in-traits"><a class="header" href="#641-async-fn-in-traits">6.4.1 <code>async fn</code> in Traits</a></h3>
+<p>Rust 1.75 stabilized <code>async fn</code> in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>trait Authenticator {
+    async fn authenticate(&amp;self, token: &amp;str) -&gt; Result&lt;UserId, AuthError&gt;;
+}
+
+<span class="boring">struct UserId(u64);
+</span><span class="boring">#[derive(Debug)]
+</span><span class="boring">struct AuthError;
+</span><span class="boring">}</span></code></pre>
+<p>This is a good fit for internal application traits where you control both callers and implementors. For public library traits, decide up front whether implementors must return <code>Send</code> futures, because that requirement becomes part of the trait’s API surface and cannot be added later without a breaking change.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
@@ -546,7 +559,7 @@ use tokio::net::TcpStream;
 <span class="boring">fn process_message(_body: &amp;[u8]) {}
 </span>
 /// WARNING: This function is NOT cancellation-safe.
-async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Result&lt;()&gt; {
+async fn read_one_message_exact(stream: &amp;mut TcpStream) -&gt; std::io::Result&lt;()&gt; {
     // If we are cancelled after reading the first message header
     // but before reading its body, the stream is now in an inconsistent
     // state. The first message's bytes have been consumed, but we have
@@ -560,13 +573,13 @@ async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Resu
     Ok(())
 }
 <span class="boring">}</span></code></pre>
-<p>If <code>read_exact_two_messages</code> is used inside <code>tokio::select!</code> and the other branch wins, the partial read is lost:</p>
+<p>If <code>read_one_message_exact</code> is used inside <code>tokio::select!</code> and the other branch wins, the partial read is lost:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
 </span><span class="boring">use std::time::Duration;
-</span><span class="boring">async fn read_exact_two_messages(
+</span><span class="boring">async fn read_one_message_exact(
 </span><span class="boring">    _stream: &amp;mut tokio::net::TcpStream,
 </span><span class="boring">) -&gt; std::io::Result&lt;()&gt; {
 </span><span class="boring">    Ok(())
@@ -574,7 +587,7 @@ async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Resu
 </span><span class="boring">async fn demo(stream: &amp;mut tokio::net::TcpStream) {
 </span>// DANGEROUS: may silently drop partial reads
 tokio::select! {
-    result = read_exact_two_messages(stream) =&gt; { /* ... */ }
+    result = read_one_message_exact(stream) =&gt; { /* ... */ }
     _ = tokio::time::sleep(Duration::from_secs(30)) =&gt; {
         // Timeout! But we may have already consumed some bytes from `stream`.
         // The stream is now in an inconsistent state.
@@ -692,7 +705,7 @@ bytes = "1"
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::bytes as bytes;
 </span><span class="boring">use rust_secure_systems_book::deps::tokio_util as tokio_util;
-</span>use tokio_util::codec::{Decoder, Encoder, Framed};
+</span>use tokio_util::codec::Decoder;
 use bytes::{BytesMut, Buf, BufMut};
 
 struct LengthPrefixedCodec {
@@ -763,7 +776,7 @@ fn main() {
         let _g2 = a2.lock().unwrap();  // May deadlock (different order!)
     });
 }</code></pre>
-<p>🔒 <strong>Mitigation</strong>: Use a consistent lock ordering, or use a single lock to protect multiple resources. Consider using <code>parking_lot</code> crate’s reentrant mutex detection.</p>
+<p>🔒 <strong>Mitigation</strong>: Use a consistent lock ordering, or use a single lock to protect multiple resources. If you need timed locking or better deadlock diagnostics, <code>parking_lot</code> is a common production alternative to <code>std::sync</code>.</p>
 <h3 id="662-use-after-free-in-concurrent-contexts"><a class="header" href="#662-use-after-free-in-concurrent-contexts">6.6.2 Use-After-Free in Concurrent Contexts</a></h3>
 <p>In C, passing a stack pointer to another thread is a common use-after-free:</p>
 <pre><code class="language-c">// C - DANGEROUS

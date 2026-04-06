@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -287,7 +287,7 @@ too-many-lines-threshold = 100
 
 # Disallowed crate features
 disallowed-types = [
-    { path = "std::sync::Once", reason = "Use OnceLock which is safer" },
+    { path = "std::sync::Once", reason = "Prefer OnceLock&lt;T&gt; for one-time value initialization; it stores the value directly and avoids the call-once-after-poison pitfall." },
 ]
 </code></pre>
 <h2 id="153-dependency-auditing"><a class="header" href="#153-dependency-auditing">15.3 Dependency Auditing</a></h2>
@@ -295,18 +295,18 @@ disallowed-types = [
 <pre><code class="language-bash">cargo install cargo-audit --version 0.22.1 --locked
 cargo audit
 </code></pre>
-<p>Output example:</p>
+<p>Illustrative output example:</p>
 <pre><code class="language-text">    Loaded 517 advisory records
     Scanning Cargo.lock for vulnerabilities (484 crates)
 
-ID:       RUSTSEC-2023-0019
-Crate:    openssl
-Version:  0.10.52
-Title:    OpenSSL HBAR TLS handshake downgrade
-Date:     2023-02-07
-URL:      https://rustsec.org/advisories/RUSTSEC-2023-0019
-Severity: 7.5 (high)
-Solution: upgrade to &gt;= 0.10.55
+ID:       RUSTSEC-XXXX-YYYY
+Crate:    example-crypto
+Version:  1.2.3
+Title:    Example advisory used for documentation
+Date:     2026-04-02
+URL:      https://rustsec.org/advisories/
+Severity: high
+Solution: upgrade to a reviewed fixed release
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in CI and block merging on high-severity findings.</p>
 <h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
@@ -331,6 +331,7 @@ Functions  Expressions  Impls  Traits  Methods  Dependency
 <li>FFI to C libraries</li>
 <li>Custom allocators</li>
 </ul>
+<p>⚠️ <strong>Tooling note</strong>: <code>cargo-geiger</code> is useful, but it can lag the newest compiler releases. Pin the version you rely on in CI and keep a manual fallback such as <code>rg -n "\\bunsafe\\b"</code> for quick inventory work.</p>
 <h3 id="1533-cargo-crev--community-code-review"><a class="header" href="#1533-cargo-crev--community-code-review">15.3.3 <code>cargo crev</code> — Community Code Review</a></h3>
 <pre><code class="language-bash">cargo install cargo-crev --version 0.26.5 --locked
 cargo crev import trust --from-url https://github.com/crev-dev/crev-proofs
@@ -404,7 +405,7 @@ cargo semver-checks --baseline-rev abc1234
 Description:
 A public struct field has been removed. This breaks code that accesses or constructs the struct using the field name.
 
-Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.36.0/src/lints/struct_pub_field_missing.ron
+Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.47.0/src/lints/struct_pub_field_missing.ron
 
 Failed in:
   struct SecurityConfig: missing field key_rotation_days in ./src/config.rs:15
@@ -415,7 +416,7 @@ Failed in:
 Description:
 A method was removed from a public trait. This breaks any implementation of that trait.
 
-Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.36.0/src/lints/trait_method_missing.ron
+Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.47.0/src/lints/trait_method_missing.ron
 
 Failed in:
   trait Authenticator: missing method validate_token in ./src/auth.rs:8
@@ -499,6 +500,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
     slice[idx]
 }
 <span class="boring">}</span></code></pre>
+<p>Creusot is another option in this space when you want Rust-oriented deductive verification with machine-checked contracts. Like Prusti, it demands more annotation work than testing or fuzzing, so reserve it for small high-assurance components such as parsers, authorization kernels, and arithmetic-heavy invariants.</p>
 <h2 id="157-summary"><a class="header" href="#157-summary">15.7 Summary</a></h2>
 <ul>
 <li>Treat compiler warnings as security findings; enable <code>-D warnings</code>.</li>

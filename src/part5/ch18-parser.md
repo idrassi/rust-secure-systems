@@ -24,6 +24,18 @@ Binary parsers are among the most security-critical components in any system. Hi
 4. **Bounded allocation**: Never allocate based on untrusted size fields without limits.
 5. **No unsafe**: Parsers should be implementable entirely in safe Rust.
 
+### 18.2.1 Parser Combinators with `nom`
+
+This chapter uses a hand-written parser because explicit control flow is easy to audit, makes allocation limits obvious, and keeps every boundary check visible. That is not the only defensible choice. `nom` is a mature parser-combinator library and can be a good fit when you want declarative composition without writing pointer arithmetic by hand.
+
+From a security perspective, three `nom` design choices matter:
+
+- Choose the right mode: `complete` parsers treat missing bytes as hard errors, while `streaming` parsers return `Incomplete`. For sockets and framed protocols, that distinction is part of your threat model.
+- Bound input before parsing. A combinator library does not remove the need for maximum message sizes, checked length arithmetic, or duplicate-field policy.
+- Keep parsers inspectable. Favor small named combinators and explicit error mapping over deeply nested expressions that hide which branch consumed input.
+
+Use `nom` when it improves clarity; use a hand-written parser when explicit state transitions and bounds checks are easier to review. For security-critical formats, "shorter code" is only a win if the rejection behavior stays obvious.
+
 ## 18.3 Example: A Secure TLV (Type-Length-Value) Parser
 
 ### 18.3.1 Type Definitions

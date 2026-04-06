@@ -502,6 +502,17 @@ cargo llvm-cov --workspace --all-features --html
 
 Prioritize coverage review on authentication, parsing, deserialization, unsafe wrappers, and failure paths rather than chasing a global percentage.
 
+### 13.6.3 Mutation Testing with `cargo-mutants`
+
+Coverage tells you what executed; mutation testing tells you whether the tests would fail if the security logic were wrong. `cargo-mutants` flips conditionals, comparison operators, and other small pieces of code, then reruns your tests to see whether the suite notices:
+
+```bash
+cargo install cargo-mutants --locked
+cargo mutants --workspace --all-features
+```
+
+This is especially valuable for authentication checks, parser bounds checks, rate limiting, and unsafe wrappers. A surviving mutant around `>=` vs `>`, allow/deny logic, or an omitted validation branch is a strong signal that the tests are not actually enforcing the intended security property.
+
 ## 13.7 Summary
 
 - Write comprehensive unit tests for all security-critical functions.
@@ -515,6 +526,7 @@ Prioritize coverage review on authentication, parsing, deserialization, unsafe w
 - Run tests across stable, beta, and nightly with Miri for UB detection.
 - Use `cargo-nextest` for faster, better-isolated CI runs on large suites.
 - Use `cargo-llvm-cov` to find untested validation and error-handling paths.
+- Use `cargo-mutants` to check whether tests actually fail when critical logic is changed.
 
 In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn't think to test for.
 

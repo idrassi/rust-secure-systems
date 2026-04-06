@@ -1,12 +1,12 @@
 use crate::security_events;
 use std::net::SocketAddr;
-use std::sync::Once;
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tracing::{Instrument, error, info, info_span, warn};
 use tracing_subscriber::{EnvFilter, fmt};
 
-static LOGGING_INIT: Once = Once::new();
+static LOGGING_INIT: OnceLock<()> = OnceLock::new();
 static NEXT_CONNECTION_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,7 +17,7 @@ pub enum SecurityEventSeverity {
 }
 
 pub fn init_logging() {
-    LOGGING_INIT.call_once(|| {
+    let _ = LOGGING_INIT.get_or_init(|| {
         let subscriber = fmt()
             .json()
             .with_env_filter(

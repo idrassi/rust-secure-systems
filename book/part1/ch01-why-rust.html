@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -205,7 +205,8 @@
 <tr><td>CWE-787</td><td>Out-of-Bounds Write</td><td>Writing past the end of an array</td></tr>
 <tr><td>CWE-125</td><td>Out-of-Bounds Read</td><td>Reading past the end of an array</td></tr>
 <tr><td>CWE-190</td><td>Integer Overflow</td><td>Arithmetic overflow leading to incorrect behavior</td></tr>
-<tr><td>CWE-362</td><td>Race Condition</td><td>Concurrent access without synchronization</td></tr>
+<tr><td>CWE-362</td><td>Concurrent Race Condition</td><td>Unsynchronized shared-state access between threads</td></tr>
+<tr><td>CWE-367</td><td>TOCTOU Race Condition</td><td>Time-of-check/time-of-use mismatch between validation and use</td></tr>
 </tbody>
 </table>
 </div>
@@ -284,7 +285,7 @@ fn main() {
     }
     println!("Result: {}", *counter.lock().unwrap());
 }</code></pre>
-<p>🔒 <strong>Security impact</strong>: Eliminates CWE-362 (race conditions) and CWE-366 (data races) for safe Rust code.</p>
+<p>🔒 <strong>Security impact</strong>: Eliminates unsynchronized data races (CWE-362) in safe Rust code. It does <strong>not</strong> eliminate higher-level race conditions such as TOCTOU (CWE-367).</p>
 <h2 id="13-what-rust-does-not-protect-against"><a class="header" href="#13-what-rust-does-not-protect-against">1.3 What Rust Does NOT Protect Against</a></h2>
 <p>Honesty is important. Rust is not a complete security solution:</p>
 <div class="table-wrapper">
@@ -295,6 +296,7 @@ fn main() {
 <tbody>
 <tr><td>Memory safety bugs</td><td>✅ Yes (in safe code)</td></tr>
 <tr><td>Data races</td><td>✅ Yes (in safe code)</td></tr>
+<tr><td>Race conditions / TOCTOU</td><td>❌ No</td></tr>
 <tr><td>NULL dereferences</td><td>✅ Yes (in safe code)</td></tr>
 <tr><td>Logic errors</td><td>❌ No</td></tr>
 <tr><td>Integer overflow (release)</td><td>⚠️ Wraps by default; use checked arithmetic</td></tr>
@@ -310,6 +312,7 @@ fn main() {
 <li>Dereferencing raw pointers</li>
 <li>Calling unsafe functions (including FFI)</li>
 <li>Accessing or modifying mutable statics</li>
+<li>Accessing fields of unions</li>
 <li>Implementing unsafe traits</li>
 </ul>
 <p>⚠️ <strong>Critical rule</strong>: All <code>unsafe</code> code must be audited manually. We dedicate Chapter 9 to this topic.</p>

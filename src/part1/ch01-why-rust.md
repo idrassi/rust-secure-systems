@@ -20,7 +20,8 @@ The common vulnerability classes in C/C++ systems code include:
 | CWE-787 | Out-of-Bounds Write | Writing past the end of an array |
 | CWE-125 | Out-of-Bounds Read | Reading past the end of an array |
 | CWE-190 | Integer Overflow | Arithmetic overflow leading to incorrect behavior |
-| CWE-362 | Race Condition | Concurrent access without synchronization |
+| CWE-362 | Concurrent Race Condition | Unsynchronized shared-state access between threads |
+| CWE-367 | TOCTOU Race Condition | Time-of-check/time-of-use mismatch between validation and use |
 
 These are not theoretical risks. They are the most exploited vulnerability classes in real-world attacks, enabling remote code execution, privilege escalation, and data theft.
 
@@ -116,7 +117,7 @@ fn main() {
 }
 ```
 
-🔒 **Security impact**: Eliminates CWE-366 (data races) in safe Rust code. It does **not** eliminate higher-level race conditions such as TOCTOU (CWE-362).
+🔒 **Security impact**: Eliminates unsynchronized data races (CWE-362) in safe Rust code. It does **not** eliminate higher-level race conditions such as TOCTOU (CWE-367).
 
 ## 1.3 What Rust Does NOT Protect Against
 

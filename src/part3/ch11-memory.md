@@ -159,8 +159,7 @@ fn parse_u32_be(data: &[u8], offset: usize) -> Option<u32> {
 ### 11.3.1 Controlling Alignment
 
 ```rust
-#[repr(C)]
-#[repr(align(16))]  // 16-byte aligned (useful for SIMD, DMA buffers)
+#[repr(C, align(16))]  // 16-byte aligned (useful for SIMD, DMA buffers)
 struct AlignedBuffer {
     data: [u8; 4096],
 }
@@ -174,8 +173,7 @@ struct AlignedBuffer {
 ### 11.3.2 Cache-Line Alignment
 
 ```rust
-#[repr(C)]
-#[repr(align(64))]  // Common cache-line size on modern x86-64/ARM64; verify on your target
+#[repr(C, align(64))]  // Common cache-line size on modern x86-64/ARM64; verify on your target
 struct CacheLineAligned {
     // Align the counter to reduce false sharing between adjacent instances.
     counter: std::sync::atomic::AtomicU64,
@@ -268,7 +266,7 @@ struct SecureBuffer {
 }
 ```
 
-🔒 **Security practice**: Use `zeroize` (with the `derive` feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before `Drop`.
+🔒 **Security practice**: Use `zeroize` (with the `derive` feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before `Drop` (see Chapter 2 §2.4 on `panic = "abort"`).
 
 ### 11.4.3 Safe Pointer Access with `addr_of!` and `addr_of_mut!`
 
@@ -365,158 +363,20 @@ RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 
 If you do not need allocator-specific behavior, omit `#[global_allocator]` entirely. Rebinding `std::alloc::System` to itself is a no-op; either keep the default allocator implicitly or install a real replacement allocator / hardened wrapper such as the earlier `SecureAllocator` example.
 
-## 11.6 WebAssembly (Wasm) for Security Sandboxing
-
-WebAssembly provides a lightweight sandboxing mechanism that is increasingly used to isolate untrusted code. Rust has first-class Wasm support, making it a natural choice for building secure plugin systems, policy engines, and sandboxed extensions.
-
-### 11.6.1 Why Wasm for Security?
-
-Wasm offers a **principled sandbox** with strong guarantees:
-- **Linear memory isolation**: A Wasm module can only access its own linear memory—no arbitrary host memory access.
-- **No raw pointers**: Wasm has no concept of pointer arithmetic on host memory.
-- **Controlled imports/exports**: The host explicitly chooses which functions to expose to the module.
-- **Resource limits**: Execution can be metered and fuel-limited to prevent CPU exhaustion.
-
-This makes Wasm a good fit for:
-- **Plugin systems**: Load third-party extensions without trusting them.
-- **Policy evaluation**: Run authorization logic in isolation (e.g., OPA-style policies).
-- **Untrusted input parsing**: Parse file formats or protocol messages in a sandbox.
-- **Edge computing**: Run user-provided functions on your infrastructure safely.
-
-### 11.6.2 Compiling Rust to Wasm
-
-```bash
-# Add the Wasm target
-rustup target add wasm32-unknown-unknown
-
-# Build as Wasm
-cargo build --target wasm32-unknown-unknown --release
-```
-
-For production, prefer `wasm32-wasip2` (Component Model) or `wasm32-wasip1` (WASI) targets for better system integration:
-
-```bash
-rustup target add wasm32-wasip1
-cargo build --target wasm32-wasip1 --release
-```
-
-### 11.6.3 Sandboxed Plugin Architecture with Wasmtime
-
-```toml
-# Cargo.toml
-[dependencies]
-wasmtime = "25"
-anyhow = "1"
-```
-
-```rust,no_run
-# extern crate rust_secure_systems_book;
-# use rust_secure_systems_book::deps::anyhow as anyhow;
-# use rust_secure_systems_book::deps::wasmtime as wasmtime;
-use wasmtime::*;
-use anyhow::Result;
-
-struct HostState {
-    limits: StoreLimits,
-}
-
-fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
-    let mut config = Config::new();
-    config.cranelift_debug_verifier(true);  // Verify generated code
-    config.consume_fuel(true);              // Enable deterministic CPU budgeting
-    
-    let engine = Engine::new(&config)?;
-    let module = Module::from_binary(&engine, wasm_bytes)?;
-    
-    // Create a store with concrete resource limits for future growth.
-    let mut store = Store::new(&engine, HostState {
-        limits: StoreLimitsBuilder::new()
-            .memory_size(1 << 20)  // 1 MiB
-            .instances(1)
-            .build(),
-    });
-    store.limiter(|state| &mut state.limits);
-    
-    // Set fuel limit to prevent infinite loops
-    store.set_fuel(10_000)?;
-    
-    // Define only the functions the plugin is allowed to call
-    let log_func = Func::wrap(&mut store, |ptr: u32, len: u32| {
-        // In a real implementation, you would safely read from the
-        // module's memory. This is a simplified example.
-        println!("Plugin logged {} bytes at offset {}", len, ptr);
-    });
-    
-    let instance = Instance::new(
-        &mut store,
-        &module,
-        &[Extern::Func(log_func)],
-    )?;
-    
-    // Call the plugin's process function
-    let process = instance
-        .get_typed_func::<(u32, u32), u32>(&mut store, "process")?;
-    
-    // Allocate input in module memory and call process
-    let memory = instance
-        .get_memory(&mut store, "memory")
-        .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
-    
-    // Write input to module memory
-    let mem_data = memory.data_mut(&mut store);
-    if input.len() > mem_data.len() / 2 {
-        return Err(anyhow::anyhow!("input too large for sandbox memory"));
-    }
-    mem_data[..input.len()].copy_from_slice(input);
-    
-    let result = process.call(&mut store, (0, input.len() as u32))?;
-    
-    // Read output from module memory (simplified)
-    let output_len = result as usize;
-    if output_len > memory.data(&store).len() {
-        return Err(anyhow::anyhow!("plugin returned invalid length"));
-    }
-    let output = memory.data(&store)[..output_len].to_vec();
-    
-    Ok(output)
-}
-```
-
-🔒 **Security measures in this architecture**:
-1. **Fuel limiting**: Prevents infinite loops and CPU exhaustion (CWE-400, CWE-789).
-2. **Resource limits**: `Store::limiter` caps future memory and instance growth.
-3. **Explicit imports**: Only `log_func` is exposed—the plugin cannot access files, network, or environment variables.
-4. **Input validation**: Host validates all data read from module memory before using it.
-
-### 11.6.4 Wasm Security Considerations
-
-| Concern | Mitigation |
-|---------|------------|
-| Side-channel attacks (timing, cache) | Use constant-time Wasm runtimes; consider single-threaded execution |
-| Spectre-type attacks | Use a maintained Wasm runtime (for example, Wasmtime) and follow its documented Spectre mitigations |
-| Resource exhaustion (memory) | Set `Store::limiter()` to cap memory growth |
-| Resource exhaustion (CPU) | Use fuel metering; set timeouts on `Store` operations |
-| Supply chain (malicious Wasm) | Verify Wasm module hashes or signatures before loading |
-| Module size bombs | Reject modules above a size limit before compilation |
-| Host function safety | Validate all arguments passed from Wasm to host functions |
-
-⚠️ **Important**: Wasm sandboxing protects the **host** from the **module**, but it does not protect the module from itself. A compromised module's internal state is the attacker's problem—your concern is preventing the module from affecting the host or other modules.
-
-## 11.7 Summary
+## 11.6 Summary
 
 - Use `#[repr(C)]` for FFI-compatible and wire-format structures.
 - Use `#[repr(u8)]` / `#[repr(i32)]` to control enum size.
-- Use `#[repr(align(N))]` for alignment-critical data.
+- Use `#[repr(C, align(N))]` for alignment-critical data.
 - Prefer `zerocopy` crate for safe binary parsing.
 - Always use explicit endianness for network data.
 - Zero sensitive memory before freeing (use `zeroize` crate).
 - Lock memory pages containing secrets (prevent swapping).
 - Verify release hardening (RELRO/NX/PIE) and apply stack-protector flags to any C/C++ objects you compile.
-- **Consider WebAssembly sandboxing** for running untrusted code, with fuel limiting, memory caps, and minimal host imports.
 
 In the next chapter, we cover secure network programming—building network services that resist common attacks.
 
-## 11.8 Exercises
+## 11.7 Exercises
 
 1. **Wire-Format Parser**: Define a `#[repr(C)]` struct representing a simplified IPv4 header (version, IHL, total length, TTL, protocol, source IP, dest IP). Use the `zerocopy` crate to parse a raw byte slice into the struct. Write tests with valid packets, truncated packets, and misaligned data. Verify that all invalid inputs return an error.
 

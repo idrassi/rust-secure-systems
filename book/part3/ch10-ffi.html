@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -370,6 +370,15 @@ Pointer validation does not make the function safe to call from Rust: the caller
 <li>✅ Use <code>#[unsafe(no_mangle)]</code> (Edition 2024) and <code>extern "C"</code> for a stable ABI.</li>
 <li>✅ Never panic across the FFI boundary—it’s undefined behavior.</li>
 </ol>
+<p>When the foreign side is explicitly prepared to receive unwinding, stable Rust also offers <code>extern "C-unwind"</code>:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[unsafe(no_mangle)]
+pub extern "C-unwind" fn rust_callback_entry() {
+    // Use this ABI only when the non-Rust caller documents unwind support.
+}
+<span class="boring">}</span></code></pre>
+<p>Use <code>extern "C"</code> by default. <code>extern "C-unwind"</code> defines the ABI for interfaces that intentionally participate in unwinding; it is not a general excuse to let ordinary panics escape.</p>
 <h3 id="1022-exporting-rust-types"><a class="header" href="#1022-exporting-rust-types">10.2.2 Exporting Rust Types</a></h3>
 <p>For complex interop, use <code>#[repr(C)]</code> to ensure C-compatible layout:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -203,9 +203,9 @@ cargo --version
 rustup --version
 </code></pre>
 <p>Your exact output will vary, but <code>rustc</code> must be <strong>1.85.0 or newer</strong> for Edition 2024. For example:</p>
-<pre><code class="language-text">rustc 1.85.0 or newer
-cargo 1.85.0 or newer
-rustup recent stable
+<pre><code class="language-text">rustc 1.94.1 (e408947bf 2026-03-25)
+cargo 1.94.1 (29ea6fb6a 2026-03-24)
+rustup 1.29.0 (28d1352db 2026-03-05)
 </code></pre>
 <h2 id="22-toolchain-management"><a class="header" href="#22-toolchain-management">2.2 Toolchain Management</a></h2>
 <h3 id="channels"><a class="header" href="#channels">Channels</a></h3>
@@ -229,6 +229,20 @@ cargo +nightly install cargo-fuzz --version 0.13.1 --locked
 <pre><code class="language-bash">rustup update
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Treat Rust compiler updates as security patches. New releases often include improved lints and security-relevant diagnostics.</p>
+<h3 id="221-no_std-and-embedded-targets"><a class="header" href="#221-no_std-and-embedded-targets">2.2.1 <code>no_std</code> and Embedded Targets</a></h3>
+<p>If your “systems programming” work includes firmware, kernels, bootloaders, or other bare-metal targets, the setup changes in security-relevant ways:</p>
+<ul>
+<li><code>#![no_std]</code> removes the standard library. If you still need heap allocation, pull in <code>alloc</code> explicitly and keep allocations bounded.</li>
+<li>You need an explicit panic strategy and handler (<code>panic-halt</code>, <code>panic-abort</code>, or a board-specific reset/logging path). There is no host process to unwind through.</li>
+<li>Many OS protections disappear: no ASLR, no process isolation, and no kernel-provided crash containment unless your platform adds them.</li>
+<li>Hardware security features move into scope: TRNGs, secure elements, MPU/MMU rules, tamper-resistant storage, and watchdog-driven recovery.</li>
+<li>The <code>embedded-hal</code> ecosystem gives you a portable abstraction layer for peripherals, but you still need board-specific review of clocks, memory maps, and debug interfaces.</li>
+</ul>
+<p>For cross-compilation, install the exact target triple you ship:</p>
+<pre><code class="language-bash">rustup target add thumbv7em-none-eabihf
+cargo build --target thumbv7em-none-eabihf --release
+</code></pre>
+<p>Treat bare-metal deployment as a different threat model, not just a smaller Linux process.</p>
 <h2 id="23-essential-security-tooling"><a class="header" href="#23-essential-security-tooling">2.3 Essential Security Tooling</a></h2>
 <h3 id="231-clippy--the-linting-powerhouse"><a class="header" href="#231-clippy--the-linting-powerhouse">2.3.1 Clippy — The Linting Powerhouse</a></h3>
 <p>Clippy is Rust’s comprehensive linter. It catches common mistakes, unsafe patterns, and style issues:</p>
@@ -288,19 +302,26 @@ newline_style = "Unix"
 cargo audit
 </code></pre>
 <p><code>cargo-audit</code> checks your <code>Cargo.lock</code> against the <a href="https://rustsec.org/">RustSec Advisory Database</a>, which tracks known vulnerabilities in Rust crates.</p>
-<pre><code class="language-bash">$ cargo audit
+<p>Illustrative output example:</p>
+<pre><code class="language-text">$ cargo audit
     Loaded 517 advisory records
     Scanning Cargo.lock for vulnerabilities (484 crates)
 
-Crate:     openssl
-Version:   0.10.52
-Title:     OpenSSL HBAR TLS handshake downgrade
-Date:      2023-02-07
-ID:        RUSTSEC-2023-0019
-URL:       https://rustsec.org/advisories/RUSTSEC-2023-0019
-Severity:  7.5 (high)
+Crate:     example-crypto
+Version:   1.2.3
+Title:     Example advisory used for documentation
+Date:      2026-04-02
+ID:        RUSTSEC-XXXX-YYYY
+URL:       https://rustsec.org/advisories/
+Severity:  high
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in your CI pipeline and block merges on known vulnerabilities.</p>
+<p>For first-party review attestations, also evaluate <code>cargo-vet</code>:</p>
+<pre><code class="language-bash">cargo install cargo-vet --version 0.10.1 --locked
+cargo vet init
+cargo vet
+</code></pre>
+<p><code>cargo-vet</code> records which crates and versions your team has reviewed, making dependency trust decisions explicit rather than tribal knowledge.</p>
 <h3 id="234-cargo-deny--policy-enforcement"><a class="header" href="#234-cargo-deny--policy-enforcement">2.3.4 cargo-deny — Policy Enforcement</a></h3>
 <pre><code class="language-bash">cargo install cargo-deny --version 0.19.0 --locked
 cargo deny check
@@ -375,7 +396,7 @@ opt-level = "s"              # Optimize for size (smaller binaries, not a substi
 <ul>
 <li><strong>VS Code</strong>: Install the <code>rust-analyzer</code> extension</li>
 <li><strong>Vim/Neovim</strong>: Use <code>coc.nvim</code> or <code>nvim-lspconfig</code></li>
-<li><strong>IntelliJ IDEA</strong>: Use the Rust plugin (bundled in IDEA Ultimate)</li>
+<li><strong>JetBrains</strong>: Prefer RustRover. If your team is already standardized on IntelliJ IDEA Ultimate, use the bundled Rust plugin there.</li>
 </ul>
 <h3 id="inlay-hints-and-diagnostics"><a class="header" href="#inlay-hints-and-diagnostics">Inlay Hints and Diagnostics</a></h3>
 <p>Enable inlay hints for type information—this is invaluable during security review:</p>
@@ -440,7 +461,9 @@ jobs:
         run: mdbook build
 
       - name: Build snippet helper crate
-        run: cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
+        run: |
+          rm -rf target/book-snippets-check
+          cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
 
       - name: Test book snippets
         run: mdbook test -L target/book-snippets-check/debug/deps

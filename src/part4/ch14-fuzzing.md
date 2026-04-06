@@ -77,11 +77,9 @@ proptest! {
     }
     
     #[test]
-    fn parse_port_rejects_invalid(input in any::<String>()) {
-        // Skip only values that are already valid ports.
-        if input.parse::<u16>().is_ok() {
-            return Ok(());
-        }
+    fn parse_port_rejects_invalid(
+        input in any::<String>().prop_filter("not a valid u16", |s| s.parse::<u16>().is_err())
+    ) {
         prop_assert!(parse_port(&input).is_err());
     }
     

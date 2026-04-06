@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -344,8 +344,9 @@ include-dependencies = true
 RUSTFLAGS="--remap-path-prefix=/build/workdir=." \
 CARGO_PROFILE_RELEASE_LTO=true \
 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-cargo build --release --locked --frozen --target x86_64-unknown-linux-gnu
+cargo build --release --frozen --target x86_64-unknown-linux-gnu
 </code></pre>
+<p><code>--frozen</code> already implies <code>--locked</code> and <code>--offline</code>, so you do not need to spell those flags separately.</p>
 <p>Key settings for reproducibility:</p>
 <pre><code class="language-toml"># Cargo.toml
 [profile.release]
@@ -406,9 +407,9 @@ fn main() {
 <li>Audit all <code>build.rs</code> scripts in your dependency tree.</li>
 <li>Use <code>cargo deny check bans</code> with a <code>[bans.build]</code> policy to inventory and gate compile-time crates, scripts, and embedded executables.</li>
 <li>Build in sandboxed environments (Docker, chroot).</li>
-<li>Use <code>--frozen</code> flag to prevent network access during builds:</li>
+<li>Use <code>--frozen</code> to require an existing lockfile and prevent network access during builds:</li>
 </ol>
-<pre><code class="language-bash">cargo build --frozen --offline
+<pre><code class="language-bash">cargo build --frozen
 </code></pre>
 <h2 id="168-cicd-pipeline-security"><a class="header" href="#168-cicd-pipeline-security">16.8 CI/CD Pipeline Security</a></h2>
 <pre><code class="language-yaml"># .github/workflows/build.yml
@@ -459,6 +460,7 @@ jobs:
           cargo cyclonedx
 </code></pre>
 <p>Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.</p>
+<p>For release artifacts, pair SBOM generation with binary metadata or provenance. <code>cargo auditable</code>, Sigstore signing, and SLSA-style attestations strengthen the link between the reviewed source tree and the artifact you actually ship.</p>
 <h3 id="1681-trusted-publishing-for-cratesio"><a class="header" href="#1681-trusted-publishing-for-cratesio">16.8.1 Trusted Publishing for crates.io</a></h3>
 <p>For release workflows, prefer crates.io Trusted Publishing via OpenID Connect (OIDC) instead of storing long-lived registry API tokens in CI secrets. crates.io supports trusted publishing from GitHub Actions and GitLab CI.</p>
 <pre><code class="language-yaml"># .github/workflows/publish.yml

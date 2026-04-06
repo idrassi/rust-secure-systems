@@ -2,7 +2,7 @@
 
 > *"Data races are not just bugs—they are security vulnerabilities."*
 
-Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don't deadlock. The result is a constant stream of data race vulnerabilities (CWE-362, CWE-366).
+Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don't deadlock. The result is a constant stream of concurrency vulnerabilities: unsynchronized shared-state bugs (CWE-362) and higher-level logic races such as TOCTOU (CWE-367).
 
 Rust's ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is "fearless concurrency"—not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.
 
@@ -405,6 +405,22 @@ async fn handle_connection(
 - Use `tokio::sync::Mutex` when you need to hold the lock across `.await` points.
 
 🔒 **Security note**: `tokio::sync::Mutex` does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.
+
+### 6.4.1 `async fn` in Traits
+
+Rust 1.75 stabilized `async fn` in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:
+
+```rust,no_run
+trait Authenticator {
+    async fn authenticate(&self, token: &str) -> Result<UserId, AuthError>;
+}
+
+# struct UserId(u64);
+# #[derive(Debug)]
+# struct AuthError;
+```
+
+This is a good fit for internal application traits where you control both callers and implementors. For public library traits, decide up front whether implementors must return `Send` futures, because that requirement becomes part of the trait's API surface and cannot be added later without a breaking change.
 
 ## 6.5 Cancellation Safety in Async Rust
 

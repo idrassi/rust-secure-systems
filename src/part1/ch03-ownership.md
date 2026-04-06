@@ -109,7 +109,7 @@ fn main() {
 
 🔒 **Security impact**: These rules eliminate:
 - **CWE-416 (Use-After-Free)**: References cannot outlive the data they reference.
-- **CWE-366 (Data Race)**: Two threads cannot have mutable access to the same data simultaneously without synchronization.
+- **CWE-362 (Concurrent race condition / data race)**: Two threads cannot have mutable access to the same data simultaneously without synchronization.
 - **Iterator invalidation**: Modifying a collection while iterating is a compile error.
 
 ### 3.2.2 Preventing Iterator Invalidation
@@ -261,7 +261,7 @@ fn main() {
 
 ⚠️ **Panic behavior matters**: `Drop` runs on normal return and during unwinding, but it does not run if the process aborts. If you set `panic = "abort"` for FFI or hardening reasons, do not assume `Drop`-based wiping protects panic paths.
 
-⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. The `write_volatile` example above shows the low-level mechanics, but in practice you should prefer the `zeroize` crate:
+⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. We show the `write_volatile` + fence pattern first so you can see the optimization hazard that motivates `zeroize`; in practice you should prefer the crate:
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
@@ -275,6 +275,8 @@ struct SecureBuffer {
 ```
 
 Neither `Drop` nor `zeroize` is a complete secret-lifecycle guarantee. They do not run on paths such as `panic = "abort"`, `std::process::exit`, or deliberate leaks like `mem::forget`, and they do not erase copies of the secret that were already made elsewhere.
+
+⚠️ **Clone caveat**: If a secret-bearing type implements `Clone`, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.
 
 ### 3.4.2 Interior Mutability — `RefCell<T>` and `Cell<T>`
 

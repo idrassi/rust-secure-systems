@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -204,6 +204,16 @@ struct ServerState {
     connection_count: std::sync::atomic::AtomicUsize,
 }
 
+fn try_acquire_connection(state: &amp;ServerState) -&gt; bool {
+    state.connection_count
+        .fetch_update(
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+            |current| (current &lt; MAX_CONNECTIONS).then_some(current + 1),
+        )
+        .is_ok()
+}
+
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let state = Arc::new(ServerState {
@@ -220,11 +230,7 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
         let state = Arc::clone(&amp;state);
         
         // Connection limiting
-        let current = state.connection_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        if current &gt;= MAX_CONNECTIONS {
-            state.connection_count
-                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        if !try_acquire_connection(&amp;state) {
             log::warn!("Rejecting connection from {}: limit reached", addr);
             drop(stream);
             continue;
@@ -316,6 +322,7 @@ fn process_message(
 }
 
 fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+    debug_assert!(payload.len() &lt;= MAX_PAYLOAD_SIZE);
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
@@ -390,6 +397,26 @@ impl RateLimiter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
+<p>If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use std::sync::Arc;
+use std::time::Duration;
+
+<span class="boring">struct RateLimiter;
+</span><span class="boring">impl RateLimiter { fn cleanup(&amp;self) {} }
+</span>fn spawn_rate_limiter_cleanup(limiter: Arc&lt;RateLimiter&gt;) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            limiter.cleanup();
+        }
+    });
+}
+<span class="boring">}</span></code></pre>
 <h2 id="122-tls-configuration"><a class="header" href="#122-tls-configuration">12.2 TLS Configuration</a></h2>
 <h3 id="1221-server-tls-with-rustls"><a class="header" href="#1221-server-tls-with-rustls">12.2.1 Server TLS with rustls</a></h3>
 <pre><code class="language-toml">[dependencies]
@@ -402,7 +429,7 @@ rustls-pemfile = "2"
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-</span>use rustls::{ServerConfig, RootCertStore};
+</span>use rustls::ServerConfig;
 use std::sync::Arc;
 
 fn create_tls_config(
@@ -434,6 +461,49 @@ fn create_tls_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p>The config object is only half the story. You still need to wrap accepted TCP streams with <code>tokio-rustls</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio_rustls as tokio_rustls;
+</span>use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
+
+<span class="boring">fn create_tls_config(
+</span><span class="boring">    cert_path: &amp;str,
+</span><span class="boring">    key_path: &amp;str,
+</span><span class="boring">) -&gt; Result&lt;Arc&lt;rustls::ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+</span><span class="boring">    unimplemented!()
+</span><span class="boring">}
+</span><span class="boring">async fn handle_tls_client&lt;S&gt;(_stream: S) -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt;
+</span><span class="boring">where
+</span><span class="boring">    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+</span><span class="boring">{
+</span><span class="boring">    Ok(())
+</span><span class="boring">}
+</span><span class="boring">#[tokio::main]
+</span><span class="boring">async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+</span>let config = create_tls_config("server.crt", "server.key")?;
+let acceptor = TlsAcceptor::from(config);
+let listener = TcpListener::bind("0.0.0.0:8443").await?;
+
+loop {
+    let (tcp_stream, addr) = listener.accept().await?;
+    let acceptor = acceptor.clone();
+
+    tokio::spawn(async move {
+        match acceptor.accept(tcp_stream).await {
+            Ok(tls_stream) =&gt; {
+                if let Err(err) = handle_tls_client(tls_stream).await {
+                    eprintln!("{}: {}", addr, err);
+                }
+            }
+            Err(err) =&gt; eprintln!("TLS handshake failed for {}: {}", addr, err),
+        }
+    });
+}
+<span class="boring">}</span></code></pre>
 <p>🔒 <strong>TLS hardening checklist</strong>:</p>
 <ul>
 <li>✅ Use TLS 1.2 minimum (prefer TLS 1.3)</li>
@@ -447,6 +517,39 @@ fn create_tls_config(
 <h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
 <p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
 <p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
+</span>use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
+use std::io::BufReader;
+use std::sync::Arc;
+
+fn create_mtls_config(
+    cert_path: &amp;str,
+    key_path: &amp;str,
+    client_ca_path: &amp;str,
+) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    let certs = rustls_pemfile::certs(&amp;mut BufReader::new(std::fs::File::open(cert_path)?))
+        .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
+    let key = rustls_pemfile::private_key(&amp;mut BufReader::new(std::fs::File::open(key_path)?))?
+        .ok_or("no private key found")?;
+
+    let mut client_roots = RootCertStore::empty();
+    for cert in rustls_pemfile::certs(&amp;mut BufReader::new(std::fs::File::open(client_ca_path)?)) {
+        client_roots.add(cert?)?;
+    }
+
+    let client_verifier = WebPkiClientVerifier::builder(client_roots.into()).build()?;
+
+    let config = ServerConfig::builder()
+        .with_client_cert_verifier(client_verifier)
+        .with_single_cert(certs, key)?;
+
+    Ok(Arc::new(config))
+}
+<span class="boring">}</span></code></pre>
 <h2 id="123-defense-against-network-attacks"><a class="header" href="#123-defense-against-network-attacks">12.3 Defense Against Network Attacks</a></h2>
 <h3 id="1231-preventing-buffer-overflows-in-parsers"><a class="header" href="#1231-preventing-buffer-overflows-in-parsers">12.3.1 Preventing Buffer Overflows in Parsers</a></h3>
 <p>Rust’s safe code is immune to buffer overflows, but parser logic errors can still cause denial of service:</p>
@@ -494,6 +597,19 @@ fn create_tls_config(
 <li>Use checked arithmetic for length calculations.</li>
 <li>Never trust a length field from the network without bounds checking.</li>
 </ol>
+<p>DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.</p>
+<p>If you need an in-process encrypted resolver, <code>hickory-resolver</code> exposes ready-made configurations for DNS-over-TLS and DNS-over-HTTPS:</p>
+<pre><code class="language-rust ignore">use hickory_resolver::Resolver;
+use hickory_resolver::config::ResolverConfig;
+use hickory_resolver::name_server::TokioConnectionProvider;
+
+let resolver = Resolver::builder_with_config(
+    ResolverConfig::cloudflare_tls(), // or `cloudflare_https()` for DoH
+    TokioConnectionProvider::default(),
+).build();
+
+let ips = resolver.lookup_ip("api.example.com.").await?;</code></pre>
+<p>Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services that make authorization or routing decisions from hostnames.</p>
 <h3 id="1233-preventing-amplification-attacks"><a class="header" href="#1233-preventing-amplification-attacks">12.3.3 Preventing Amplification Attacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

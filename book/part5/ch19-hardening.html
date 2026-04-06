@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -231,7 +231,7 @@ rustflags = [
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
-    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support
+    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support (some LLVM/targets use +ibt,+shstk instead)
 ]
 </code></pre>
 <h3 id="1913-windows-specific-hardening"><a class="header" href="#1913-windows-specific-hardening">19.1.3 Windows-Specific Hardening</a></h3>
@@ -273,7 +273,8 @@ rustflags = [
 <pre><code class="language-dockerfile"># Dockerfile
 
 # Stage 1: Build
-FROM rust:1.85-slim AS builder
+FROM rust:stable-slim AS builder
+# For production, replace the moving tag with a reviewed digest-pinned image.
 
 WORKDIR /app
 
@@ -375,7 +376,108 @@ services:
 }
 </code></pre>
 <p>Treat this as process guidance, not a copy-paste policy. A production seccomp allowlist must be derived from the exact binary, libc, and container runtime you deploy. If you are not ready to maintain a custom allowlist, keeping the runtime default profile is safer than shipping an incomplete one.</p>
-<p>🔒 <strong>Security impact</strong>: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available—dramatically reducing what they can do.</p>
+<p>🔒 <strong>Security impact</strong>: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available, dramatically reducing what they can do.</p>
+<h3 id="1924-webassembly-wasm-for-application-sandboxing"><a class="header" href="#1924-webassembly-wasm-for-application-sandboxing">19.2.4 WebAssembly (Wasm) for Application Sandboxing</a></h3>
+<p>Containers and seccomp harden an entire service. Wasm sandboxing is useful when you need to isolate <em>one component inside that service</em> such as an untrusted plugin, policy bundle, parser, or customer-supplied transformation.</p>
+<h4 id="why-wasm-for-security"><a class="header" href="#why-wasm-for-security">Why Wasm for Security?</a></h4>
+<p>Wasm offers a principled in-process sandbox:</p>
+<ul>
+<li><strong>Linear memory isolation</strong>: A module can only access its own linear memory.</li>
+<li><strong>Controlled imports/exports</strong>: The host decides exactly which capabilities exist.</li>
+<li><strong>No ambient file/network access</strong>: Capabilities must be passed in explicitly.</li>
+<li><strong>Resource limits</strong>: Execution can be metered and memory growth capped.</li>
+</ul>
+<h4 id="compiling-rust-to-wasm"><a class="header" href="#compiling-rust-to-wasm">Compiling Rust to Wasm</a></h4>
+<pre><code class="language-bash">rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release
+</code></pre>
+<p>For production integration, prefer <code>wasm32-wasip2</code> or <code>wasm32-wasip1</code> when you need WASI-style system interfaces with explicit capability control.</p>
+<h4 id="sandboxed-plugin-architecture-with-wasmtime"><a class="header" href="#sandboxed-plugin-architecture-with-wasmtime">Sandboxed Plugin Architecture with Wasmtime</a></h4>
+<pre><code class="language-toml"># Cargo.toml
+[dependencies]
+wasmtime = "25"
+anyhow = "1"
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::anyhow as anyhow;
+</span><span class="boring">use rust_secure_systems_book::deps::wasmtime as wasmtime;
+</span>use anyhow::Result;
+use wasmtime::*;
+
+struct HostState {
+    limits: StoreLimits,
+}
+
+fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut config = Config::new();
+    config.cranelift_debug_verifier(true);
+    config.consume_fuel(true);
+
+    let engine = Engine::new(&amp;config)?;
+    let module = Module::from_binary(&amp;engine, wasm_bytes)?;
+
+    let mut store = Store::new(
+        &amp;engine,
+        HostState {
+            limits: StoreLimitsBuilder::new()
+                .memory_size(1 &lt;&lt; 20)
+                .instances(1)
+                .build(),
+        },
+    );
+    store.limiter(|state| &amp;mut state.limits);
+    store.set_fuel(10_000)?;
+
+    let log_func = Func::wrap(&amp;mut store, |ptr: u32, len: u32| {
+        println!("Plugin logged {} bytes at offset {}", len, ptr);
+    });
+
+    let instance = Instance::new(&amp;mut store, &amp;module, &amp;[Extern::Func(log_func)])?;
+    let process = instance.get_typed_func::&lt;(u32, u32), u32&gt;(&amp;mut store, "process")?;
+    let memory = instance
+        .get_memory(&amp;mut store, "memory")
+        .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
+
+    let mem_data = memory.data_mut(&amp;mut store);
+    if input.len() &gt; mem_data.len() / 2 {
+        return Err(anyhow::anyhow!("input too large for sandbox memory"));
+    }
+    mem_data[..input.len()].copy_from_slice(input);
+
+    let result = process.call(&amp;mut store, (0, input.len() as u32))?;
+    let output_len = result as usize;
+    if output_len &gt; memory.data(&amp;store).len() {
+        return Err(anyhow::anyhow!("plugin returned invalid length"));
+    }
+
+    Ok(memory.data(&amp;store)[..output_len].to_vec())
+}
+<span class="boring">}</span></code></pre>
+<p>Security properties in this design:</p>
+<ol>
+<li><strong>Fuel limiting</strong>: Prevents infinite loops and CPU exhaustion.</li>
+<li><strong>Resource limits</strong>: <code>Store::limiter</code> caps future memory and instance growth.</li>
+<li><strong>Explicit imports</strong>: The module only gets the host functions you expose.</li>
+<li><strong>Host-side validation</strong>: All lengths and offsets from module memory are checked before use.</li>
+</ol>
+<h4 id="wasm-security-considerations"><a class="header" href="#wasm-security-considerations">Wasm Security Considerations</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Concern</th><th>Mitigation</th></tr>
+</thead>
+<tbody>
+<tr><td>Side-channel attacks</td><td>Prefer constant-time host code; do not assume Wasm alone solves microarchitectural leaks</td></tr>
+<tr><td>Spectre-type attacks</td><td>Use a maintained runtime such as Wasmtime and follow its mitigation guidance</td></tr>
+<tr><td>Resource exhaustion</td><td>Set fuel, timeouts, and memory limits</td></tr>
+<tr><td>Malicious modules</td><td>Verify signatures or hashes before loading</td></tr>
+<tr><td>Host call safety</td><td>Validate every pointer, length, enum, and handle crossing the boundary</td></tr>
+</tbody>
+</table>
+</div>
+<p>⚠️ <strong>Important</strong>: Wasm sandboxing protects the host from the module. It does not make the module’s internal logic correct or side-channel-free.</p>
 <h2 id="193-binary-hardening-verification"><a class="header" href="#193-binary-hardening-verification">19.3 Binary Hardening Verification</a></h2>
 <p>After building, verify the hardening was applied:</p>
 <h3 id="linux-checksec"><a class="header" href="#linux-checksec">Linux (checksec)</a></h3>
@@ -429,15 +531,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 </span><span class="boring">use rust_secure_systems_book::deps::tracing as tracing;
 </span><span class="boring">use rust_secure_systems_book::deps::tracing_subscriber as tracing_subscriber;
 </span>// src/logging.rs
-use std::sync::Once;
+use std::sync::OnceLock;
 use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 
-static LOGGING_INIT: Once = Once::new();
+static LOGGING_INIT: OnceLock&lt;()&gt; = OnceLock::new();
 
 /// Initialize structured JSON logging for production
 pub fn init_logging() {
-    LOGGING_INIT.call_once(|| {
+    let _ = LOGGING_INIT.get_or_init(|| {
         let subscriber = fmt()
             .json()                           // Structured JSON output for log aggregation
             .with_env_filter(
@@ -670,6 +772,12 @@ impl ServerMetrics {
     }
 }
 
+impl Default for ServerMetrics {
+    fn default() -&gt; Self {
+        Self::new()
+    }
+}
+
 pub struct MetricsSnapshot {
     pub connections_accepted: u64,
     pub connections_rejected: u64,
@@ -701,7 +809,13 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
 <p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
 <p>If you also compile with <code>panic = "abort"</code>, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.</p>
-<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux and can leak through process listing. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.</p>
+<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux, and in containerized deployments they often surface through orchestration metadata such as <code>docker inspect</code>. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services.</p>
+<p>Prefer runtime secret injection instead:</p>
+<ul>
+<li>Vault / cloud secret-manager SDKs that fetch secrets on demand</li>
+<li>Permission-restricted files such as <code>/run/secrets/&lt;name&gt;</code> in Docker Swarm and similar platforms</li>
+<li>Platform key stores such as DPAPI, Credential Manager, or kernel-backed secret stores</li>
+</ul>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -922,8 +1036,9 @@ aa-genprof /usr/local/bin/secure-server
 <li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>
 <li>Use multi-stage Docker builds with distroless base images.</li>
 <li>Run as non-root with minimal capabilities and seccomp filtering.</li>
+<li>Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.</li>
 <li>Verify hardening with <code>checksec</code> or manual checks.</li>
-<li>Load secrets from vaults or permission-restricted files, never hardcode.</li>
+<li>Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.</li>
 <li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
 <li>Integrate logs with a SIEM for automated alerting on security events.</li>
 <li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>
@@ -963,6 +1078,7 @@ aa-genprof /usr/local/bin/secure-server
 <tr><td><code>rustls</code></td><td>TLS</td><td>High (memory-safe, audited)</td></tr>
 <tr><td><code>serde</code></td><td>Serialization</td><td>High (serde-rs project, widely used)</td></tr>
 <tr><td><code>zeroize</code></td><td>Memory wiping</td><td>High (widely audited)</td></tr>
+<tr><td><code>subtle</code></td><td>Constant-time selection and comparison helpers</td><td>High (Dalek ecosystem)</td></tr>
 <tr><td><code>secrecy</code></td><td>Secret encapsulation</td><td>High</td></tr>
 <tr><td><code>thiserror</code></td><td>Error types</td><td>High</td></tr>
 <tr><td><code>proptest</code></td><td>Property testing</td><td>High</td></tr>

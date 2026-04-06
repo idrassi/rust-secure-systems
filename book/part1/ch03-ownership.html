@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -225,7 +225,7 @@
 <li><strong>Immutable references</strong> (<code>&amp;T</code>): Allow reading but not modification. Multiple immutable borrows are allowed simultaneously.</li>
 <li><strong>Mutable references</strong> (<code>&amp;mut T</code>): Allow modification. Only <strong>one</strong> mutable borrow is allowed at a time, and it cannot coexist with any immutable borrows.</li>
 </ul>
-<pre class="playground"><code class="language-rust edition2024">fn calculate_length(s: &amp;String) -&gt; usize {  // borrow immutably
+<pre class="playground"><code class="language-rust edition2024">fn calculate_length(s: &amp;str) -&gt; usize {  // borrow immutably
     s.len()
 }   // s goes out of scope but since it doesn't have ownership, nothing happens
 
@@ -264,7 +264,7 @@ fn main() {
 <p>🔒 <strong>Security impact</strong>: These rules eliminate:</p>
 <ul>
 <li><strong>CWE-416 (Use-After-Free)</strong>: References cannot outlive the data they reference.</li>
-<li><strong>CWE-366 (Data Race)</strong>: Two threads cannot have mutable access to the same data simultaneously without synchronization.</li>
+<li><strong>CWE-362 (Concurrent race condition / data race)</strong>: Two threads cannot have mutable access to the same data simultaneously without synchronization.</li>
 <li><strong>Iterator invalidation</strong>: Modifying a collection while iterating is a compile error.</li>
 </ul>
 <h3 id="322-preventing-iterator-invalidation"><a class="header" href="#322-preventing-iterator-invalidation">3.2.2 Preventing Iterator Invalidation</a></h3>
@@ -354,6 +354,7 @@ impl&lt;'a&gt; Parser&lt;'a&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
+<p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once.</p>
 <h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
 <h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
 <p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>
@@ -382,20 +383,20 @@ fn main() {
 }</code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
 <p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
-<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. The <code>write_volatile</code> example above shows the low-level mechanics, but in practice you should prefer the <code>zeroize</code> crate:</p>
+<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the crate:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">extern crate zeroize;
-</span>use zeroize::Zeroize;
+</span>use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]  // Automatically zeroize on Drop
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecureBuffer {
     data: Vec&lt;u8&gt;,
 }
 <span class="boring">}</span></code></pre>
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
+<p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
 <h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

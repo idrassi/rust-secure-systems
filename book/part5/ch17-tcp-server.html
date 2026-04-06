@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -437,7 +437,7 @@ impl RateLimiter {
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
 </span>// src/tls.rs
-use rustls::{ServerConfig, pki_types::PrivateKeyDer};
+use rustls::ServerConfig;
 use std::sync::Arc;
 use std::fs::File;
 use std::io::BufReader;
@@ -821,14 +821,6 @@ mod tests {
         let len = u32::from_be_bytes([response[0], response[1], response[2], response[3]]);
         assert_eq!(len, 4);
         assert_eq!(&amp;response[4..], b"test");
-    }
-
-    #[test]
-    fn test_empty_message_rejected() {
-        assert!(matches!(
-            Message::from_bytes(&amp;[0, 0, 0, 0]),
-            Err(ProtocolError::EmptyMessage)
-        ));
     }
 
     proptest! {

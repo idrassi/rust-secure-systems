@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -211,6 +211,15 @@
 <li><strong>Bounded allocation</strong>: Never allocate based on untrusted size fields without limits.</li>
 <li><strong>No unsafe</strong>: Parsers should be implementable entirely in safe Rust.</li>
 </ol>
+<h3 id="1821-parser-combinators-with-nom"><a class="header" href="#1821-parser-combinators-with-nom">18.2.1 Parser Combinators with <code>nom</code></a></h3>
+<p>This chapter uses a hand-written parser because explicit control flow is easy to audit, makes allocation limits obvious, and keeps every boundary check visible. That is not the only defensible choice. <code>nom</code> is a mature parser-combinator library and can be a good fit when you want declarative composition without writing pointer arithmetic by hand.</p>
+<p>From a security perspective, three <code>nom</code> design choices matter:</p>
+<ul>
+<li>Choose the right mode: <code>complete</code> parsers treat missing bytes as hard errors, while <code>streaming</code> parsers return <code>Incomplete</code>. For sockets and framed protocols, that distinction is part of your threat model.</li>
+<li>Bound input before parsing. A combinator library does not remove the need for maximum message sizes, checked length arithmetic, or duplicate-field policy.</li>
+<li>Keep parsers inspectable. Favor small named combinators and explicit error mapping over deeply nested expressions that hide which branch consumed input.</li>
+</ul>
+<p>Use <code>nom</code> when it improves clarity; use a hand-written parser when explicit state transitions and bounds checks are easier to review. For security-critical formats, “shorter code” is only a win if the rejection behavior stays obvious.</p>
 <h2 id="183-example-a-secure-tlv-type-length-value-parser"><a class="header" href="#183-example-a-secure-tlv-type-length-value-parser">18.3 Example: A Secure TLV (Type-Length-Value) Parser</a></h2>
 <h3 id="1831-type-definitions"><a class="header" href="#1831-type-definitions">18.3.1 Type Definitions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -227,9 +236,6 @@ const MAX_VALUE_SIZE: usize = 1024 * 1024;
 
 /// Maximum total message size (16 MiB)
 const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
-
-/// Maximum nesting depth for recursive TLVs
-const MAX_DEPTH: usize = 16;
 
 /// TLV type tags with semantic meaning.
 ///
@@ -401,7 +407,7 @@ impl TlvMessage {
                 if records.iter().any(|record| record.tag == tag) {
                     return Err(ParseError::DuplicateTag { tag });
                 }
-                records.push(TlvRecord { tag, value });
+                records.push(TlvRecord::new(tag, value)?);
             }
         }
         

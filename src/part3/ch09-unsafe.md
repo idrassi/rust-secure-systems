@@ -432,7 +432,7 @@ fn main() {
 
 🔒 **Security practice**: Run `cargo miri test` in CI for any crate that contains `unsafe` code. Miri does not prove the *absence* of bugs, but it is exceptionally effective at finding them.
 
-For stricter raw-pointer aliasing diagnostics, you can also add `-Zmiri-track-raw-pointers`. That is separate from the data-race detector.
+For stricter pointer-provenance diagnostics, add `-Zmiri-strict-provenance`. If you want to experiment with Miri's alternative aliasing model, add `-Zmiri-tree-borrows`. These checks are separate from the data-race detector.
 
 ⚠️ **Limitations**: Miri supports many `std::thread` patterns, but it cannot execute arbitrary FFI, real network I/O, or many OS-specific interactions. For such code, extract the pure logic into testable functions and run Miri on those pieces.
 
@@ -450,20 +450,22 @@ For stricter raw-pointer aliasing diagnostics, you can also add `-Zmiri-track-ra
 # use rust_secure_systems_book::deps::loom as loom;
 // tests/concurrency.rs
 use loom::sync::atomic::{AtomicUsize, Ordering};
+use loom::sync::Arc;
 use loom::thread;
 
 #[test]
 fn test_atomic_counter() {
     loom::model(|| {
-        let counter = AtomicUsize::new(0);
-        let counter_ref = &counter;
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c1 = Arc::clone(&counter);
+        let c2 = Arc::clone(&counter);
         
         let t1 = thread::spawn(move || {
-            counter_ref.fetch_add(1, Ordering::SeqCst);
+            c1.fetch_add(1, Ordering::SeqCst);
         });
         
         let t2 = thread::spawn(move || {
-            counter_ref.fetch_add(1, Ordering::SeqCst);
+            c2.fetch_add(1, Ordering::SeqCst);
         });
         
         t1.join().unwrap();

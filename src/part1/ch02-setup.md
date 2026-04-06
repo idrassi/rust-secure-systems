@@ -73,6 +73,25 @@ rustup update
 
 🔒 **Security practice**: Treat Rust compiler updates as security patches. New releases often include improved lints and security-relevant diagnostics.
 
+### 2.2.1 `no_std` and Embedded Targets
+
+If your "systems programming" work includes firmware, kernels, bootloaders, or other bare-metal targets, the setup changes in security-relevant ways:
+
+- `#![no_std]` removes the standard library. If you still need heap allocation, pull in `alloc` explicitly and keep allocations bounded.
+- You need an explicit panic strategy and handler (`panic-halt`, `panic-abort`, or a board-specific reset/logging path). There is no host process to unwind through.
+- Many OS protections disappear: no ASLR, no process isolation, and no kernel-provided crash containment unless your platform adds them.
+- Hardware security features move into scope: TRNGs, secure elements, MPU/MMU rules, tamper-resistant storage, and watchdog-driven recovery.
+- The `embedded-hal` ecosystem gives you a portable abstraction layer for peripherals, but you still need board-specific review of clocks, memory maps, and debug interfaces.
+
+For cross-compilation, install the exact target triple you ship:
+
+```bash
+rustup target add thumbv7em-none-eabihf
+cargo build --target thumbv7em-none-eabihf --release
+```
+
+Treat bare-metal deployment as a different threat model, not just a smaller Linux process.
+
 ## 2.3 Essential Security Tooling
 
 ### 2.3.1 Clippy — The Linting Powerhouse
@@ -149,18 +168,20 @@ cargo audit
 
 `cargo-audit` checks your `Cargo.lock` against the [RustSec Advisory Database](https://rustsec.org/), which tracks known vulnerabilities in Rust crates.
 
-```bash
+Illustrative output example:
+
+```text
 $ cargo audit
     Loaded 517 advisory records
     Scanning Cargo.lock for vulnerabilities (484 crates)
 
-Crate:     openssl
-Version:   0.10.52
-Title:     OpenSSL HBAR TLS handshake downgrade
-Date:      2023-02-07
-ID:        RUSTSEC-2023-0019
-URL:       https://rustsec.org/advisories/RUSTSEC-2023-0019
-Severity:  7.5 (high)
+Crate:     example-crypto
+Version:   1.2.3
+Title:     Example advisory used for documentation
+Date:      2026-04-02
+ID:        RUSTSEC-XXXX-YYYY
+URL:       https://rustsec.org/advisories/
+Severity:  high
 ```
 
 🔒 **Security practice**: Run `cargo audit` in your CI pipeline and block merges on known vulnerabilities.

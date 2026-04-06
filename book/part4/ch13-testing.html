@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -183,7 +183,7 @@
                     <main>
                         <h1 id="chapter-13--testing-strategies-for-secure-code"><a class="header" href="#chapter-13--testing-strategies-for-secure-code">Chapter 13 — Testing Strategies for Secure Code</a></h1>
 <blockquote>
-<p><em>“Testing shows the presence of bugs, not their absence. But for security, presence is better than ignorance.”</em></p>
+<p><em>“Program testing can be used to show the presence of bugs, but never to show their absence.”</em> — Edsger W. Dijkstra</p>
 </blockquote>
 <p>Testing security-critical code requires a different mindset than testing functionality. You’re not just verifying that the code works correctly for valid inputs—you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.</p>
 <h2 id="131-rust-testing-fundamentals"><a class="header" href="#131-rust-testing-fundamentals">13.1 Rust Testing Fundamentals</a></h2>
@@ -249,6 +249,22 @@ mod tests {
 }
 <span class="boring">}</span></code></pre>
 <p>Run with: <code>cargo test</code></p>
+<p>Rust also gives you two pragmatic test attributes that matter in security work:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+#[should_panic(expected = "internal invariant violated")]
+fn invariant_checks_trip_in_tests() {
+    panic!("internal invariant violated");
+}
+
+#[test]
+#[ignore = "slow integration test against external dependency"]
+fn hsm_roundtrip() {
+    // Run explicitly with: cargo test -- --ignored
+}
+<span class="boring">}</span></code></pre>
+<p>Use <code>#[should_panic]</code> for invariants and programmer errors, not for attacker-controlled input paths that should return <code>Result</code>.</p>
 <h3 id="1312-integration-tests"><a class="header" href="#1312-integration-tests">13.1.2 Integration Tests</a></h3>
 <p>Tests in <code>tests/</code> have access to your crate’s public API only:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -618,6 +634,12 @@ cargo nextest run --workspace --all-features
 cargo llvm-cov --workspace --all-features --html
 </code></pre>
 <p>Prioritize coverage review on authentication, parsing, deserialization, unsafe wrappers, and failure paths rather than chasing a global percentage.</p>
+<h3 id="1363-mutation-testing-with-cargo-mutants"><a class="header" href="#1363-mutation-testing-with-cargo-mutants">13.6.3 Mutation Testing with <code>cargo-mutants</code></a></h3>
+<p>Coverage tells you what executed; mutation testing tells you whether the tests would fail if the security logic were wrong. <code>cargo-mutants</code> flips conditionals, comparison operators, and other small pieces of code, then reruns your tests to see whether the suite notices:</p>
+<pre><code class="language-bash">cargo install cargo-mutants --locked
+cargo mutants --workspace --all-features
+</code></pre>
+<p>This is especially valuable for authentication checks, parser bounds checks, rate limiting, and unsafe wrappers. A surviving mutant around <code>&gt;=</code> vs <code>&gt;</code>, allow/deny logic, or an omitted validation branch is a strong signal that the tests are not actually enforcing the intended security property.</p>
 <h2 id="137-summary"><a class="header" href="#137-summary">13.7 Summary</a></h2>
 <ul>
 <li>Write comprehensive unit tests for all security-critical functions.</li>
@@ -631,6 +653,7 @@ cargo llvm-cov --workspace --all-features --html
 <li>Run tests across stable, beta, and nightly with Miri for UB detection.</li>
 <li>Use <code>cargo-nextest</code> for faster, better-isolated CI runs on large suites.</li>
 <li>Use <code>cargo-llvm-cov</code> to find untested validation and error-handling paths.</li>
+<li>Use <code>cargo-mutants</code> to check whether tests actually fail when critical logic is changed.</li>
 </ul>
 <p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn’t think to test for.</p>
 <h2 id="138-exercises"><a class="header" href="#138-exercises">13.8 Exercises</a></h2>

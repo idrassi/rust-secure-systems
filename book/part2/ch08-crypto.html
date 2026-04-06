@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -271,13 +271,13 @@ fn decrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], ciphertext_and_tag: &
     Some(in_out[..plaintext_len].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
-<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the authentication key.</li>
+<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</li>
 <li>For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.</li>
 <li>For counter-based nonces, track the counter securely and never reset it.</li>
 </ol>
-<p>More precisely: nonce reuse in AES-GCM reveals the XOR of plaintexts and leaks the GHASH authentication subkey, which enables message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</p>
 <h3 id="chacha20-poly1305-alternative-to-aes-gcm"><a class="header" href="#chacha20-poly1305-alternative-to-aes-gcm">ChaCha20-Poly1305 (Alternative to AES-GCM)</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -454,6 +454,13 @@ fn sign_example() {
 <li>Ed25519 uses deterministic signatures (no per-signature randomness needed), eliminating the catastrophic nonce-reuse vulnerability that affects ECDSA.</li>
 <li>Always verify signatures before trusting signed data.</li>
 </ul>
+<h3 id="841-rsa-for-legacy-interoperability"><a class="header" href="#841-rsa-for-legacy-interoperability">8.4.1 RSA for Legacy Interoperability</a></h3>
+<p>Ed25519 should be your default for new designs, but RSA is still common in X.509 PKI, S/MIME, PGP ecosystems, HSM-backed deployments, and older compliance-driven environments. When you must interoperate with RSA:</p>
+<ul>
+<li>Prefer RSA-PSS for signatures over PKCS#1 v1.5.</li>
+<li>Use at least 2048-bit keys, with 3072-bit keys common for longer-lived deployments.</li>
+<li>Treat RSA as compatibility baggage, not a model for new protocol design.</li>
+</ul>
 <h2 id="85-key-exchange"><a class="header" href="#85-key-exchange">8.5 Key Exchange</a></h2>
 <h3 id="x25519--hkdf--aead-pipeline"><a class="header" href="#x25519--hkdf--aead-pipeline">X25519 → HKDF → AEAD Pipeline</a></h3>
 <p>The standard pattern for establishing a shared secret and encrypting data is: X25519 key agreement, HKDF key derivation, then AEAD encryption:</p>
@@ -529,10 +536,9 @@ zeroize = { version = "1", features = ["derive"] }
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">extern crate zeroize;
-</span>use zeroize::Zeroize;
+</span>use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]  // Automatically zeroize on Drop
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecretKey {
     key: [u8; 32],
     nonce: [u8; 12],
@@ -550,7 +556,9 @@ fn use_key() {
     // The memory will contain all zeros before being freed
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Critical pattern</strong>: Always use <code>#[zeroize(drop)]</code> for types containing secrets. This ensures memory is wiped even if the function exits early (e.g., via <code>?</code> operator).</p>
+<p>🔒 <strong>Critical pattern</strong>: Use <code>#[derive(Zeroize, ZeroizeOnDrop)]</code> for types containing secrets. This ensures memory is wiped on ordinary drop paths even if the function exits early (for example via <code>?</code>).</p>
+<p>⚠️ <strong>Panic strategy caveat</strong>: With <code>panic = "abort"</code> from Chapter 2 §2.4, <code>Drop</code>-based zeroization still runs on normal returns but does <strong>not</strong> run on panic paths.</p>
+<p>⚠️ <strong>Clone caveat</strong>: If a secret type also implements <code>Clone</code>, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.</p>
 <h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
@@ -604,6 +612,25 @@ fn verify_token(provided: &amp;[u8], expected: &amp;[u8]) -&gt; bool {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Prevents timing side-channel attacks (CWE-208). A normal <code>==</code> comparison returns <code>false</code> as soon as it finds a mismatching byte, leaking information about which bytes match.</p>
+<h3 id="864-constant-time-selection-and-branching"><a class="header" href="#864-constant-time-selection-and-branching">8.6.4 Constant-Time Selection and Branching</a></h3>
+<p>Constant-time comparison is only part of the story. Secret-dependent branching such as <code>if secret_bit == 1 { ... }</code> or <code>match secret_byte { ... }</code> can still leak timing information through control flow, cache activity, and branch prediction.</p>
+<p>For low-level cryptographic code, prefer the <code>subtle</code> crate’s constant-time building blocks:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::subtle as subtle;
+</span>use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
+
+fn select_mask(secret_bit: u8, limited: u32, full: u32) -&gt; u32 {
+    let choice = Choice::from(secret_bit &amp; 1);
+    u32::conditional_select(&amp;limited, &amp;full, choice)
+}
+
+fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
+    provided.ct_eq(expected)
+}
+<span class="boring">}</span></code></pre>
+<p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
 <h2 id="87-random-number-generation"><a class="header" href="#87-random-number-generation">8.7 Random Number Generation</a></h2>
 <p>Use cryptographically secure random number generators (CSPRNGs) for all security-sensitive operations:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -679,7 +706,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>Type system can enforce nonce tracking</td></tr>
 <tr><td>Missing auth</td><td>Padding oracle</td><td><code>ring</code> API requires AEAD</td></tr>
 <tr><td>Timing leak</td><td>Side-channel</td><td><code>ring::constant_time</code> module</td></tr>
-<tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>#[zeroize(drop)]</code></td></tr>
+<tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>ZeroizeOnDrop</code></td></tr>
 <tr><td>Weak RNG</td><td>Predictable keys</td><td><code>SystemRandom</code> is always a CSPRNG</td></tr>
 <tr><td>Hardcoded keys</td><td>Source code leak</td><td>Use <code>Secret&lt;T&gt;</code>, env variables, or vaults</td></tr>
 </tbody>

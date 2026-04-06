@@ -264,7 +264,7 @@ struct SharedState {
 // This type can be safely shared between threads.
 ```
 
-🔒 **Security impact**: The `Send` and `Sync` traits prevent data races at compile time. If a type contains a non-thread-safe component (like `Rc<T>`), the compiler will refuse to let you share it across threads. This eliminates CWE-362 (Race Condition).
+🔒 **Security impact**: The `Send` and `Sync` traits prevent data races at compile time. If a type contains a non-thread-safe component (like `Rc<T>`), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.
 
 ### The `From`/`Into` Traits — Safe Conversions
 
@@ -445,7 +445,7 @@ type HmacKey = FixedBuffer<64>;  // 512-bit key
 - Algebraic data types and exhaustive matching ensure all cases are handled.
 - Newtypes prevent type confusion (CWE-20).
 - Checked arithmetic prevents integer overflow (CWE-190).
-- `Send`/`Sync` traits prevent data races at compile time (CWE-362).
+- `Send`/`Sync` traits prevent data races at compile time, removing a major source of CWE-362-style concurrency bugs.
 - Const generics enforce size constraints at compile time.
 
 The type system is your first and strongest line of defense. In the next chapter, we explore how Rust's error handling model supports secure, robust code.

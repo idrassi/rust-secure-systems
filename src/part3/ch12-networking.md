@@ -144,6 +144,7 @@ fn process_message(
 }
 
 fn build_frame(payload: &[u8]) -> Vec<u8> {
+    debug_assert!(payload.len() <= MAX_PAYLOAD_SIZE);
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
@@ -436,6 +437,23 @@ fn safe_length_add(a: usize, b: usize) -> Option<usize> {
 3. Never trust a length field from the network without bounds checking.
 
 DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.
+
+If you need an in-process encrypted resolver, `hickory-resolver` exposes ready-made configurations for DNS-over-TLS and DNS-over-HTTPS:
+
+```rust,ignore
+use hickory_resolver::Resolver;
+use hickory_resolver::config::ResolverConfig;
+use hickory_resolver::name_server::TokioConnectionProvider;
+
+let resolver = Resolver::builder_with_config(
+    ResolverConfig::cloudflare_tls(), // or `cloudflare_https()` for DoH
+    TokioConnectionProvider::default(),
+).build();
+
+let ips = resolver.lookup_ip("api.example.com.").await?;
+```
+
+Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services that make authorization or routing decisions from hostnames.
 
 ### 12.3.3 Preventing Amplification Attacks
 

@@ -413,6 +413,10 @@ fn use_key() {
 
 🔒 **Critical pattern**: Use `#[derive(Zeroize, ZeroizeOnDrop)]` for types containing secrets. This ensures memory is wiped on ordinary drop paths even if the function exits early (for example via `?`).
 
+⚠️ **Panic strategy caveat**: With `panic = "abort"` from Chapter 2 §2.4, `Drop`-based zeroization still runs on normal returns but does **not** run on panic paths.
+
+⚠️ **Clone caveat**: If a secret type also implements `Clone`, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.
+
 ### 8.6.2 The `secrecy` Crate — Encapsulating Secrets
 
 ```toml
@@ -471,6 +475,29 @@ fn verify_token(provided: &[u8], expected: &[u8]) -> bool {
 ```
 
 🔒 **Security impact**: Prevents timing side-channel attacks (CWE-208). A normal `==` comparison returns `false` as soon as it finds a mismatching byte, leaking information about which bytes match.
+
+### 8.6.4 Constant-Time Selection and Branching
+
+Constant-time comparison is only part of the story. Secret-dependent branching such as `if secret_bit == 1 { ... }` or `match secret_byte { ... }` can still leak timing information through control flow, cache activity, and branch prediction.
+
+For low-level cryptographic code, prefer the `subtle` crate's constant-time building blocks:
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::subtle as subtle;
+use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
+
+fn select_mask(secret_bit: u8, limited: u32, full: u32) -> u32 {
+    let choice = Choice::from(secret_bit & 1);
+    u32::conditional_select(&limited, &full, choice)
+}
+
+fn tags_match(provided: &[u8; 32], expected: &[u8; 32]) -> Choice {
+    provided.ct_eq(expected)
+}
+```
+
+`Choice` is intentionally not a normal `bool`; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary `if`/`match` only on public values that are already safe to reveal.
 
 ## 8.7 Random Number Generation
 

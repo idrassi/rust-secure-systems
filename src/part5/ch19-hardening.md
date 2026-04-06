@@ -102,7 +102,8 @@ The Dockerfile below uses the Chapter 17 companion service as a real workspace e
 # Dockerfile
 
 # Stage 1: Build
-FROM rust:1.85-slim AS builder
+FROM rust:stable-slim AS builder
+# For production, replace the moving tag with a reviewed digest-pinned image.
 
 WORKDIR /app
 
@@ -216,7 +217,114 @@ When you do need a custom profile, derive it from the runtime default profile fo
 
 Treat this as process guidance, not a copy-paste policy. A production seccomp allowlist must be derived from the exact binary, libc, and container runtime you deploy. If you are not ready to maintain a custom allowlist, keeping the runtime default profile is safer than shipping an incomplete one.
 
-🔒 **Security impact**: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available—dramatically reducing what they can do.
+🔒 **Security impact**: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available, dramatically reducing what they can do.
+
+### 19.2.4 WebAssembly (Wasm) for Application Sandboxing
+
+Containers and seccomp harden an entire service. Wasm sandboxing is useful when you need to isolate *one component inside that service* such as an untrusted plugin, policy bundle, parser, or customer-supplied transformation.
+
+#### Why Wasm for Security?
+
+Wasm offers a principled in-process sandbox:
+
+- **Linear memory isolation**: A module can only access its own linear memory.
+- **Controlled imports/exports**: The host decides exactly which capabilities exist.
+- **No ambient file/network access**: Capabilities must be passed in explicitly.
+- **Resource limits**: Execution can be metered and memory growth capped.
+
+#### Compiling Rust to Wasm
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release
+```
+
+For production integration, prefer `wasm32-wasip2` or `wasm32-wasip1` when you need WASI-style system interfaces with explicit capability control.
+
+#### Sandboxed Plugin Architecture with Wasmtime
+
+```toml
+# Cargo.toml
+[dependencies]
+wasmtime = "25"
+anyhow = "1"
+```
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::anyhow as anyhow;
+# use rust_secure_systems_book::deps::wasmtime as wasmtime;
+use anyhow::Result;
+use wasmtime::*;
+
+struct HostState {
+    limits: StoreLimits,
+}
+
+fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
+    let mut config = Config::new();
+    config.cranelift_debug_verifier(true);
+    config.consume_fuel(true);
+
+    let engine = Engine::new(&config)?;
+    let module = Module::from_binary(&engine, wasm_bytes)?;
+
+    let mut store = Store::new(
+        &engine,
+        HostState {
+            limits: StoreLimitsBuilder::new()
+                .memory_size(1 << 20)
+                .instances(1)
+                .build(),
+        },
+    );
+    store.limiter(|state| &mut state.limits);
+    store.set_fuel(10_000)?;
+
+    let log_func = Func::wrap(&mut store, |ptr: u32, len: u32| {
+        println!("Plugin logged {} bytes at offset {}", len, ptr);
+    });
+
+    let instance = Instance::new(&mut store, &module, &[Extern::Func(log_func)])?;
+    let process = instance.get_typed_func::<(u32, u32), u32>(&mut store, "process")?;
+    let memory = instance
+        .get_memory(&mut store, "memory")
+        .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
+
+    let mem_data = memory.data_mut(&mut store);
+    if input.len() > mem_data.len() / 2 {
+        return Err(anyhow::anyhow!("input too large for sandbox memory"));
+    }
+    mem_data[..input.len()].copy_from_slice(input);
+
+    let result = process.call(&mut store, (0, input.len() as u32))?;
+    let output_len = result as usize;
+    if output_len > memory.data(&store).len() {
+        return Err(anyhow::anyhow!("plugin returned invalid length"));
+    }
+
+    Ok(memory.data(&store)[..output_len].to_vec())
+}
+```
+
+Security properties in this design:
+
+1. **Fuel limiting**: Prevents infinite loops and CPU exhaustion.
+2. **Resource limits**: `Store::limiter` caps future memory and instance growth.
+3. **Explicit imports**: The module only gets the host functions you expose.
+4. **Host-side validation**: All lengths and offsets from module memory are checked before use.
+
+#### Wasm Security Considerations
+
+| Concern | Mitigation |
+|---------|------------|
+| Side-channel attacks | Prefer constant-time host code; do not assume Wasm alone solves microarchitectural leaks |
+| Spectre-type attacks | Use a maintained runtime such as Wasmtime and follow its mitigation guidance |
+| Resource exhaustion | Set fuel, timeouts, and memory limits |
+| Malicious modules | Verify signatures or hashes before loading |
+| Host call safety | Validate every pointer, length, enum, and handle crossing the boundary |
+
+⚠️ **Important**: Wasm sandboxing protects the host from the module. It does not make the module's internal logic correct or side-channel-free.
 
 ## 19.3 Binary Hardening Verification
 
@@ -283,15 +391,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # use rust_secure_systems_book::deps::tracing as tracing;
 # use rust_secure_systems_book::deps::tracing_subscriber as tracing_subscriber;
 // src/logging.rs
-use std::sync::Once;
+use std::sync::OnceLock;
 use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 
-static LOGGING_INIT: Once = Once::new();
+static LOGGING_INIT: OnceLock<()> = OnceLock::new();
 
 /// Initialize structured JSON logging for production
 pub fn init_logging() {
-    LOGGING_INIT.call_once(|| {
+    let _ = LOGGING_INIT.get_or_init(|| {
         let subscriber = fmt()
             .json()                           // Structured JSON output for log aggregation
             .with_env_filter(
@@ -574,7 +682,13 @@ For long-lived secrets such as TLS private keys, pair zeroization with page lock
 
 If you also compile with `panic = "abort"`, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.
 
-⚠️ **Limitation**: Environment variables are visible in `/proc/<pid>/environ` on Linux and can leak through process listing. In Edition 2024, mutating the process environment with `std::env::set_var` or `std::env::remove_var` is `unsafe`, so "read then delete" is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.
+⚠️ **Limitation**: Environment variables are visible in `/proc/<pid>/environ` on Linux, and in containerized deployments they often surface through orchestration metadata such as `docker inspect`. In Edition 2024, mutating the process environment with `std::env::set_var` or `std::env::remove_var` is `unsafe`, so "read then delete" is not a robust secret-management pattern for multithreaded services.
+
+Prefer runtime secret injection instead:
+
+- Vault / cloud secret-manager SDKs that fetch secrets on demand
+- Permission-restricted files such as `/run/secrets/<name>` in Docker Swarm and similar platforms
+- Platform key stores such as DPAPI, Credential Manager, or kernel-backed secret stores
 
 ### 19.5.2 Files with Restricted Permissions
 
@@ -813,8 +927,9 @@ Before deploying a Rust application to production:
 - Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.
 - Use multi-stage Docker builds with distroless base images.
 - Run as non-root with minimal capabilities and seccomp filtering.
+- Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.
 - Verify hardening with `checksec` or manual checks.
-- Load secrets from vaults or permission-restricted files, never hardcode.
+- Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.
 - **Use structured tracing** (`tracing` crate with JSON output) for security event logging, with consistent event types and spans that carry request context.
 - Integrate logs with a SIEM for automated alerting on security events.
 - Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.
@@ -849,6 +964,7 @@ This concludes the book. You now have the knowledge and practical skills to writ
 | `rustls` | TLS | High (memory-safe, audited) |
 | `serde` | Serialization | High (serde-rs project, widely used) |
 | `zeroize` | Memory wiping | High (widely audited) |
+| `subtle` | Constant-time selection and comparison helpers | High (Dalek ecosystem) |
 | `secrecy` | Secret encapsulation | High |
 | `thiserror` | Error types | High |
 | `proptest` | Property testing | High |

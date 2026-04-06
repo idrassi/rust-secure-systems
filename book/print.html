@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -219,7 +219,7 @@
 <ul>
 <li>Code examples use <strong>Rust Edition 2024</strong> unless noted otherwise. Edition 2024 stabilized in <strong>Rust 1.85.0</strong>, so install <strong>Rust 1.85.0 or later</strong> before working through the chapters. If <code>rustc --version</code> reports an older toolchain, run <code>rustup update stable</code> first. Nightly-only features are called out explicitly when they appear.</li>
 <li>Standalone Rust snippets are written to be <code>mdbook test</code> friendly whenever practical. Multi-file, async-runtime, or external-crate examples that stay marked <code>ignore</code> are illustrative excerpts; their tested counterparts live in the companion crates under <code>companion/</code>.</li>
-<li>CI verifies the companion code with <code>cargo clippy --workspace --all-targets --all-features -- -D warnings</code>, <code>cargo test --workspace</code>, <code>mdbook build</code>, <code>cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check</code>, and <code>mdbook test -L target/book-snippets-check/debug/deps</code>.</li>
+<li>CI verifies the companion code with <code>cargo clippy --workspace --all-targets --all-features -- -D warnings</code>, <code>cargo test --workspace</code>, <code>mdbook build</code>, a fresh <code>cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check</code>, and <code>mdbook test -L target/book-snippets-check/debug/deps</code>.</li>
 <li>Security-relevant tips are marked with a 🔒 icon.</li>
 <li>Common pitfalls are marked with a ⚠️ icon.</li>
 <li>CWE references are provided where relevant, e.g., <code>CWE-119</code> for buffer overflows.</li>
@@ -250,7 +250,8 @@
 <tr><td>CWE-787</td><td>Out-of-Bounds Write</td><td>Writing past the end of an array</td></tr>
 <tr><td>CWE-125</td><td>Out-of-Bounds Read</td><td>Reading past the end of an array</td></tr>
 <tr><td>CWE-190</td><td>Integer Overflow</td><td>Arithmetic overflow leading to incorrect behavior</td></tr>
-<tr><td>CWE-362</td><td>Race Condition</td><td>Concurrent access without synchronization</td></tr>
+<tr><td>CWE-362</td><td>Concurrent Race Condition</td><td>Unsynchronized shared-state access between threads</td></tr>
+<tr><td>CWE-367</td><td>TOCTOU Race Condition</td><td>Time-of-check/time-of-use mismatch between validation and use</td></tr>
 </tbody>
 </table>
 </div>
@@ -329,7 +330,7 @@ fn main() {
     }
     println!("Result: {}", *counter.lock().unwrap());
 }</code></pre>
-<p>🔒 <strong>Security impact</strong>: Eliminates CWE-362 (race conditions) and CWE-366 (data races) for safe Rust code.</p>
+<p>🔒 <strong>Security impact</strong>: Eliminates unsynchronized data races (CWE-362) in safe Rust code. It does <strong>not</strong> eliminate higher-level race conditions such as TOCTOU (CWE-367).</p>
 <h2 id="13-what-rust-does-not-protect-against"><a class="header" href="#13-what-rust-does-not-protect-against">1.3 What Rust Does NOT Protect Against</a></h2>
 <p>Honesty is important. Rust is not a complete security solution:</p>
 <div class="table-wrapper">
@@ -340,6 +341,7 @@ fn main() {
 <tbody>
 <tr><td>Memory safety bugs</td><td>✅ Yes (in safe code)</td></tr>
 <tr><td>Data races</td><td>✅ Yes (in safe code)</td></tr>
+<tr><td>Race conditions / TOCTOU</td><td>❌ No</td></tr>
 <tr><td>NULL dereferences</td><td>✅ Yes (in safe code)</td></tr>
 <tr><td>Logic errors</td><td>❌ No</td></tr>
 <tr><td>Integer overflow (release)</td><td>⚠️ Wraps by default; use checked arithmetic</td></tr>
@@ -355,6 +357,7 @@ fn main() {
 <li>Dereferencing raw pointers</li>
 <li>Calling unsafe functions (including FFI)</li>
 <li>Accessing or modifying mutable statics</li>
+<li>Accessing fields of unions</li>
 <li>Implementing unsafe traits</li>
 </ul>
 <p>⚠️ <strong>Critical rule</strong>: All <code>unsafe</code> code must be audited manually. We dedicate Chapter 9 to this topic.</p>
@@ -430,9 +433,9 @@ cargo --version
 rustup --version
 </code></pre>
 <p>Your exact output will vary, but <code>rustc</code> must be <strong>1.85.0 or newer</strong> for Edition 2024. For example:</p>
-<pre><code class="language-text">rustc 1.85.0 or newer
-cargo 1.85.0 or newer
-rustup recent stable
+<pre><code class="language-text">rustc 1.94.1 (e408947bf 2026-03-25)
+cargo 1.94.1 (29ea6fb6a 2026-03-24)
+rustup 1.29.0 (28d1352db 2026-03-05)
 </code></pre>
 <h2 id="22-toolchain-management"><a class="header" href="#22-toolchain-management">2.2 Toolchain Management</a></h2>
 <h3 id="channels"><a class="header" href="#channels">Channels</a></h3>
@@ -456,6 +459,20 @@ cargo +nightly install cargo-fuzz --version 0.13.1 --locked
 <pre><code class="language-bash">rustup update
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Treat Rust compiler updates as security patches. New releases often include improved lints and security-relevant diagnostics.</p>
+<h3 id="221-no_std-and-embedded-targets"><a class="header" href="#221-no_std-and-embedded-targets">2.2.1 <code>no_std</code> and Embedded Targets</a></h3>
+<p>If your “systems programming” work includes firmware, kernels, bootloaders, or other bare-metal targets, the setup changes in security-relevant ways:</p>
+<ul>
+<li><code>#![no_std]</code> removes the standard library. If you still need heap allocation, pull in <code>alloc</code> explicitly and keep allocations bounded.</li>
+<li>You need an explicit panic strategy and handler (<code>panic-halt</code>, <code>panic-abort</code>, or a board-specific reset/logging path). There is no host process to unwind through.</li>
+<li>Many OS protections disappear: no ASLR, no process isolation, and no kernel-provided crash containment unless your platform adds them.</li>
+<li>Hardware security features move into scope: TRNGs, secure elements, MPU/MMU rules, tamper-resistant storage, and watchdog-driven recovery.</li>
+<li>The <code>embedded-hal</code> ecosystem gives you a portable abstraction layer for peripherals, but you still need board-specific review of clocks, memory maps, and debug interfaces.</li>
+</ul>
+<p>For cross-compilation, install the exact target triple you ship:</p>
+<pre><code class="language-bash">rustup target add thumbv7em-none-eabihf
+cargo build --target thumbv7em-none-eabihf --release
+</code></pre>
+<p>Treat bare-metal deployment as a different threat model, not just a smaller Linux process.</p>
 <h2 id="23-essential-security-tooling"><a class="header" href="#23-essential-security-tooling">2.3 Essential Security Tooling</a></h2>
 <h3 id="231-clippy--the-linting-powerhouse"><a class="header" href="#231-clippy--the-linting-powerhouse">2.3.1 Clippy — The Linting Powerhouse</a></h3>
 <p>Clippy is Rust’s comprehensive linter. It catches common mistakes, unsafe patterns, and style issues:</p>
@@ -515,19 +532,26 @@ newline_style = "Unix"
 cargo audit
 </code></pre>
 <p><code>cargo-audit</code> checks your <code>Cargo.lock</code> against the <a href="https://rustsec.org/">RustSec Advisory Database</a>, which tracks known vulnerabilities in Rust crates.</p>
-<pre><code class="language-bash">$ cargo audit
+<p>Illustrative output example:</p>
+<pre><code class="language-text">$ cargo audit
     Loaded 517 advisory records
     Scanning Cargo.lock for vulnerabilities (484 crates)
 
-Crate:     openssl
-Version:   0.10.52
-Title:     OpenSSL HBAR TLS handshake downgrade
-Date:      2023-02-07
-ID:        RUSTSEC-2023-0019
-URL:       https://rustsec.org/advisories/RUSTSEC-2023-0019
-Severity:  7.5 (high)
+Crate:     example-crypto
+Version:   1.2.3
+Title:     Example advisory used for documentation
+Date:      2026-04-02
+ID:        RUSTSEC-XXXX-YYYY
+URL:       https://rustsec.org/advisories/
+Severity:  high
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in your CI pipeline and block merges on known vulnerabilities.</p>
+<p>For first-party review attestations, also evaluate <code>cargo-vet</code>:</p>
+<pre><code class="language-bash">cargo install cargo-vet --version 0.10.1 --locked
+cargo vet init
+cargo vet
+</code></pre>
+<p><code>cargo-vet</code> records which crates and versions your team has reviewed, making dependency trust decisions explicit rather than tribal knowledge.</p>
 <h3 id="234-cargo-deny--policy-enforcement"><a class="header" href="#234-cargo-deny--policy-enforcement">2.3.4 cargo-deny — Policy Enforcement</a></h3>
 <pre><code class="language-bash">cargo install cargo-deny --version 0.19.0 --locked
 cargo deny check
@@ -602,7 +626,7 @@ opt-level = "s"              # Optimize for size (smaller binaries, not a substi
 <ul>
 <li><strong>VS Code</strong>: Install the <code>rust-analyzer</code> extension</li>
 <li><strong>Vim/Neovim</strong>: Use <code>coc.nvim</code> or <code>nvim-lspconfig</code></li>
-<li><strong>IntelliJ IDEA</strong>: Use the Rust plugin (bundled in IDEA Ultimate)</li>
+<li><strong>JetBrains</strong>: Prefer RustRover. If your team is already standardized on IntelliJ IDEA Ultimate, use the bundled Rust plugin there.</li>
 </ul>
 <h3 id="inlay-hints-and-diagnostics"><a class="header" href="#inlay-hints-and-diagnostics">Inlay Hints and Diagnostics</a></h3>
 <p>Enable inlay hints for type information—this is invaluable during security review:</p>
@@ -667,7 +691,9 @@ jobs:
         run: mdbook build
 
       - name: Build snippet helper crate
-        run: cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
+        run: |
+          rm -rf target/book-snippets-check
+          cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
 
       - name: Test book snippets
         run: mdbook test -L target/book-snippets-check/debug/deps
@@ -759,7 +785,7 @@ jobs:
 <li><strong>Immutable references</strong> (<code>&amp;T</code>): Allow reading but not modification. Multiple immutable borrows are allowed simultaneously.</li>
 <li><strong>Mutable references</strong> (<code>&amp;mut T</code>): Allow modification. Only <strong>one</strong> mutable borrow is allowed at a time, and it cannot coexist with any immutable borrows.</li>
 </ul>
-<pre class="playground"><code class="language-rust edition2024">fn calculate_length(s: &amp;String) -&gt; usize {  // borrow immutably
+<pre class="playground"><code class="language-rust edition2024">fn calculate_length(s: &amp;str) -&gt; usize {  // borrow immutably
     s.len()
 }   // s goes out of scope but since it doesn't have ownership, nothing happens
 
@@ -798,7 +824,7 @@ fn main() {
 <p>🔒 <strong>Security impact</strong>: These rules eliminate:</p>
 <ul>
 <li><strong>CWE-416 (Use-After-Free)</strong>: References cannot outlive the data they reference.</li>
-<li><strong>CWE-366 (Data Race)</strong>: Two threads cannot have mutable access to the same data simultaneously without synchronization.</li>
+<li><strong>CWE-362 (Concurrent race condition / data race)</strong>: Two threads cannot have mutable access to the same data simultaneously without synchronization.</li>
 <li><strong>Iterator invalidation</strong>: Modifying a collection while iterating is a compile error.</li>
 </ul>
 <h3 id="322-preventing-iterator-invalidation"><a class="header" href="#322-preventing-iterator-invalidation">3.2.2 Preventing Iterator Invalidation</a></h3>
@@ -888,6 +914,7 @@ impl&lt;'a&gt; Parser&lt;'a&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
+<p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once.</p>
 <h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
 <h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
 <p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>
@@ -916,20 +943,20 @@ fn main() {
 }</code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
 <p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
-<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. The <code>write_volatile</code> example above shows the low-level mechanics, but in practice you should prefer the <code>zeroize</code> crate:</p>
+<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the crate:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">extern crate zeroize;
-</span>use zeroize::Zeroize;
+</span>use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]  // Automatically zeroize on Drop
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecureBuffer {
     data: Vec&lt;u8&gt;,
 }
 <span class="boring">}</span></code></pre>
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
+<p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
 <h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -1171,7 +1198,7 @@ fn handle_error(err: AuthError) {
 
 enum Role {
     Guest,
-    User,
+    Member,
     Admin,
 }
 
@@ -1232,7 +1259,7 @@ struct SharedState {
 
 // This type can be safely shared between threads.
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This eliminates CWE-362 (Race Condition).</p>
+<p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.</p>
 <h3 id="the-frominto-traits--safe-conversions"><a class="header" href="#the-frominto-traits--safe-conversions">The <code>From</code>/<code>Into</code> Traits — Safe Conversions</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1255,6 +1282,7 @@ fn bind(port: Port) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>TryFrom</code> for all conversions where the source type is wider than the target type (e.g., <code>u32</code> → <code>u16</code>, <code>usize</code> → <code>u8</code>). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).</p>
+<p>When zero has no valid meaning, prefer <code>NonZeroU32</code> or <code>NonZeroUsize</code> over a plain integer. This lets the type system reject sentinel <code>0</code> values up front and can make <code>Option&lt;NonZeroU32&gt;</code> more compact than <code>Option&lt;u32&gt;</code>.</p>
 <h2 id="46-pattern-matching-deep-dive"><a class="header" href="#46-pattern-matching-deep-dive">4.6 Pattern Matching Deep Dive</a></h2>
 <p>Pattern matching is not limited to <code>match</code>. Rust supports patterns in many contexts:</p>
 <h3 id="destructuring"><a class="header" href="#destructuring">Destructuring</a></h3>
@@ -1389,7 +1417,7 @@ type HmacKey = FixedBuffer&lt;64&gt;;  // 512-bit key
 <li>Algebraic data types and exhaustive matching ensure all cases are handled.</li>
 <li>Newtypes prevent type confusion (CWE-20).</li>
 <li>Checked arithmetic prevents integer overflow (CWE-190).</li>
-<li><code>Send</code>/<code>Sync</code> traits prevent data races at compile time (CWE-362).</li>
+<li><code>Send</code>/<code>Sync</code> traits prevent data races at compile time, removing a major source of CWE-362-style concurrency bugs.</li>
 <li>Const generics enforce size constraints at compile time.</li>
 </ul>
 <p>The type system is your first and strongest line of defense. In the next chapter, we explore how Rust’s error handling model supports secure, robust code.</p>
@@ -1653,7 +1681,7 @@ fn hex_nibble(c: char) -&gt; u8 {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Security concern</strong>: In server applications, a panic unwinds the stack and may leave data in an inconsistent state. Do not use panics for attacker-controlled input such as packet lengths or request indexes; return a <code>Result</code> instead. Use <code>panic = "abort"</code> in <code>Cargo.toml</code> for a cleaner failure mode, or catch panics with <code>std::panic::catch_unwind</code> at FFI boundaries.</p>
+<p>⚠️ <strong>Security concern</strong>: In server applications, a panic unwinds the stack and may leave data in an inconsistent state. Do not use panics for attacker-controlled input such as packet lengths or request indexes; return a <code>Result</code> instead. Use <code>panic = "abort"</code> in <code>Cargo.toml</code> for a cleaner failure mode, or use <code>std::panic::catch_unwind</code> at FFI boundaries in builds that keep <code>panic = "unwind"</code>.</p>
 <h3 id="catching-panics-at-ffi-boundaries"><a class="header" href="#catching-panics-at-ffi-boundaries">Catching Panics at FFI Boundaries</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1676,7 +1704,8 @@ extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security pattern</strong>: Always wrap Rust functions called from C with <code>catch_unwind</code>. A Rust panic that crosses an FFI boundary is undefined behavior.</p>
+<p>⚠️ <strong>Profile interaction</strong>: <code>catch_unwind</code> only catches unwinding panics. If your release profile sets <code>panic = "abort"</code>, the process aborts before this wrapper can recover. For FFI-facing libraries, either keep exported entry points panic-free or ship them in an unwind-enabled profile.</p>
+<p>🔒 <strong>Security pattern</strong>: Wrap Rust functions called from C with <code>catch_unwind</code> when the ABI must survive panics and the build uses <code>panic = "unwind"</code>. A Rust panic that crosses an FFI boundary is undefined behavior.</p>
 <h2 id="56-error-handling-patterns-for-secure-code"><a class="header" href="#56-error-handling-patterns-for-secure-code">5.6 Error Handling Patterns for Secure Code</a></h2>
 <h3 id="561-fail-fast-fail-explicitly"><a class="header" href="#561-fail-fast-fail-explicitly">5.6.1 Fail Fast, Fail Explicitly</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -1902,7 +1931,7 @@ fn handle_request(req: Request) -&gt; Response {
 <blockquote>
 <p><em>“Data races are not just bugs—they are security vulnerabilities.”</em></p>
 </blockquote>
-<p>Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don’t deadlock. The result is a constant stream of data race vulnerabilities (CWE-362, CWE-366).</p>
+<p>Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don’t deadlock. The result is a constant stream of concurrency vulnerabilities: unsynchronized shared-state bugs (CWE-362) and higher-level logic races such as TOCTOU (CWE-367).</p>
 <p>Rust’s ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is “fearless concurrency”—not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.</p>
 <h2 id="61-thread-safety-guarantees"><a class="header" href="#61-thread-safety-guarantees">6.1 Thread Safety Guarantees</a></h2>
 <h3 id="611-the-send-and-sync-traits"><a class="header" href="#611-the-send-and-sync-traits">6.1.1 The <code>Send</code> and <code>Sync</code> Traits</a></h3>
@@ -2250,6 +2279,19 @@ async fn handle_connection(
 <li>Use <code>tokio::sync::Mutex</code> when you need to hold the lock across <code>.await</code> points.</li>
 </ul>
 <p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
+<h3 id="641-async-fn-in-traits"><a class="header" href="#641-async-fn-in-traits">6.4.1 <code>async fn</code> in Traits</a></h3>
+<p>Rust 1.75 stabilized <code>async fn</code> in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>trait Authenticator {
+    async fn authenticate(&amp;self, token: &amp;str) -&gt; Result&lt;UserId, AuthError&gt;;
+}
+
+<span class="boring">struct UserId(u64);
+</span><span class="boring">#[derive(Debug)]
+</span><span class="boring">struct AuthError;
+</span><span class="boring">}</span></code></pre>
+<p>This is a good fit for internal application traits where you control both callers and implementors. For public library traits, decide up front whether implementors must return <code>Send</code> futures, because that requirement becomes part of the trait’s API surface and cannot be added later without a breaking change.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
@@ -2263,7 +2305,7 @@ use tokio::net::TcpStream;
 <span class="boring">fn process_message(_body: &amp;[u8]) {}
 </span>
 /// WARNING: This function is NOT cancellation-safe.
-async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Result&lt;()&gt; {
+async fn read_one_message_exact(stream: &amp;mut TcpStream) -&gt; std::io::Result&lt;()&gt; {
     // If we are cancelled after reading the first message header
     // but before reading its body, the stream is now in an inconsistent
     // state. The first message's bytes have been consumed, but we have
@@ -2277,13 +2319,13 @@ async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Resu
     Ok(())
 }
 <span class="boring">}</span></code></pre>
-<p>If <code>read_exact_two_messages</code> is used inside <code>tokio::select!</code> and the other branch wins, the partial read is lost:</p>
+<p>If <code>read_one_message_exact</code> is used inside <code>tokio::select!</code> and the other branch wins, the partial read is lost:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
 </span><span class="boring">use std::time::Duration;
-</span><span class="boring">async fn read_exact_two_messages(
+</span><span class="boring">async fn read_one_message_exact(
 </span><span class="boring">    _stream: &amp;mut tokio::net::TcpStream,
 </span><span class="boring">) -&gt; std::io::Result&lt;()&gt; {
 </span><span class="boring">    Ok(())
@@ -2291,7 +2333,7 @@ async fn read_exact_two_messages(stream: &amp;mut TcpStream) -&gt; std::io::Resu
 </span><span class="boring">async fn demo(stream: &amp;mut tokio::net::TcpStream) {
 </span>// DANGEROUS: may silently drop partial reads
 tokio::select! {
-    result = read_exact_two_messages(stream) =&gt; { /* ... */ }
+    result = read_one_message_exact(stream) =&gt; { /* ... */ }
     _ = tokio::time::sleep(Duration::from_secs(30)) =&gt; {
         // Timeout! But we may have already consumed some bytes from `stream`.
         // The stream is now in an inconsistent state.
@@ -2409,7 +2451,7 @@ bytes = "1"
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::bytes as bytes;
 </span><span class="boring">use rust_secure_systems_book::deps::tokio_util as tokio_util;
-</span>use tokio_util::codec::{Decoder, Encoder, Framed};
+</span>use tokio_util::codec::Decoder;
 use bytes::{BytesMut, Buf, BufMut};
 
 struct LengthPrefixedCodec {
@@ -2480,7 +2522,7 @@ fn main() {
         let _g2 = a2.lock().unwrap();  // May deadlock (different order!)
     });
 }</code></pre>
-<p>🔒 <strong>Mitigation</strong>: Use a consistent lock ordering, or use a single lock to protect multiple resources. Consider using <code>parking_lot</code> crate’s reentrant mutex detection.</p>
+<p>🔒 <strong>Mitigation</strong>: Use a consistent lock ordering, or use a single lock to protect multiple resources. If you need timed locking or better deadlock diagnostics, <code>parking_lot</code> is a common production alternative to <code>std::sync</code>.</p>
 <h3 id="662-use-after-free-in-concurrent-contexts"><a class="header" href="#662-use-after-free-in-concurrent-contexts">6.6.2 Use-After-Free in Concurrent Contexts</a></h3>
 <p>In C, passing a stack pointer to another thread is a common use-after-free:</p>
 <pre><code class="language-c">// C - DANGEROUS
@@ -2633,7 +2675,7 @@ fn connect(host: Hostname, port: Port) {
     // Guaranteed: host is a valid hostname, port is valid
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
+<p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
 <p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
 <h3 id="layer-2-parse-dont-validate"><a class="header" href="#layer-2-parse-dont-validate">Layer 2: Parse, Don’t Validate</a></h3>
 <p>The principle comes from functional programming: instead of checking if data is valid and then using it, <strong>parse</strong> the data into a strongly-typed representation that is valid by construction:</p>
@@ -2715,6 +2757,11 @@ fn list_directory(path: &amp;Path) -&gt; io::Result&lt;String&gt; {
     Ok(String::from_utf8_lossy(&amp;output.stdout).to_string())
 }
 <span class="boring">}</span></code></pre>
+<p>Sanitization is context-specific:</p>
+<ul>
+<li><strong>SQL</strong>: Use parameterized queries or your ORM’s bind API (<code>sqlx</code>, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.</li>
+<li><strong>HTML / XSS</strong>: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.</li>
+</ul>
 <h2 id="72-common-validation-patterns"><a class="header" href="#72-common-validation-patterns">7.2 Common Validation Patterns</a></h2>
 <h3 id="721-length-limits"><a class="header" href="#721-length-limits">7.2.1 Length Limits</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3124,13 +3171,13 @@ fn decrypt(key: &amp;[u8; 32], nonce_bytes: &amp;[u8; 12], ciphertext_and_tag: &
     Some(in_out[..plaintext_len].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
-<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the authentication key.</li>
+<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</li>
 <li>For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.</li>
 <li>For counter-based nonces, track the counter securely and never reset it.</li>
 </ol>
-<p>More precisely: nonce reuse in AES-GCM reveals the XOR of plaintexts and leaks the GHASH authentication subkey, which enables message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</p>
 <h3 id="chacha20-poly1305-alternative-to-aes-gcm"><a class="header" href="#chacha20-poly1305-alternative-to-aes-gcm">ChaCha20-Poly1305 (Alternative to AES-GCM)</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3307,6 +3354,13 @@ fn sign_example() {
 <li>Ed25519 uses deterministic signatures (no per-signature randomness needed), eliminating the catastrophic nonce-reuse vulnerability that affects ECDSA.</li>
 <li>Always verify signatures before trusting signed data.</li>
 </ul>
+<h3 id="841-rsa-for-legacy-interoperability"><a class="header" href="#841-rsa-for-legacy-interoperability">8.4.1 RSA for Legacy Interoperability</a></h3>
+<p>Ed25519 should be your default for new designs, but RSA is still common in X.509 PKI, S/MIME, PGP ecosystems, HSM-backed deployments, and older compliance-driven environments. When you must interoperate with RSA:</p>
+<ul>
+<li>Prefer RSA-PSS for signatures over PKCS#1 v1.5.</li>
+<li>Use at least 2048-bit keys, with 3072-bit keys common for longer-lived deployments.</li>
+<li>Treat RSA as compatibility baggage, not a model for new protocol design.</li>
+</ul>
 <h2 id="85-key-exchange"><a class="header" href="#85-key-exchange">8.5 Key Exchange</a></h2>
 <h3 id="x25519--hkdf--aead-pipeline"><a class="header" href="#x25519--hkdf--aead-pipeline">X25519 → HKDF → AEAD Pipeline</a></h3>
 <p>The standard pattern for establishing a shared secret and encrypting data is: X25519 key agreement, HKDF key derivation, then AEAD encryption:</p>
@@ -3382,10 +3436,9 @@ zeroize = { version = "1", features = ["derive"] }
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">extern crate zeroize;
-</span>use zeroize::Zeroize;
+</span>use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]  // Automatically zeroize on Drop
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecretKey {
     key: [u8; 32],
     nonce: [u8; 12],
@@ -3403,7 +3456,9 @@ fn use_key() {
     // The memory will contain all zeros before being freed
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Critical pattern</strong>: Always use <code>#[zeroize(drop)]</code> for types containing secrets. This ensures memory is wiped even if the function exits early (e.g., via <code>?</code> operator).</p>
+<p>🔒 <strong>Critical pattern</strong>: Use <code>#[derive(Zeroize, ZeroizeOnDrop)]</code> for types containing secrets. This ensures memory is wiped on ordinary drop paths even if the function exits early (for example via <code>?</code>).</p>
+<p>⚠️ <strong>Panic strategy caveat</strong>: With <code>panic = "abort"</code> from Chapter 2 §2.4, <code>Drop</code>-based zeroization still runs on normal returns but does <strong>not</strong> run on panic paths.</p>
+<p>⚠️ <strong>Clone caveat</strong>: If a secret type also implements <code>Clone</code>, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.</p>
 <h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
@@ -3457,6 +3512,25 @@ fn verify_token(provided: &amp;[u8], expected: &amp;[u8]) -&gt; bool {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Prevents timing side-channel attacks (CWE-208). A normal <code>==</code> comparison returns <code>false</code> as soon as it finds a mismatching byte, leaking information about which bytes match.</p>
+<h3 id="864-constant-time-selection-and-branching"><a class="header" href="#864-constant-time-selection-and-branching">8.6.4 Constant-Time Selection and Branching</a></h3>
+<p>Constant-time comparison is only part of the story. Secret-dependent branching such as <code>if secret_bit == 1 { ... }</code> or <code>match secret_byte { ... }</code> can still leak timing information through control flow, cache activity, and branch prediction.</p>
+<p>For low-level cryptographic code, prefer the <code>subtle</code> crate’s constant-time building blocks:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::subtle as subtle;
+</span>use subtle::{Choice, ConditionallySelectable, ConstantTimeEq};
+
+fn select_mask(secret_bit: u8, limited: u32, full: u32) -&gt; u32 {
+    let choice = Choice::from(secret_bit &amp; 1);
+    u32::conditional_select(&amp;limited, &amp;full, choice)
+}
+
+fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
+    provided.ct_eq(expected)
+}
+<span class="boring">}</span></code></pre>
+<p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
 <h2 id="87-random-number-generation"><a class="header" href="#87-random-number-generation">8.7 Random Number Generation</a></h2>
 <p>Use cryptographically secure random number generators (CSPRNGs) for all security-sensitive operations:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -3532,7 +3606,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>Type system can enforce nonce tracking</td></tr>
 <tr><td>Missing auth</td><td>Padding oracle</td><td><code>ring</code> API requires AEAD</td></tr>
 <tr><td>Timing leak</td><td>Side-channel</td><td><code>ring::constant_time</code> module</td></tr>
-<tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>#[zeroize(drop)]</code></td></tr>
+<tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>ZeroizeOnDrop</code></td></tr>
 <tr><td>Weak RNG</td><td>Predictable keys</td><td><code>SystemRandom</code> is always a CSPRNG</td></tr>
 <tr><td>Hardcoded keys</td><td>Source code leak</td><td>Use <code>Secret&lt;T&gt;</code>, env variables, or vaults</td></tr>
 </tbody>
@@ -3824,21 +3898,22 @@ unsafe {
     // NEVER transmute &amp;T to &amp;mut T
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security rule</strong>: Avoid <code>transmute</code>. Use <code>from_bytes</code>, <code>to_bytes</code>, or <code>bytemuck</code> crate for safe type punning.</p>
+<p>🔒 <strong>Security rule</strong>: Avoid <code>transmute</code> for type punning and unrelated layout conversions. Prefer dedicated APIs such as <code>from_ne_bytes</code>, <code>to_be_bytes</code>, <code>MaybeUninit</code>, or crates like <code>zerocopy</code>/<code>bytemuck</code> where appropriate.</p>
 <h3 id="943-uninitialized-memory"><a class="header" href="#943-uninitialized-memory">9.4.3 Uninitialized Memory</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use std::mem::MaybeUninit;
 
 fn initialize_array() -&gt; [u32; 100] {
-    let mut arr: [MaybeUninit&lt;u32&gt;; 100] = [const { MaybeUninit::uninit() }; 100];
-    
-    for elem in arr.iter_mut() {
-        elem.write(42);
+    let mut arr = MaybeUninit::&lt;[u32; 100]&gt;::uninit();
+    let ptr = arr.as_mut_ptr() as *mut u32;
+
+    for i in 0..100 {
+        unsafe { ptr.add(i).write(42) };
     }
-    
-    // SAFETY: All elements are initialized above
-    unsafe { std::mem::transmute::&lt;[MaybeUninit&lt;u32&gt;; 100], [u32; 100]&gt;(arr) }
+
+    // SAFETY: Every element was initialized exactly once above.
+    unsafe { arr.assume_init() }
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Never use <code>std::mem::zeroed()</code> for types where all-zeros is not a valid representation</strong> (e.g., references, <code>NonNull</code>). Use <code>MaybeUninit</code> instead.</p>
@@ -3968,7 +4043,7 @@ cargo +nightly miri test
     }
 }</code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo miri test</code> in CI for any crate that contains <code>unsafe</code> code. Miri does not prove the <em>absence</em> of bugs, but it is exceptionally effective at finding them.</p>
-<p>For stricter raw-pointer aliasing diagnostics, you can also add <code>-Zmiri-track-raw-pointers</code>. That is separate from the data-race detector.</p>
+<p>For stricter pointer-provenance diagnostics, add <code>-Zmiri-strict-provenance</code>. If you want to experiment with Miri’s alternative aliasing model, add <code>-Zmiri-tree-borrows</code>. These checks are separate from the data-race detector.</p>
 <p>⚠️ <strong>Limitations</strong>: Miri supports many <code>std::thread</code> patterns, but it cannot execute arbitrary FFI, real network I/O, or many OS-specific interactions. For such code, extract the pure logic into testable functions and run Miri on those pieces.</p>
 <h4 id="using-loom-for-concurrency-testing"><a class="header" href="#using-loom-for-concurrency-testing">Using Loom for Concurrency Testing</a></h4>
 <p><code>loom</code> is a model checker that systematically explores all possible thread interleavings to find data races and concurrency bugs. It replaces <code>std::sync</code> primitives with mock versions that explore different execution orderings:</p>
@@ -3981,20 +4056,22 @@ cargo +nightly miri test
 </span><span class="boring">use rust_secure_systems_book::deps::loom as loom;
 </span>// tests/concurrency.rs
 use loom::sync::atomic::{AtomicUsize, Ordering};
+use loom::sync::Arc;
 use loom::thread;
 
 #[test]
 fn test_atomic_counter() {
     loom::model(|| {
-        let counter = AtomicUsize::new(0);
-        let counter_ref = &amp;counter;
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c1 = Arc::clone(&amp;counter);
+        let c2 = Arc::clone(&amp;counter);
         
         let t1 = thread::spawn(move || {
-            counter_ref.fetch_add(1, Ordering::SeqCst);
+            c1.fetch_add(1, Ordering::SeqCst);
         });
         
         let t2 = thread::spawn(move || {
-            counter_ref.fetch_add(1, Ordering::SeqCst);
+            c2.fetch_add(1, Ordering::SeqCst);
         });
         
         t1.join().unwrap();
@@ -4251,6 +4328,15 @@ Pointer validation does not make the function safe to call from Rust: the caller
 <li>✅ Use <code>#[unsafe(no_mangle)]</code> (Edition 2024) and <code>extern "C"</code> for a stable ABI.</li>
 <li>✅ Never panic across the FFI boundary—it’s undefined behavior.</li>
 </ol>
+<p>When the foreign side is explicitly prepared to receive unwinding, stable Rust also offers <code>extern "C-unwind"</code>:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[unsafe(no_mangle)]
+pub extern "C-unwind" fn rust_callback_entry() {
+    // Use this ABI only when the non-Rust caller documents unwind support.
+}
+<span class="boring">}</span></code></pre>
+<p>Use <code>extern "C"</code> by default. <code>extern "C-unwind"</code> defines the ABI for interfaces that intentionally participate in unwinding; it is not a general excuse to let ordinary panics escape.</p>
 <h3 id="1022-exporting-rust-types"><a class="header" href="#1022-exporting-rust-types">10.2.2 Exporting Rust Types</a></h3>
 <p>For complex interop, use <code>#[repr(C)]</code> to ensure C-compatible layout:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -4641,8 +4727,7 @@ fn parse_u32_be(data: &amp;[u8], offset: usize) -&gt; Option&lt;u32&gt; {
 <h3 id="1131-controlling-alignment"><a class="header" href="#1131-controlling-alignment">11.3.1 Controlling Alignment</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[repr(C)]
-#[repr(align(16))]  // 16-byte aligned (useful for SIMD, DMA buffers)
+</span>#[repr(C, align(16))]  // 16-byte aligned (useful for SIMD, DMA buffers)
 struct AlignedBuffer {
     data: [u8; 4096],
 }
@@ -4656,14 +4741,16 @@ struct AlignedBuffer {
 <h3 id="1132-cache-line-alignment"><a class="header" href="#1132-cache-line-alignment">11.3.2 Cache-Line Alignment</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>#[repr(C)]
-#[repr(align(64))]  // Common cache-line size on modern x86-64/ARM64; verify on your target
+</span>#[repr(C, align(64))]  // Common cache-line size on modern x86-64/ARM64; verify on your target
 struct CacheLineAligned {
     // Align the counter to reduce false sharing between adjacent instances.
     counter: std::sync::atomic::AtomicU64,
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security relevance</strong>: Reduces false sharing between threads, which can otherwise increase timing noise and contention. Treat this as a performance and isolation aid, not as a standalone side-channel defense.</p>
+<h3 id="1133-pint-and-address-stability"><a class="header" href="#1133-pint-and-address-stability">11.3.3 <code>Pin&lt;T&gt;</code> and Address Stability</a></h3>
+<p>Most Rust values may move when ownership changes. That is fine for ordinary data, but self-referential types, intrusive data structures, and many async state machines rely on a stable address once initialized. <code>Pin&lt;&amp;mut T&gt;</code> and <code>Pin&lt;Box&lt;T&gt;&gt;</code> are the tools that express “this value must not move again in safe code.”</p>
+<p>Security relevance: if a type stores internal raw pointers or hands its address to foreign code, accidental movement can invalidate those pointers and turn a logic bug into memory unsafety in the surrounding <code>unsafe</code> code. Pinning does not make a type safe by itself, but it is a core part of making address-sensitive abstractions sound.</p>
 <h2 id="114-working-with-raw-memory"><a class="header" href="#114-working-with-raw-memory">11.4 Working with Raw Memory</a></h2>
 <h3 id="1141-the-global-allocator"><a class="header" href="#1141-the-global-allocator">11.4.1 The Global Allocator</a></h3>
 <p>Rust uses the system allocator by default. For security-sensitive applications, you can use a custom allocator:</p>
@@ -4710,7 +4797,7 @@ zeroize = { version = "1", features = ["derive"] }
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">extern crate zeroize;
-</span>use zeroize::Zeroize;
+</span>use zeroize::{Zeroize, ZeroizeOnDrop};
 
 struct CryptoKey {
     material: [u8; 32],
@@ -4723,8 +4810,7 @@ impl Drop for CryptoKey {
 }
 
 // Or use the derive macro for automatic zeroization:
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SessionKey {
     key: [u8; 32],
     iv: [u8; 12],
@@ -4732,13 +4818,12 @@ struct SessionKey {
 // On normal drop paths, both `key` and `iv` are zeroized before release.
 
 // Also works with Vec and other heap-allocated types:
-#[derive(zeroize::Zeroize)]
-#[zeroize(drop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 struct SecureBuffer {
     data: Vec&lt;u8&gt;,
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security practice</strong>: Use <code>zeroize</code> (with the <code>derive</code> feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before <code>Drop</code>.</p>
+<p>🔒 <strong>Security practice</strong>: Use <code>zeroize</code> (with the <code>derive</code> feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before <code>Drop</code> (see Chapter 2 §2.4 on <code>panic = "abort"</code>).</p>
 <h3 id="1143-safe-pointer-access-with-addr_of-and-addr_of_mut"><a class="header" href="#1143-safe-pointer-access-with-addr_of-and-addr_of_mut">11.4.3 Safe Pointer Access with <code>addr_of!</code> and <code>addr_of_mut!</code></a></h3>
 <p>When working with structs that contain fields you cannot safely create (e.g., a <code>MaybeUninit</code> field), use <code>addr_of!</code> and <code>addr_of_mut!</code> to obtain pointers without creating intermediate references:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -4817,162 +4902,20 @@ rustflags = ["-C", "force-frame-pointers=yes"]
 <pre><code class="language-bash"># Run with ASan to detect heap buffer overflows
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 </code></pre>
-<pre><code class="language-toml">[dependencies]
-tikv-jemallocator = "0.6"
-</code></pre>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span>// Replace `System` with a custom allocator crate if your deployment needs
-// allocator-specific hardening features.
-#[global_allocator]
-static GLOBAL: std::alloc::System = std::alloc::System;
-<span class="boring">}</span></code></pre>
-<h2 id="116-webassembly-wasm-for-security-sandboxing"><a class="header" href="#116-webassembly-wasm-for-security-sandboxing">11.6 WebAssembly (Wasm) for Security Sandboxing</a></h2>
-<p>WebAssembly provides a lightweight sandboxing mechanism that is increasingly used to isolate untrusted code. Rust has first-class Wasm support, making it a natural choice for building secure plugin systems, policy engines, and sandboxed extensions.</p>
-<h3 id="1161-why-wasm-for-security"><a class="header" href="#1161-why-wasm-for-security">11.6.1 Why Wasm for Security?</a></h3>
-<p>Wasm offers a <strong>principled sandbox</strong> with strong guarantees:</p>
-<ul>
-<li><strong>Linear memory isolation</strong>: A Wasm module can only access its own linear memory—no arbitrary host memory access.</li>
-<li><strong>No raw pointers</strong>: Wasm has no concept of pointer arithmetic on host memory.</li>
-<li><strong>Controlled imports/exports</strong>: The host explicitly chooses which functions to expose to the module.</li>
-<li><strong>Resource limits</strong>: Execution can be metered and fuel-limited to prevent CPU exhaustion.</li>
-</ul>
-<p>This makes Wasm a good fit for:</p>
-<ul>
-<li><strong>Plugin systems</strong>: Load third-party extensions without trusting them.</li>
-<li><strong>Policy evaluation</strong>: Run authorization logic in isolation (e.g., OPA-style policies).</li>
-<li><strong>Untrusted input parsing</strong>: Parse file formats or protocol messages in a sandbox.</li>
-<li><strong>Edge computing</strong>: Run user-provided functions on your infrastructure safely.</li>
-</ul>
-<h3 id="1162-compiling-rust-to-wasm"><a class="header" href="#1162-compiling-rust-to-wasm">11.6.2 Compiling Rust to Wasm</a></h3>
-<pre><code class="language-bash"># Add the Wasm target
-rustup target add wasm32-unknown-unknown
-
-# Build as Wasm
-cargo build --target wasm32-unknown-unknown --release
-</code></pre>
-<p>For production, prefer <code>wasm32-wasip2</code> (Component Model) or <code>wasm32-wasip1</code> (WASI) targets for better system integration:</p>
-<pre><code class="language-bash">rustup target add wasm32-wasip1
-cargo build --target wasm32-wasip1 --release
-</code></pre>
-<h3 id="1163-sandboxed-plugin-architecture-with-wasmtime"><a class="header" href="#1163-sandboxed-plugin-architecture-with-wasmtime">11.6.3 Sandboxed Plugin Architecture with Wasmtime</a></h3>
-<pre><code class="language-toml"># Cargo.toml
-[dependencies]
-wasmtime = "25"
-anyhow = "1"
-</code></pre>
-<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
-</span><span class="boring">fn main() {
-</span><span class="boring">extern crate rust_secure_systems_book;
-</span><span class="boring">use rust_secure_systems_book::deps::anyhow as anyhow;
-</span><span class="boring">use rust_secure_systems_book::deps::wasmtime as wasmtime;
-</span>use wasmtime::*;
-use anyhow::Result;
-
-struct HostState {
-    limits: StoreLimits,
-}
-
-fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
-    let mut config = Config::new();
-    config.cranelift_debug_verifier(true);  // Verify generated code
-    config.consume_fuel(true);              // Enable deterministic CPU budgeting
-    
-    let engine = Engine::new(&amp;config)?;
-    let module = Module::from_binary(&amp;engine, wasm_bytes)?;
-    
-    // Create a store with concrete resource limits for future growth.
-    let mut store = Store::new(&amp;engine, HostState {
-        limits: StoreLimitsBuilder::new()
-            .memory_size(1 &lt;&lt; 20)  // 1 MiB
-            .instances(1)
-            .build(),
-    });
-    store.limiter(|state| &amp;mut state.limits);
-    
-    // Set fuel limit to prevent infinite loops
-    store.set_fuel(10_000)?;
-    
-    // Define only the functions the plugin is allowed to call
-    let log_func = Func::wrap(&amp;mut store, |ptr: u32, len: u32| {
-        // In a real implementation, you would safely read from the
-        // module's memory. This is a simplified example.
-        println!("Plugin logged {} bytes at offset {}", len, ptr);
-    });
-    
-    let instance = Instance::new(
-        &amp;mut store,
-        &amp;module,
-        &amp;[Extern::Func(log_func)],
-    )?;
-    
-    // Call the plugin's process function
-    let process = instance
-        .get_typed_func::&lt;(u32, u32), u32&gt;(&amp;mut store, "process")?;
-    
-    // Allocate input in module memory and call process
-    let memory = instance
-        .get_memory(&amp;mut store, "memory")
-        .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
-    
-    // Write input to module memory
-    let mem_data = memory.data_mut(&amp;mut store);
-    if input.len() &gt; mem_data.len() / 2 {
-        return Err(anyhow::anyhow!("input too large for sandbox memory"));
-    }
-    mem_data[..input.len()].copy_from_slice(input);
-    
-    let result = process.call(&amp;mut store, (0, input.len() as u32))?;
-    
-    // Read output from module memory (simplified)
-    let output_len = result as usize;
-    if output_len &gt; memory.data(&amp;store).len() {
-        return Err(anyhow::anyhow!("plugin returned invalid length"));
-    }
-    let output = memory.data(&amp;store)[..output_len].to_vec();
-    
-    Ok(output)
-}
-<span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security measures in this architecture</strong>:</p>
-<ol>
-<li><strong>Fuel limiting</strong>: Prevents infinite loops and CPU exhaustion (CWE-400, CWE-789).</li>
-<li><strong>Resource limits</strong>: <code>Store::limiter</code> caps future memory and instance growth.</li>
-<li><strong>Explicit imports</strong>: Only <code>log_func</code> is exposed—the plugin cannot access files, network, or environment variables.</li>
-<li><strong>Input validation</strong>: Host validates all data read from module memory before using it.</li>
-</ol>
-<h3 id="1164-wasm-security-considerations"><a class="header" href="#1164-wasm-security-considerations">11.6.4 Wasm Security Considerations</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Concern</th><th>Mitigation</th></tr>
-</thead>
-<tbody>
-<tr><td>Side-channel attacks (timing, cache)</td><td>Use constant-time Wasm runtimes; consider single-threaded execution</td></tr>
-<tr><td>Spectre-type attacks</td><td>Use a maintained Wasm runtime (for example, Wasmtime) and follow its documented Spectre mitigations</td></tr>
-<tr><td>Resource exhaustion (memory)</td><td>Set <code>Store::limiter()</code> to cap memory growth</td></tr>
-<tr><td>Resource exhaustion (CPU)</td><td>Use fuel metering; set timeouts on <code>Store</code> operations</td></tr>
-<tr><td>Supply chain (malicious Wasm)</td><td>Verify Wasm module hashes or signatures before loading</td></tr>
-<tr><td>Module size bombs</td><td>Reject modules above a size limit before compilation</td></tr>
-<tr><td>Host function safety</td><td>Validate all arguments passed from Wasm to host functions</td></tr>
-</tbody>
-</table>
-</div>
-<p>⚠️ <strong>Important</strong>: Wasm sandboxing protects the <strong>host</strong> from the <strong>module</strong>, but it does not protect the module from itself. A compromised module’s internal state is the attacker’s problem—your concern is preventing the module from affecting the host or other modules.</p>
-<h2 id="117-summary"><a class="header" href="#117-summary">11.7 Summary</a></h2>
+<p>If you do not need allocator-specific behavior, omit <code>#[global_allocator]</code> entirely. Rebinding <code>std::alloc::System</code> to itself is a no-op; either keep the default allocator implicitly or install a real replacement allocator / hardened wrapper such as the earlier <code>SecureAllocator</code> example.</p>
+<h2 id="116-summary"><a class="header" href="#116-summary">11.6 Summary</a></h2>
 <ul>
 <li>Use <code>#[repr(C)]</code> for FFI-compatible and wire-format structures.</li>
 <li>Use <code>#[repr(u8)]</code> / <code>#[repr(i32)]</code> to control enum size.</li>
-<li>Use <code>#[repr(align(N))]</code> for alignment-critical data.</li>
+<li>Use <code>#[repr(C, align(N))]</code> for alignment-critical data.</li>
 <li>Prefer <code>zerocopy</code> crate for safe binary parsing.</li>
 <li>Always use explicit endianness for network data.</li>
 <li>Zero sensitive memory before freeing (use <code>zeroize</code> crate).</li>
 <li>Lock memory pages containing secrets (prevent swapping).</li>
 <li>Verify release hardening (RELRO/NX/PIE) and apply stack-protector flags to any C/C++ objects you compile.</li>
-<li><strong>Consider WebAssembly sandboxing</strong> for running untrusted code, with fuel limiting, memory caps, and minimal host imports.</li>
 </ul>
 <p>In the next chapter, we cover secure network programming—building network services that resist common attacks.</p>
-<h2 id="118-exercises"><a class="header" href="#118-exercises">11.8 Exercises</a></h2>
+<h2 id="117-exercises"><a class="header" href="#117-exercises">11.7 Exercises</a></h2>
 <ol>
 <li>
 <p><strong>Wire-Format Parser</strong>: Define a <code>#[repr(C)]</code> struct representing a simplified IPv4 header (version, IHL, total length, TTL, protocol, source IP, dest IP). Use the <code>zerocopy</code> crate to parse a raw byte slice into the struct. Write tests with valid packets, truncated packets, and misaligned data. Verify that all invalid inputs return an error.</p>
@@ -5008,6 +4951,16 @@ struct ServerState {
     connection_count: std::sync::atomic::AtomicUsize,
 }
 
+fn try_acquire_connection(state: &amp;ServerState) -&gt; bool {
+    state.connection_count
+        .fetch_update(
+            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::SeqCst,
+            |current| (current &lt; MAX_CONNECTIONS).then_some(current + 1),
+        )
+        .is_ok()
+}
+
 #[tokio::main]
 async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let state = Arc::new(ServerState {
@@ -5024,11 +4977,7 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
         let state = Arc::clone(&amp;state);
         
         // Connection limiting
-        let current = state.connection_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        if current &gt;= MAX_CONNECTIONS {
-            state.connection_count
-                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        if !try_acquire_connection(&amp;state) {
             log::warn!("Rejecting connection from {}: limit reached", addr);
             drop(stream);
             continue;
@@ -5120,6 +5069,7 @@ fn process_message(
 }
 
 fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+    debug_assert!(payload.len() &lt;= MAX_PAYLOAD_SIZE);
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
@@ -5194,6 +5144,26 @@ impl RateLimiter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
+<p>If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use std::sync::Arc;
+use std::time::Duration;
+
+<span class="boring">struct RateLimiter;
+</span><span class="boring">impl RateLimiter { fn cleanup(&amp;self) {} }
+</span>fn spawn_rate_limiter_cleanup(limiter: Arc&lt;RateLimiter&gt;) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            limiter.cleanup();
+        }
+    });
+}
+<span class="boring">}</span></code></pre>
 <h2 id="122-tls-configuration"><a class="header" href="#122-tls-configuration">12.2 TLS Configuration</a></h2>
 <h3 id="1221-server-tls-with-rustls"><a class="header" href="#1221-server-tls-with-rustls">12.2.1 Server TLS with rustls</a></h3>
 <pre><code class="language-toml">[dependencies]
@@ -5206,7 +5176,7 @@ rustls-pemfile = "2"
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-</span>use rustls::{ServerConfig, RootCertStore};
+</span>use rustls::ServerConfig;
 use std::sync::Arc;
 
 fn create_tls_config(
@@ -5238,6 +5208,49 @@ fn create_tls_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p>The config object is only half the story. You still need to wrap accepted TCP streams with <code>tokio-rustls</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio_rustls as tokio_rustls;
+</span>use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
+
+<span class="boring">fn create_tls_config(
+</span><span class="boring">    cert_path: &amp;str,
+</span><span class="boring">    key_path: &amp;str,
+</span><span class="boring">) -&gt; Result&lt;Arc&lt;rustls::ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+</span><span class="boring">    unimplemented!()
+</span><span class="boring">}
+</span><span class="boring">async fn handle_tls_client&lt;S&gt;(_stream: S) -&gt; Result&lt;(), Box&lt;dyn std::error::Error + Send + Sync&gt;&gt;
+</span><span class="boring">where
+</span><span class="boring">    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+</span><span class="boring">{
+</span><span class="boring">    Ok(())
+</span><span class="boring">}
+</span><span class="boring">#[tokio::main]
+</span><span class="boring">async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+</span>let config = create_tls_config("server.crt", "server.key")?;
+let acceptor = TlsAcceptor::from(config);
+let listener = TcpListener::bind("0.0.0.0:8443").await?;
+
+loop {
+    let (tcp_stream, addr) = listener.accept().await?;
+    let acceptor = acceptor.clone();
+
+    tokio::spawn(async move {
+        match acceptor.accept(tcp_stream).await {
+            Ok(tls_stream) =&gt; {
+                if let Err(err) = handle_tls_client(tls_stream).await {
+                    eprintln!("{}: {}", addr, err);
+                }
+            }
+            Err(err) =&gt; eprintln!("TLS handshake failed for {}: {}", addr, err),
+        }
+    });
+}
+<span class="boring">}</span></code></pre>
 <p>🔒 <strong>TLS hardening checklist</strong>:</p>
 <ul>
 <li>✅ Use TLS 1.2 minimum (prefer TLS 1.3)</li>
@@ -5251,6 +5264,39 @@ fn create_tls_config(
 <h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
 <p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
 <p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
+</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
+</span>use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
+use std::io::BufReader;
+use std::sync::Arc;
+
+fn create_mtls_config(
+    cert_path: &amp;str,
+    key_path: &amp;str,
+    client_ca_path: &amp;str,
+) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
+    let certs = rustls_pemfile::certs(&amp;mut BufReader::new(std::fs::File::open(cert_path)?))
+        .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
+    let key = rustls_pemfile::private_key(&amp;mut BufReader::new(std::fs::File::open(key_path)?))?
+        .ok_or("no private key found")?;
+
+    let mut client_roots = RootCertStore::empty();
+    for cert in rustls_pemfile::certs(&amp;mut BufReader::new(std::fs::File::open(client_ca_path)?)) {
+        client_roots.add(cert?)?;
+    }
+
+    let client_verifier = WebPkiClientVerifier::builder(client_roots.into()).build()?;
+
+    let config = ServerConfig::builder()
+        .with_client_cert_verifier(client_verifier)
+        .with_single_cert(certs, key)?;
+
+    Ok(Arc::new(config))
+}
+<span class="boring">}</span></code></pre>
 <h2 id="123-defense-against-network-attacks"><a class="header" href="#123-defense-against-network-attacks">12.3 Defense Against Network Attacks</a></h2>
 <h3 id="1231-preventing-buffer-overflows-in-parsers"><a class="header" href="#1231-preventing-buffer-overflows-in-parsers">12.3.1 Preventing Buffer Overflows in Parsers</a></h3>
 <p>Rust’s safe code is immune to buffer overflows, but parser logic errors can still cause denial of service:</p>
@@ -5298,6 +5344,19 @@ fn create_tls_config(
 <li>Use checked arithmetic for length calculations.</li>
 <li>Never trust a length field from the network without bounds checking.</li>
 </ol>
+<p>DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.</p>
+<p>If you need an in-process encrypted resolver, <code>hickory-resolver</code> exposes ready-made configurations for DNS-over-TLS and DNS-over-HTTPS:</p>
+<pre><code class="language-rust ignore">use hickory_resolver::Resolver;
+use hickory_resolver::config::ResolverConfig;
+use hickory_resolver::name_server::TokioConnectionProvider;
+
+let resolver = Resolver::builder_with_config(
+    ResolverConfig::cloudflare_tls(), // or `cloudflare_https()` for DoH
+    TokioConnectionProvider::default(),
+).build();
+
+let ips = resolver.lookup_ip("api.example.com.").await?;</code></pre>
+<p>Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services that make authorization or routing decisions from hostnames.</p>
 <h3 id="1233-preventing-amplification-attacks"><a class="header" href="#1233-preventing-amplification-attacks">12.3.3 Preventing Amplification Attacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -5434,7 +5493,7 @@ fn log_security_event(event: &amp;SecurityEvent) {
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="chapter-13--testing-strategies-for-secure-code"><a class="header" href="#chapter-13--testing-strategies-for-secure-code">Chapter 13 — Testing Strategies for Secure Code</a></h1>
 <blockquote>
-<p><em>“Testing shows the presence of bugs, not their absence. But for security, presence is better than ignorance.”</em></p>
+<p><em>“Program testing can be used to show the presence of bugs, but never to show their absence.”</em> — Edsger W. Dijkstra</p>
 </blockquote>
 <p>Testing security-critical code requires a different mindset than testing functionality. You’re not just verifying that the code works correctly for valid inputs—you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.</p>
 <h2 id="131-rust-testing-fundamentals"><a class="header" href="#131-rust-testing-fundamentals">13.1 Rust Testing Fundamentals</a></h2>
@@ -5500,6 +5559,22 @@ mod tests {
 }
 <span class="boring">}</span></code></pre>
 <p>Run with: <code>cargo test</code></p>
+<p>Rust also gives you two pragmatic test attributes that matter in security work:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>#[test]
+#[should_panic(expected = "internal invariant violated")]
+fn invariant_checks_trip_in_tests() {
+    panic!("internal invariant violated");
+}
+
+#[test]
+#[ignore = "slow integration test against external dependency"]
+fn hsm_roundtrip() {
+    // Run explicitly with: cargo test -- --ignored
+}
+<span class="boring">}</span></code></pre>
+<p>Use <code>#[should_panic]</code> for invariants and programmer errors, not for attacker-controlled input paths that should return <code>Result</code>.</p>
 <h3 id="1312-integration-tests"><a class="header" href="#1312-integration-tests">13.1.2 Integration Tests</a></h3>
 <p>Tests in <code>tests/</code> have access to your crate’s public API only:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -5869,6 +5944,12 @@ cargo nextest run --workspace --all-features
 cargo llvm-cov --workspace --all-features --html
 </code></pre>
 <p>Prioritize coverage review on authentication, parsing, deserialization, unsafe wrappers, and failure paths rather than chasing a global percentage.</p>
+<h3 id="1363-mutation-testing-with-cargo-mutants"><a class="header" href="#1363-mutation-testing-with-cargo-mutants">13.6.3 Mutation Testing with <code>cargo-mutants</code></a></h3>
+<p>Coverage tells you what executed; mutation testing tells you whether the tests would fail if the security logic were wrong. <code>cargo-mutants</code> flips conditionals, comparison operators, and other small pieces of code, then reruns your tests to see whether the suite notices:</p>
+<pre><code class="language-bash">cargo install cargo-mutants --locked
+cargo mutants --workspace --all-features
+</code></pre>
+<p>This is especially valuable for authentication checks, parser bounds checks, rate limiting, and unsafe wrappers. A surviving mutant around <code>&gt;=</code> vs <code>&gt;</code>, allow/deny logic, or an omitted validation branch is a strong signal that the tests are not actually enforcing the intended security property.</p>
 <h2 id="137-summary"><a class="header" href="#137-summary">13.7 Summary</a></h2>
 <ul>
 <li>Write comprehensive unit tests for all security-critical functions.</li>
@@ -5882,6 +5963,7 @@ cargo llvm-cov --workspace --all-features --html
 <li>Run tests across stable, beta, and nightly with Miri for UB detection.</li>
 <li>Use <code>cargo-nextest</code> for faster, better-isolated CI runs on large suites.</li>
 <li>Use <code>cargo-llvm-cov</code> to find untested validation and error-handling paths.</li>
+<li>Use <code>cargo-mutants</code> to check whether tests actually fail when critical logic is changed.</li>
 </ul>
 <p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn’t think to test for.</p>
 <h2 id="138-exercises"><a class="header" href="#138-exercises">13.8 Exercises</a></h2>
@@ -5970,11 +6052,9 @@ proptest! {
     }
     
     #[test]
-    fn parse_port_rejects_invalid(input in "\\PC*") {
-        // Skip only values that are already valid ports.
-        if input.parse::&lt;u16&gt;().is_ok() {
-            return Ok(());
-        }
+    fn parse_port_rejects_invalid(
+        input in any::&lt;String&gt;().prop_filter("not a valid u16", |s| s.parse::&lt;u16&gt;().is_err())
+    ) {
         prop_assert!(parse_port(&amp;input).is_err());
     }
     
@@ -6118,12 +6198,13 @@ cargo +nightly fuzz run parse_message -- -max_total_time=3600
 cargo +nightly fuzz run parse_message -s none -- -max_total_time=3600
 
 # Run with address sanitizer (detects buffer overflows, use-after-free)
-RUSTFLAGS="-Zsanitizer=address" cargo +nightly fuzz run parse_message
+cargo +nightly fuzz run parse_message -s address
 
 # Reproduce a crash
 cargo +nightly fuzz run parse_message fuzz/artifacts/parse_message/crash-&lt;hash&gt;
 </code></pre>
 <h3 id="1424-fuzzing-best-practices"><a class="header" href="#1424-fuzzing-best-practices">14.2.4 Fuzzing Best Practices</a></h3>
+<p><code>cargo-fuzz</code> is the default choice for libFuzzer-based coverage-guided fuzzing in Rust, but it is not the only engine. AFL.rs is also worth knowing when you want AFL/AFL++ style workflows or need to compare engines on the same parser.</p>
 <p>🔒 <strong>Fuzzing strategy for security-critical code</strong>:</p>
 <ol>
 <li>
@@ -6183,6 +6264,7 @@ for file in fuzz/corpus/parse_message/*; do
     CORPUS_FILE="$file" cargo +nightly miri test --test miri_corpus -- --exact miri_corpus_entry
 done
 </code></pre>
+<p>⚠️ <strong>Practicality note</strong>: Running Miri once per corpus file is extremely slow. Use it on minimized corpora, targeted reproducers, or periodic CI jobs rather than every large fuzz corpus on every edit.</p>
 <pre><code class="language-rust ignore">// tests/miri_corpus.rs — test harness for running Miri on corpus files
 <span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::my_secure_app as my_secure_app;
@@ -6204,7 +6286,7 @@ fn miri_corpus_entry() {
 </span><span class="boring">extern crate libfuzzer_sys;
 </span><span class="boring">use rust_secure_systems_book::my_secure_app::authenticate;
 </span>libfuzzer_sys::fuzz_target!(|data: &amp;[u8]| {
-    // Both of these should take the same time and produce the same error type
+    // Both of these should produce the same externally observable error type.
     let result1 = authenticate("unknown_user", data);
     let result2 = authenticate("known_user", data);
     
@@ -6408,7 +6490,7 @@ too-many-lines-threshold = 100
 
 # Disallowed crate features
 disallowed-types = [
-    { path = "std::sync::Once", reason = "Use OnceLock which is safer" },
+    { path = "std::sync::Once", reason = "Prefer OnceLock&lt;T&gt; for one-time value initialization; it stores the value directly and avoids the call-once-after-poison pitfall." },
 ]
 </code></pre>
 <h2 id="153-dependency-auditing"><a class="header" href="#153-dependency-auditing">15.3 Dependency Auditing</a></h2>
@@ -6416,18 +6498,18 @@ disallowed-types = [
 <pre><code class="language-bash">cargo install cargo-audit --version 0.22.1 --locked
 cargo audit
 </code></pre>
-<p>Output example:</p>
+<p>Illustrative output example:</p>
 <pre><code class="language-text">    Loaded 517 advisory records
     Scanning Cargo.lock for vulnerabilities (484 crates)
 
-ID:       RUSTSEC-2023-0019
-Crate:    openssl
-Version:  0.10.52
-Title:    OpenSSL HBAR TLS handshake downgrade
-Date:     2023-02-07
-URL:      https://rustsec.org/advisories/RUSTSEC-2023-0019
-Severity: 7.5 (high)
-Solution: upgrade to &gt;= 0.10.55
+ID:       RUSTSEC-XXXX-YYYY
+Crate:    example-crypto
+Version:  1.2.3
+Title:    Example advisory used for documentation
+Date:     2026-04-02
+URL:      https://rustsec.org/advisories/
+Severity: high
+Solution: upgrade to a reviewed fixed release
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in CI and block merging on high-severity findings.</p>
 <h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
@@ -6452,6 +6534,7 @@ Functions  Expressions  Impls  Traits  Methods  Dependency
 <li>FFI to C libraries</li>
 <li>Custom allocators</li>
 </ul>
+<p>⚠️ <strong>Tooling note</strong>: <code>cargo-geiger</code> is useful, but it can lag the newest compiler releases. Pin the version you rely on in CI and keep a manual fallback such as <code>rg -n "\\bunsafe\\b"</code> for quick inventory work.</p>
 <h3 id="1533-cargo-crev--community-code-review"><a class="header" href="#1533-cargo-crev--community-code-review">15.3.3 <code>cargo crev</code> — Community Code Review</a></h3>
 <pre><code class="language-bash">cargo install cargo-crev --version 0.26.5 --locked
 cargo crev import trust --from-url https://github.com/crev-dev/crev-proofs
@@ -6525,7 +6608,7 @@ cargo semver-checks --baseline-rev abc1234
 Description:
 A public struct field has been removed. This breaks code that accesses or constructs the struct using the field name.
 
-Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.36.0/src/lints/struct_pub_field_missing.ron
+Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.47.0/src/lints/struct_pub_field_missing.ron
 
 Failed in:
   struct SecurityConfig: missing field key_rotation_days in ./src/config.rs:15
@@ -6536,7 +6619,7 @@ Failed in:
 Description:
 A method was removed from a public trait. This breaks any implementation of that trait.
 
-Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.36.0/src/lints/trait_method_missing.ron
+Ref: https://github.com/obi1kenobi/cargo-semver-checks/tree/v0.47.0/src/lints/trait_method_missing.ron
 
 Failed in:
   trait Authenticator: missing method validate_token in ./src/auth.rs:8
@@ -6620,6 +6703,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
     slice[idx]
 }
 <span class="boring">}</span></code></pre>
+<p>Creusot is another option in this space when you want Rust-oriented deductive verification with machine-checked contracts. Like Prusti, it demands more annotation work than testing or fuzzing, so reserve it for small high-assurance components such as parsers, authorization kernels, and arithmetic-heavy invariants.</p>
 <h2 id="157-summary"><a class="header" href="#157-summary">15.7 Summary</a></h2>
 <ul>
 <li>Treat compiler warnings as security findings; enable <code>-D warnings</code>.</li>
@@ -6812,8 +6896,9 @@ include-dependencies = true
 RUSTFLAGS="--remap-path-prefix=/build/workdir=." \
 CARGO_PROFILE_RELEASE_LTO=true \
 CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 \
-cargo build --release --locked --frozen --target x86_64-unknown-linux-gnu
+cargo build --release --frozen --target x86_64-unknown-linux-gnu
 </code></pre>
+<p><code>--frozen</code> already implies <code>--locked</code> and <code>--offline</code>, so you do not need to spell those flags separately.</p>
 <p>Key settings for reproducibility:</p>
 <pre><code class="language-toml"># Cargo.toml
 [profile.release]
@@ -6874,9 +6959,9 @@ fn main() {
 <li>Audit all <code>build.rs</code> scripts in your dependency tree.</li>
 <li>Use <code>cargo deny check bans</code> with a <code>[bans.build]</code> policy to inventory and gate compile-time crates, scripts, and embedded executables.</li>
 <li>Build in sandboxed environments (Docker, chroot).</li>
-<li>Use <code>--frozen</code> flag to prevent network access during builds:</li>
+<li>Use <code>--frozen</code> to require an existing lockfile and prevent network access during builds:</li>
 </ol>
-<pre><code class="language-bash">cargo build --frozen --offline
+<pre><code class="language-bash">cargo build --frozen
 </code></pre>
 <h2 id="168-cicd-pipeline-security"><a class="header" href="#168-cicd-pipeline-security">16.8 CI/CD Pipeline Security</a></h2>
 <pre><code class="language-yaml"># .github/workflows/build.yml
@@ -6927,6 +7012,7 @@ jobs:
           cargo cyclonedx
 </code></pre>
 <p>Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.</p>
+<p>For release artifacts, pair SBOM generation with binary metadata or provenance. <code>cargo auditable</code>, Sigstore signing, and SLSA-style attestations strengthen the link between the reviewed source tree and the artifact you actually ship.</p>
 <h3 id="1681-trusted-publishing-for-cratesio"><a class="header" href="#1681-trusted-publishing-for-cratesio">16.8.1 Trusted Publishing for crates.io</a></h3>
 <p>For release workflows, prefer crates.io Trusted Publishing via OpenID Connect (OIDC) instead of storing long-lived registry API tokens in CI secrets. crates.io supports trusted publishing from GitHub Actions and GitLab CI.</p>
 <pre><code class="language-yaml"># .github/workflows/publish.yml
@@ -7236,7 +7322,7 @@ impl RateLimiter {
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
 </span>// src/tls.rs
-use rustls::{ServerConfig, pki_types::PrivateKeyDer};
+use rustls::ServerConfig;
 use std::sync::Arc;
 use std::fs::File;
 use std::io::BufReader;
@@ -7622,14 +7708,6 @@ mod tests {
         assert_eq!(&amp;response[4..], b"test");
     }
 
-    #[test]
-    fn test_empty_message_rejected() {
-        assert!(matches!(
-            Message::from_bytes(&amp;[0, 0, 0, 0]),
-            Err(ProtocolError::EmptyMessage)
-        ));
-    }
-
     proptest! {
         #[test]
         fn message_roundtrip(payload in prop::collection::vec(any::&lt;u8&gt;(), 1..1000)) {
@@ -7712,6 +7790,15 @@ mod tests {
 <li><strong>Bounded allocation</strong>: Never allocate based on untrusted size fields without limits.</li>
 <li><strong>No unsafe</strong>: Parsers should be implementable entirely in safe Rust.</li>
 </ol>
+<h3 id="1821-parser-combinators-with-nom"><a class="header" href="#1821-parser-combinators-with-nom">18.2.1 Parser Combinators with <code>nom</code></a></h3>
+<p>This chapter uses a hand-written parser because explicit control flow is easy to audit, makes allocation limits obvious, and keeps every boundary check visible. That is not the only defensible choice. <code>nom</code> is a mature parser-combinator library and can be a good fit when you want declarative composition without writing pointer arithmetic by hand.</p>
+<p>From a security perspective, three <code>nom</code> design choices matter:</p>
+<ul>
+<li>Choose the right mode: <code>complete</code> parsers treat missing bytes as hard errors, while <code>streaming</code> parsers return <code>Incomplete</code>. For sockets and framed protocols, that distinction is part of your threat model.</li>
+<li>Bound input before parsing. A combinator library does not remove the need for maximum message sizes, checked length arithmetic, or duplicate-field policy.</li>
+<li>Keep parsers inspectable. Favor small named combinators and explicit error mapping over deeply nested expressions that hide which branch consumed input.</li>
+</ul>
+<p>Use <code>nom</code> when it improves clarity; use a hand-written parser when explicit state transitions and bounds checks are easier to review. For security-critical formats, “shorter code” is only a win if the rejection behavior stays obvious.</p>
 <h2 id="183-example-a-secure-tlv-type-length-value-parser"><a class="header" href="#183-example-a-secure-tlv-type-length-value-parser">18.3 Example: A Secure TLV (Type-Length-Value) Parser</a></h2>
 <h3 id="1831-type-definitions"><a class="header" href="#1831-type-definitions">18.3.1 Type Definitions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -7728,9 +7815,6 @@ const MAX_VALUE_SIZE: usize = 1024 * 1024;
 
 /// Maximum total message size (16 MiB)
 const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
-
-/// Maximum nesting depth for recursive TLVs
-const MAX_DEPTH: usize = 16;
 
 /// TLV type tags with semantic meaning.
 ///
@@ -7902,7 +7986,7 @@ impl TlvMessage {
                 if records.iter().any(|record| record.tag == tag) {
                     return Err(ParseError::DuplicateTag { tag });
                 }
-                records.push(TlvRecord { tag, value });
+                records.push(TlvRecord::new(tag, value)?);
             }
         }
         
@@ -8232,7 +8316,7 @@ rustflags = [
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
-    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support
+    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support (some LLVM/targets use +ibt,+shstk instead)
 ]
 </code></pre>
 <h3 id="1913-windows-specific-hardening"><a class="header" href="#1913-windows-specific-hardening">19.1.3 Windows-Specific Hardening</a></h3>
@@ -8274,7 +8358,8 @@ rustflags = [
 <pre><code class="language-dockerfile"># Dockerfile
 
 # Stage 1: Build
-FROM rust:1.85-slim AS builder
+FROM rust:stable-slim AS builder
+# For production, replace the moving tag with a reviewed digest-pinned image.
 
 WORKDIR /app
 
@@ -8376,7 +8461,108 @@ services:
 }
 </code></pre>
 <p>Treat this as process guidance, not a copy-paste policy. A production seccomp allowlist must be derived from the exact binary, libc, and container runtime you deploy. If you are not ready to maintain a custom allowlist, keeping the runtime default profile is safer than shipping an incomplete one.</p>
-<p>🔒 <strong>Security impact</strong>: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available—dramatically reducing what they can do.</p>
+<p>🔒 <strong>Security impact</strong>: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available, dramatically reducing what they can do.</p>
+<h3 id="1924-webassembly-wasm-for-application-sandboxing"><a class="header" href="#1924-webassembly-wasm-for-application-sandboxing">19.2.4 WebAssembly (Wasm) for Application Sandboxing</a></h3>
+<p>Containers and seccomp harden an entire service. Wasm sandboxing is useful when you need to isolate <em>one component inside that service</em> such as an untrusted plugin, policy bundle, parser, or customer-supplied transformation.</p>
+<h4 id="why-wasm-for-security"><a class="header" href="#why-wasm-for-security">Why Wasm for Security?</a></h4>
+<p>Wasm offers a principled in-process sandbox:</p>
+<ul>
+<li><strong>Linear memory isolation</strong>: A module can only access its own linear memory.</li>
+<li><strong>Controlled imports/exports</strong>: The host decides exactly which capabilities exist.</li>
+<li><strong>No ambient file/network access</strong>: Capabilities must be passed in explicitly.</li>
+<li><strong>Resource limits</strong>: Execution can be metered and memory growth capped.</li>
+</ul>
+<h4 id="compiling-rust-to-wasm"><a class="header" href="#compiling-rust-to-wasm">Compiling Rust to Wasm</a></h4>
+<pre><code class="language-bash">rustup target add wasm32-unknown-unknown
+cargo build --target wasm32-unknown-unknown --release
+</code></pre>
+<p>For production integration, prefer <code>wasm32-wasip2</code> or <code>wasm32-wasip1</code> when you need WASI-style system interfaces with explicit capability control.</p>
+<h4 id="sandboxed-plugin-architecture-with-wasmtime"><a class="header" href="#sandboxed-plugin-architecture-with-wasmtime">Sandboxed Plugin Architecture with Wasmtime</a></h4>
+<pre><code class="language-toml"># Cargo.toml
+[dependencies]
+wasmtime = "25"
+anyhow = "1"
+</code></pre>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::anyhow as anyhow;
+</span><span class="boring">use rust_secure_systems_book::deps::wasmtime as wasmtime;
+</span>use anyhow::Result;
+use wasmtime::*;
+
+struct HostState {
+    limits: StoreLimits,
+}
+
+fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut config = Config::new();
+    config.cranelift_debug_verifier(true);
+    config.consume_fuel(true);
+
+    let engine = Engine::new(&amp;config)?;
+    let module = Module::from_binary(&amp;engine, wasm_bytes)?;
+
+    let mut store = Store::new(
+        &amp;engine,
+        HostState {
+            limits: StoreLimitsBuilder::new()
+                .memory_size(1 &lt;&lt; 20)
+                .instances(1)
+                .build(),
+        },
+    );
+    store.limiter(|state| &amp;mut state.limits);
+    store.set_fuel(10_000)?;
+
+    let log_func = Func::wrap(&amp;mut store, |ptr: u32, len: u32| {
+        println!("Plugin logged {} bytes at offset {}", len, ptr);
+    });
+
+    let instance = Instance::new(&amp;mut store, &amp;module, &amp;[Extern::Func(log_func)])?;
+    let process = instance.get_typed_func::&lt;(u32, u32), u32&gt;(&amp;mut store, "process")?;
+    let memory = instance
+        .get_memory(&amp;mut store, "memory")
+        .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
+
+    let mem_data = memory.data_mut(&amp;mut store);
+    if input.len() &gt; mem_data.len() / 2 {
+        return Err(anyhow::anyhow!("input too large for sandbox memory"));
+    }
+    mem_data[..input.len()].copy_from_slice(input);
+
+    let result = process.call(&amp;mut store, (0, input.len() as u32))?;
+    let output_len = result as usize;
+    if output_len &gt; memory.data(&amp;store).len() {
+        return Err(anyhow::anyhow!("plugin returned invalid length"));
+    }
+
+    Ok(memory.data(&amp;store)[..output_len].to_vec())
+}
+<span class="boring">}</span></code></pre>
+<p>Security properties in this design:</p>
+<ol>
+<li><strong>Fuel limiting</strong>: Prevents infinite loops and CPU exhaustion.</li>
+<li><strong>Resource limits</strong>: <code>Store::limiter</code> caps future memory and instance growth.</li>
+<li><strong>Explicit imports</strong>: The module only gets the host functions you expose.</li>
+<li><strong>Host-side validation</strong>: All lengths and offsets from module memory are checked before use.</li>
+</ol>
+<h4 id="wasm-security-considerations"><a class="header" href="#wasm-security-considerations">Wasm Security Considerations</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Concern</th><th>Mitigation</th></tr>
+</thead>
+<tbody>
+<tr><td>Side-channel attacks</td><td>Prefer constant-time host code; do not assume Wasm alone solves microarchitectural leaks</td></tr>
+<tr><td>Spectre-type attacks</td><td>Use a maintained runtime such as Wasmtime and follow its mitigation guidance</td></tr>
+<tr><td>Resource exhaustion</td><td>Set fuel, timeouts, and memory limits</td></tr>
+<tr><td>Malicious modules</td><td>Verify signatures or hashes before loading</td></tr>
+<tr><td>Host call safety</td><td>Validate every pointer, length, enum, and handle crossing the boundary</td></tr>
+</tbody>
+</table>
+</div>
+<p>⚠️ <strong>Important</strong>: Wasm sandboxing protects the host from the module. It does not make the module’s internal logic correct or side-channel-free.</p>
 <h2 id="193-binary-hardening-verification"><a class="header" href="#193-binary-hardening-verification">19.3 Binary Hardening Verification</a></h2>
 <p>After building, verify the hardening was applied:</p>
 <h3 id="linux-checksec"><a class="header" href="#linux-checksec">Linux (checksec)</a></h3>
@@ -8430,15 +8616,15 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 </span><span class="boring">use rust_secure_systems_book::deps::tracing as tracing;
 </span><span class="boring">use rust_secure_systems_book::deps::tracing_subscriber as tracing_subscriber;
 </span>// src/logging.rs
-use std::sync::Once;
+use std::sync::OnceLock;
 use tracing::{error, info, warn};
 use tracing_subscriber::{fmt, EnvFilter};
 
-static LOGGING_INIT: Once = Once::new();
+static LOGGING_INIT: OnceLock&lt;()&gt; = OnceLock::new();
 
 /// Initialize structured JSON logging for production
 pub fn init_logging() {
-    LOGGING_INIT.call_once(|| {
+    let _ = LOGGING_INIT.get_or_init(|| {
         let subscriber = fmt()
             .json()                           // Structured JSON output for log aggregation
             .with_env_filter(
@@ -8671,6 +8857,12 @@ impl ServerMetrics {
     }
 }
 
+impl Default for ServerMetrics {
+    fn default() -&gt; Self {
+        Self::new()
+    }
+}
+
 pub struct MetricsSnapshot {
     pub connections_accepted: u64,
     pub connections_rejected: u64,
@@ -8702,7 +8894,13 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
 <p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
 <p>If you also compile with <code>panic = "abort"</code>, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.</p>
-<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux and can leak through process listing. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services. Prefer dedicated secret management.</p>
+<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux, and in containerized deployments they often surface through orchestration metadata such as <code>docker inspect</code>. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services.</p>
+<p>Prefer runtime secret injection instead:</p>
+<ul>
+<li>Vault / cloud secret-manager SDKs that fetch secrets on demand</li>
+<li>Permission-restricted files such as <code>/run/secrets/&lt;name&gt;</code> in Docker Swarm and similar platforms</li>
+<li>Platform key stores such as DPAPI, Credential Manager, or kernel-backed secret stores</li>
+</ul>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -8923,8 +9121,9 @@ aa-genprof /usr/local/bin/secure-server
 <li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>
 <li>Use multi-stage Docker builds with distroless base images.</li>
 <li>Run as non-root with minimal capabilities and seccomp filtering.</li>
+<li>Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.</li>
 <li>Verify hardening with <code>checksec</code> or manual checks.</li>
-<li>Load secrets from vaults or permission-restricted files, never hardcode.</li>
+<li>Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.</li>
 <li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
 <li>Integrate logs with a SIEM for automated alerting on security events.</li>
 <li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>
@@ -8964,6 +9163,7 @@ aa-genprof /usr/local/bin/secure-server
 <tr><td><code>rustls</code></td><td>TLS</td><td>High (memory-safe, audited)</td></tr>
 <tr><td><code>serde</code></td><td>Serialization</td><td>High (serde-rs project, widely used)</td></tr>
 <tr><td><code>zeroize</code></td><td>Memory wiping</td><td>High (widely audited)</td></tr>
+<tr><td><code>subtle</code></td><td>Constant-time selection and comparison helpers</td><td>High (Dalek ecosystem)</td></tr>
 <tr><td><code>secrecy</code></td><td>Secret encapsulation</td><td>High</td></tr>
 <tr><td><code>thiserror</code></td><td>Error types</td><td>High</td></tr>
 <tr><td><code>proptest</code></td><td>Property testing</td><td>High</td></tr>

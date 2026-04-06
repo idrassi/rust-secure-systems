@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -426,21 +426,22 @@ unsafe {
     // NEVER transmute &amp;T to &amp;mut T
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security rule</strong>: Avoid <code>transmute</code>. Use <code>from_bytes</code>, <code>to_bytes</code>, or <code>bytemuck</code> crate for safe type punning.</p>
+<p>🔒 <strong>Security rule</strong>: Avoid <code>transmute</code> for type punning and unrelated layout conversions. Prefer dedicated APIs such as <code>from_ne_bytes</code>, <code>to_be_bytes</code>, <code>MaybeUninit</code>, or crates like <code>zerocopy</code>/<code>bytemuck</code> where appropriate.</p>
 <h3 id="943-uninitialized-memory"><a class="header" href="#943-uninitialized-memory">9.4.3 Uninitialized Memory</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use std::mem::MaybeUninit;
 
 fn initialize_array() -&gt; [u32; 100] {
-    let mut arr: [MaybeUninit&lt;u32&gt;; 100] = [const { MaybeUninit::uninit() }; 100];
-    
-    for elem in arr.iter_mut() {
-        elem.write(42);
+    let mut arr = MaybeUninit::&lt;[u32; 100]&gt;::uninit();
+    let ptr = arr.as_mut_ptr() as *mut u32;
+
+    for i in 0..100 {
+        unsafe { ptr.add(i).write(42) };
     }
-    
-    // SAFETY: All elements are initialized above
-    unsafe { std::mem::transmute::&lt;[MaybeUninit&lt;u32&gt;; 100], [u32; 100]&gt;(arr) }
+
+    // SAFETY: Every element was initialized exactly once above.
+    unsafe { arr.assume_init() }
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Never use <code>std::mem::zeroed()</code> for types where all-zeros is not a valid representation</strong> (e.g., references, <code>NonNull</code>). Use <code>MaybeUninit</code> instead.</p>
@@ -570,7 +571,7 @@ cargo +nightly miri test
     }
 }</code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo miri test</code> in CI for any crate that contains <code>unsafe</code> code. Miri does not prove the <em>absence</em> of bugs, but it is exceptionally effective at finding them.</p>
-<p>For stricter raw-pointer aliasing diagnostics, you can also add <code>-Zmiri-track-raw-pointers</code>. That is separate from the data-race detector.</p>
+<p>For stricter pointer-provenance diagnostics, add <code>-Zmiri-strict-provenance</code>. If you want to experiment with Miri’s alternative aliasing model, add <code>-Zmiri-tree-borrows</code>. These checks are separate from the data-race detector.</p>
 <p>⚠️ <strong>Limitations</strong>: Miri supports many <code>std::thread</code> patterns, but it cannot execute arbitrary FFI, real network I/O, or many OS-specific interactions. For such code, extract the pure logic into testable functions and run Miri on those pieces.</p>
 <h4 id="using-loom-for-concurrency-testing"><a class="header" href="#using-loom-for-concurrency-testing">Using Loom for Concurrency Testing</a></h4>
 <p><code>loom</code> is a model checker that systematically explores all possible thread interleavings to find data races and concurrency bugs. It replaces <code>std::sync</code> primitives with mock versions that explore different execution orderings:</p>
@@ -583,20 +584,22 @@ cargo +nightly miri test
 </span><span class="boring">use rust_secure_systems_book::deps::loom as loom;
 </span>// tests/concurrency.rs
 use loom::sync::atomic::{AtomicUsize, Ordering};
+use loom::sync::Arc;
 use loom::thread;
 
 #[test]
 fn test_atomic_counter() {
     loom::model(|| {
-        let counter = AtomicUsize::new(0);
-        let counter_ref = &amp;counter;
+        let counter = Arc::new(AtomicUsize::new(0));
+        let c1 = Arc::clone(&amp;counter);
+        let c2 = Arc::clone(&amp;counter);
         
         let t1 = thread::spawn(move || {
-            counter_ref.fetch_add(1, Ordering::SeqCst);
+            c1.fetch_add(1, Ordering::SeqCst);
         });
         
         let t2 = thread::spawn(move || {
-            counter_ref.fetch_add(1, Ordering::SeqCst);
+            c2.fetch_add(1, Ordering::SeqCst);
         });
         
         t1.join().unwrap();

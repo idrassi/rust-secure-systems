@@ -113,7 +113,7 @@ too-many-lines-threshold = 100
 
 # Disallowed crate features
 disallowed-types = [
-    { path = "std::sync::Once", reason = "Use OnceLock which is safer" },
+    { path = "std::sync::Once", reason = "Prefer OnceLock<T> for one-time value initialization; it stores the value directly and avoids the call-once-after-poison pitfall." },
 ]
 ```
 
@@ -126,20 +126,20 @@ cargo install cargo-audit --version 0.22.1 --locked
 cargo audit
 ```
 
-Output example:
+Illustrative output example:
 
 ```text
     Loaded 517 advisory records
     Scanning Cargo.lock for vulnerabilities (484 crates)
 
-ID:       RUSTSEC-2023-0019
-Crate:    openssl
-Version:  0.10.52
-Title:    OpenSSL HBAR TLS handshake downgrade
-Date:     2023-02-07
-URL:      https://rustsec.org/advisories/RUSTSEC-2023-0019
-Severity: 7.5 (high)
-Solution: upgrade to >= 0.10.55
+ID:       RUSTSEC-XXXX-YYYY
+Crate:    example-crypto
+Version:  1.2.3
+Title:    Example advisory used for documentation
+Date:     2026-04-02
+URL:      https://rustsec.org/advisories/
+Severity: high
+Solution: upgrade to a reviewed fixed release
 ```
 
 🔒 **Security practice**: Run `cargo audit` in CI and block merging on high-severity findings.

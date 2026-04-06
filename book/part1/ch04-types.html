@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -352,7 +352,7 @@ fn handle_error(err: AuthError) {
 
 enum Role {
     Guest,
-    User,
+    Member,
     Admin,
 }
 
@@ -413,7 +413,7 @@ struct SharedState {
 
 // This type can be safely shared between threads.
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This eliminates CWE-362 (Race Condition).</p>
+<p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.</p>
 <h3 id="the-frominto-traits--safe-conversions"><a class="header" href="#the-frominto-traits--safe-conversions">The <code>From</code>/<code>Into</code> Traits — Safe Conversions</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -436,6 +436,7 @@ fn bind(port: Port) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>TryFrom</code> for all conversions where the source type is wider than the target type (e.g., <code>u32</code> → <code>u16</code>, <code>usize</code> → <code>u8</code>). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).</p>
+<p>When zero has no valid meaning, prefer <code>NonZeroU32</code> or <code>NonZeroUsize</code> over a plain integer. This lets the type system reject sentinel <code>0</code> values up front and can make <code>Option&lt;NonZeroU32&gt;</code> more compact than <code>Option&lt;u32&gt;</code>.</p>
 <h2 id="46-pattern-matching-deep-dive"><a class="header" href="#46-pattern-matching-deep-dive">4.6 Pattern Matching Deep Dive</a></h2>
 <p>Pattern matching is not limited to <code>match</code>. Rust supports patterns in many contexts:</p>
 <h3 id="destructuring"><a class="header" href="#destructuring">Destructuring</a></h3>
@@ -570,7 +571,7 @@ type HmacKey = FixedBuffer&lt;64&gt;;  // 512-bit key
 <li>Algebraic data types and exhaustive matching ensure all cases are handled.</li>
 <li>Newtypes prevent type confusion (CWE-20).</li>
 <li>Checked arithmetic prevents integer overflow (CWE-190).</li>
-<li><code>Send</code>/<code>Sync</code> traits prevent data races at compile time (CWE-362).</li>
+<li><code>Send</code>/<code>Sync</code> traits prevent data races at compile time, removing a major source of CWE-362-style concurrency bugs.</li>
 <li>Const generics enforce size constraints at compile time.</li>
 </ul>
 <p>The type system is your first and strongest line of defense. In the next chapter, we explore how Rust’s error handling model supports secure, robust code.</p>

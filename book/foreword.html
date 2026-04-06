@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -221,7 +221,7 @@
 <ul>
 <li>Code examples use <strong>Rust Edition 2024</strong> unless noted otherwise. Edition 2024 stabilized in <strong>Rust 1.85.0</strong>, so install <strong>Rust 1.85.0 or later</strong> before working through the chapters. If <code>rustc --version</code> reports an older toolchain, run <code>rustup update stable</code> first. Nightly-only features are called out explicitly when they appear.</li>
 <li>Standalone Rust snippets are written to be <code>mdbook test</code> friendly whenever practical. Multi-file, async-runtime, or external-crate examples that stay marked <code>ignore</code> are illustrative excerpts; their tested counterparts live in the companion crates under <code>companion/</code>.</li>
-<li>CI verifies the companion code with <code>cargo clippy --workspace --all-targets --all-features -- -D warnings</code>, <code>cargo test --workspace</code>, <code>mdbook build</code>, <code>cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check</code>, and <code>mdbook test -L target/book-snippets-check/debug/deps</code>.</li>
+<li>CI verifies the companion code with <code>cargo clippy --workspace --all-targets --all-features -- -D warnings</code>, <code>cargo test --workspace</code>, <code>mdbook build</code>, a fresh <code>cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check</code>, and <code>mdbook test -L target/book-snippets-check/debug/deps</code>.</li>
 <li>Security-relevant tips are marked with a 🔒 icon.</li>
 <li>Common pitfalls are marked with a ⚠️ icon.</li>
 <li>CWE references are provided where relevant, e.g., <code>CWE-119</code> for buffer overflows.</li>

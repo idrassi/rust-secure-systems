@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-59ef4693.js";
+            window.path_to_searchindex_js = "../searchindex-4eadad39.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -425,7 +425,7 @@ fn hex_nibble(c: char) -&gt; u8 {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Security concern</strong>: In server applications, a panic unwinds the stack and may leave data in an inconsistent state. Do not use panics for attacker-controlled input such as packet lengths or request indexes; return a <code>Result</code> instead. Use <code>panic = "abort"</code> in <code>Cargo.toml</code> for a cleaner failure mode, or catch panics with <code>std::panic::catch_unwind</code> at FFI boundaries.</p>
+<p>⚠️ <strong>Security concern</strong>: In server applications, a panic unwinds the stack and may leave data in an inconsistent state. Do not use panics for attacker-controlled input such as packet lengths or request indexes; return a <code>Result</code> instead. Use <code>panic = "abort"</code> in <code>Cargo.toml</code> for a cleaner failure mode, or use <code>std::panic::catch_unwind</code> at FFI boundaries in builds that keep <code>panic = "unwind"</code>.</p>
 <h3 id="catching-panics-at-ffi-boundaries"><a class="header" href="#catching-panics-at-ffi-boundaries">Catching Panics at FFI Boundaries</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -448,7 +448,8 @@ extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security pattern</strong>: Always wrap Rust functions called from C with <code>catch_unwind</code>. A Rust panic that crosses an FFI boundary is undefined behavior.</p>
+<p>⚠️ <strong>Profile interaction</strong>: <code>catch_unwind</code> only catches unwinding panics. If your release profile sets <code>panic = "abort"</code>, the process aborts before this wrapper can recover. For FFI-facing libraries, either keep exported entry points panic-free or ship them in an unwind-enabled profile.</p>
+<p>🔒 <strong>Security pattern</strong>: Wrap Rust functions called from C with <code>catch_unwind</code> when the ABI must survive panics and the build uses <code>panic = "unwind"</code>. A Rust panic that crosses an FFI boundary is undefined behavior.</p>
 <h2 id="56-error-handling-patterns-for-secure-code"><a class="header" href="#56-error-handling-patterns-for-secure-code">5.6 Error Handling Patterns for Secure Code</a></h2>
 <h3 id="561-fail-fast-fail-explicitly"><a class="header" href="#561-fail-fast-fail-explicitly">5.6.1 Fail Fast, Fail Explicitly</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
