@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -705,6 +705,7 @@ fn mask_token(token: &amp;str) -&gt; String {
 }
 <span class="boring">}</span></code></pre>
 <p>Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.</p>
+<p>Treat attacker-controlled strings as structured fields, not preformatted log lines. If you still have to feed a line-oriented sink, strip or encode <code>\r</code> and <code>\n</code> first so request data cannot forge extra log entries.</p>
 <h3 id="1943-security-event-taxonomy"><a class="header" href="#1943-security-event-taxonomy">19.4.3 Security Event Taxonomy</a></h3>
 <p>Define a consistent set of security event types across your application for reliable alerting:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

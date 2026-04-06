@@ -96,7 +96,7 @@ async fn handle_connection(
         // TCP is a byte stream: one read may contain part of a frame
         // or several complete frames back-to-back.
         while let Some((response, consumed)) = process_message(&buffer[..buffered])? {
-            let framed_response = build_frame(&response);
+            let framed_response = build_frame(&response)?;
             tokio::time::timeout(
                 std::time::Duration::from_secs(10),
                 stream.write_all(&framed_response)
@@ -141,14 +141,21 @@ fn process_message(
     Ok(Some((data[4..frame_len].to_vec(), frame_len)))
 }
 
-fn build_frame(payload: &[u8]) -> Vec<u8> {
-    debug_assert!(payload.len() <= MAX_PAYLOAD_SIZE);
+fn build_frame(payload: &[u8]) -> std::io::Result<Vec<u8>> {
+    if payload.len() > MAX_PAYLOAD_SIZE {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "response payload too large",
+        ));
+    }
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
-    frame
+    Ok(frame)
 }
 ```
+
+The 64 KiB / 68 KiB limits here are example ceilings, not universal defaults. Derive them from your actual protocol and typical message sizes. Oversized defaults increase per-connection memory use and make amplification-by-buffering easier during load.
 
 ⚠️ **Security note**: Binding to `0.0.0.0` exposes the service on **every** interface. Use it only when that exposure is intentional. For development prefer `127.0.0.1`; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.
 

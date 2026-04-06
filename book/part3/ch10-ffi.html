@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -506,6 +506,7 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 <li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
 </ul>
 <p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
+<p>See Chapter 5 for the panic-vs-<code>Result</code> design guidance that should shape the code before you rely on an aborting profile.</p>
 <h3 id="1043-signal-handlers-and-thread-local-state"><a class="header" href="#1043-signal-handlers-and-thread-local-state">10.4.3 Signal Handlers and Thread-Local State</a></h3>
 <p>Signal handlers are a special FFI trap because they run in an async-signal-safe context, not in an ordinary Rust execution environment. Whether the handler is installed from C or from Rust, do <strong>not</strong> allocate, lock a mutex, log through a normal formatter, or touch most runtime/library facilities from the handler. Set an atomic flag, write a byte to a self-pipe or <code>eventfd</code>, and let ordinary code handle the real shutdown or recovery work.</p>
 <p>Thread-local state deserves the same caution. A callback from C into Rust may run on a foreign thread that never initialized the Rust-side context you expected, and a signal can interrupt code while TLS-backed state is mid-update. Treat <code>thread_local!</code> values as thread-scoped implementation details, not as a cross-language global state mechanism.</p>

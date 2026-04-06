@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -918,7 +918,7 @@ impl&lt;'a&gt; Parser&lt;'a&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
-<p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once.</p>
+<p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once with <code>char_indices()</code>.</p>
 <h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
 <h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
 <p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>
@@ -1449,7 +1449,7 @@ fn safe_multiply(a: u64, b: u64) -&gt; Option&lt;u64&gt; {
 <pre><code class="language-toml">[profile.release]
 overflow-checks = true  # Panic on overflow instead of wrapping
 </code></pre>
-<p>With <code>overflow-checks = true</code>, standard arithmetic (<code>+</code>, <code>-</code>, <code>*</code>) will panic on overflow rather than silently wrapping.</p>
+<p>With <code>overflow-checks = true</code>, standard arithmetic on primitive integer types (<code>+</code>, <code>-</code>, <code>*</code>) will panic on overflow rather than silently wrapping. Explicit methods such as <code>checked_add</code>, <code>wrapping_add</code>, and <code>saturating_add</code> keep their documented behavior regardless of this profile flag.</p>
 <h2 id="48-const-generics-and-type-level-programming"><a class="header" href="#48-const-generics-and-type-level-programming">4.8 Const Generics and Type-Level Programming</a></h2>
 <p>Rust supports const generics, allowing compile-time values as type parameters:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -1778,6 +1778,7 @@ extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Profile interaction</strong>: <code>catch_unwind</code> only catches unwinding panics. If your release profile sets <code>panic = "abort"</code>, the process aborts before this wrapper can recover. For FFI-facing libraries, either keep exported entry points panic-free or ship them in an unwind-enabled profile.</p>
 <p>🔒 <strong>Security pattern</strong>: Wrap Rust functions called from C with <code>catch_unwind</code> when the ABI must survive panics and the build uses <code>panic = "unwind"</code>. A Rust panic that crosses an FFI boundary is undefined behavior.</p>
+<p>Chapter 10 returns to the same boundary from the ABI side: use this pattern together with its ownership, allocator, and <code>extern "C"</code> guidance.</p>
 <h2 id="56-error-handling-patterns-for-secure-code"><a class="header" href="#56-error-handling-patterns-for-secure-code">5.6 Error Handling Patterns for Secure Code</a></h2>
 <h3 id="561-fail-fast-fail-explicitly"><a class="header" href="#561-fail-fast-fail-explicitly">5.6.1 Fail Fast, Fail Explicitly</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2193,6 +2194,7 @@ impl AtomicCounter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security note</strong>: Use <code>Ordering::SeqCst</code> (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.</p>
+<p>That said, <code>Acquire</code>/<code>Release</code> is already the standard, correct tool for one-way publication and producer-consumer handoff patterns. Use the stronger <code>SeqCst</code> default when the proof is unclear; use <code>Acquire</code>/<code>Release</code> when you can state the happens-before relationship precisely.</p>
 <h3 id="624-oncelockt-and-lazylockt---one-time-initialization"><a class="header" href="#624-oncelockt-and-lazylockt---one-time-initialization">6.2.4 <code>OnceLock&lt;T&gt;</code> and <code>LazyLock&lt;T&gt;</code> - One-Time Initialization</a></h3>
 <p>For lazily initialized shared state, prefer the standard library primitives over ad hoc double-checked locking:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2374,6 +2376,7 @@ async fn handle_connection(
 <p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
 <h3 id="641-async-fn-in-traits"><a class="header" href="#641-async-fn-in-traits">6.4.1 <code>async fn</code> in Traits</a></h3>
 <p>Rust 1.75 stabilized <code>async fn</code> in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:</p>
+<p>Quick syntax recap: a trait normally declares behavior as methods such as <code>fn authenticate(&amp;self, ...) -&gt; Result&lt;...&gt;</code>. Writing <code>async fn</code> in the trait keeps the same shape, but the method now returns a future that the caller <code>.await</code>s.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>trait Authenticator {
@@ -2415,6 +2418,7 @@ while let Some(result) = tasks.join_next().await {
 <p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
+<p>Cancellation here means “the future is dropped.” Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3008,6 +3012,8 @@ pub fn safe_path(base: &amp;Path, user_path: &amp;str) -&gt; Result&lt;PathBuf, 
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Prevents CWE-22 (Path Traversal). The canonicalization approach handles symlinks and <code>../</code> sequences correctly.</p>
 <p>⚠️ <strong>TOCTOU warning</strong>: There is a time-of-check-to-time-of-use race between <code>canonicalize</code> and actually using the path. For maximum security, open the file immediately after validation and use the file descriptor.</p>
+<p>⚠️ <strong>Symlink policy matters</strong>: <code>canonicalize()</code> follows symlinks. That is correct when your rule is “the final resolved path must stay beneath this base directory.” It is <strong>not</strong> the right rule when your threat model forbids symlinks entirely. In that case, inspect components with <code>symlink_metadata</code> or directory-fd based APIs and reject symlinked components instead of resolving through them.</p>
+<p>⚠️ <strong>Temporary files</strong>: Do not build temp-file paths by hand with <code>temp_dir().join(user_controlled_name)</code>. Use an API that creates and opens the file atomically, such as the <code>tempfile</code> crate, so attackers cannot win a race by pre-creating a symlink or predictable filename.</p>
 <h3 id="724-integer-input-validation"><a class="header" href="#724-integer-input-validation">7.2.4 Integer Input Validation</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3371,6 +3377,7 @@ fn decrypt(
 <span class="boring">}</span></code></pre>
 <p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
 <p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
+<p>⚠️ <strong>Nonce API caveat</strong>: <code>Nonce::assume_unique_for_key()</code> does <strong>not</strong> verify uniqueness. It is a promise by the caller to <code>ring</code>. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
 <li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</li>
@@ -3443,7 +3450,7 @@ fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32
 </span>use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; re-benchmark before release.
+const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
 
 fn derive_key_from_password(password: &amp;str, salt: &amp;[u8]) -&gt; [u8; 32] {
     let mut key = [0u8; 32];
@@ -3471,9 +3478,11 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <ul>
 <li><code>ring::pbkdf2::verify</code> uses constant-time comparison internally.</li>
 <li>The <code>600_000</code> example matches OWASP’s current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.</li>
-<li>Prefer Argon2id over PBKDF2 for new systems (use the <code>argon2</code> crate).</li>
+<li>Prefer <strong>Argon2id</strong> for new systems and general password storage.</li>
+<li>Keep <strong>PBKDF2-HMAC-SHA256</strong> for FIPS-constrained environments or legacy interoperability where Argon2id is not an option.</li>
 <li>Use a unique 16+ byte random salt per password.</li>
 <li>Store the algorithm parameters with the password verifier so you can raise the cost over time.</li>
+<li>In real services, load the cost parameter from validated startup configuration instead of baking a book example constant into the binary forever.</li>
 </ul>
 <p>For PBKDF2, keep the parameters and verifier together instead of storing loose fields:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3874,7 +3883,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <h2 id="811-exercises"><a class="header" href="#811-exercises">8.11 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Encrypt/Decrypt Roundtrip</strong>: Using <code>ring</code>, implement AES-256-GCM encryption and decryption with proper nonce management. Use a counter-based nonce scheme. Write tests for: successful roundtrip, tampered ciphertext (should fail), wrong key (should fail), and replayed nonce (demonstrate the danger by showing the XOR of two plaintexts is revealed).</p>
+<p><strong>Encrypt/Decrypt Roundtrip</strong>: Using <code>ring</code>, implement AES-256-GCM encryption and decryption with proper nonce management. Use a counter-based nonce scheme. Write tests for: successful roundtrip, tampered ciphertext (should fail), wrong key (should fail), and replayed nonce (demonstrate that nonce reuse leaks the XOR of plaintexts and explain why real AES-GCM reuse also breaks authentication).</p>
 </li>
 <li>
 <p><strong>Key Derivation Pipeline</strong>: Implement a password-based key derivation pipeline: generate a random salt, derive a 256-bit key using PBKDF2 with 600,000 iterations, encrypt a message, then decrypt and verify. Store only the salt and ciphertext. Ensure the key is zeroized after use with the <code>zeroize</code> crate.</p>
@@ -4718,6 +4727,7 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 <li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
 </ul>
 <p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
+<p>See Chapter 5 for the panic-vs-<code>Result</code> design guidance that should shape the code before you rely on an aborting profile.</p>
 <h3 id="1043-signal-handlers-and-thread-local-state"><a class="header" href="#1043-signal-handlers-and-thread-local-state">10.4.3 Signal Handlers and Thread-Local State</a></h3>
 <p>Signal handlers are a special FFI trap because they run in an async-signal-safe context, not in an ordinary Rust execution environment. Whether the handler is installed from C or from Rust, do <strong>not</strong> allocate, lock a mutex, log through a normal formatter, or touch most runtime/library facilities from the handler. Set an atomic flag, write a byte to a self-pipe or <code>eventfd</code>, and let ordinary code handle the real shutdown or recovery work.</p>
 <p>Thread-local state deserves the same caution. A callback from C into Rust may run on a foreign thread that never initialized the Rust-side context you expected, and a signal can interrupt code while TLS-backed state is mid-update. Treat <code>thread_local!</code> values as thread-scoped implementation details, not as a cross-language global state mechanism.</p>
@@ -4981,7 +4991,7 @@ fn parse_u32_be(data: &amp;[u8], offset: usize) -&gt; Option&lt;u32&gt; {
     Some(u32::from_be_bytes(bytes))
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security practice</strong>: Always use explicit endianness (<code>from_be_bytes</code>, <code>from_le_bytes</code>) rather than platform-dependent casts. Network protocols are big-endian; x86 is little-endian. Mixing them up is a subtle and dangerous bug.</p>
+<p>🔒 <strong>Security practice</strong>: Always use explicit endianness (<code>from_be_bytes</code>, <code>from_le_bytes</code>) rather than platform-dependent casts. Network protocols are big-endian; x86 is little-endian, while Wasm is specified as little-endian. Mixing them up is a subtle and dangerous bug.</p>
 <h2 id="113-alignment-and-the-align-representation"><a class="header" href="#113-alignment-and-the-align-representation">11.3 Alignment and the <code>align</code> Representation</a></h2>
 <h3 id="1131-controlling-alignment"><a class="header" href="#1131-controlling-alignment">11.3.1 Controlling Alignment</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -5281,7 +5291,7 @@ async fn handle_connection(
         // TCP is a byte stream: one read may contain part of a frame
         // or several complete frames back-to-back.
         while let Some((response, consumed)) = process_message(&amp;buffer[..buffered])? {
-            let framed_response = build_frame(&amp;response);
+            let framed_response = build_frame(&amp;response)?;
             tokio::time::timeout(
                 std::time::Duration::from_secs(10),
                 stream.write_all(&amp;framed_response)
@@ -5326,13 +5336,19 @@ fn process_message(
     Ok(Some((data[4..frame_len].to_vec(), frame_len)))
 }
 
-fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-    debug_assert!(payload.len() &lt;= MAX_PAYLOAD_SIZE);
+fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    if payload.len() &gt; MAX_PAYLOAD_SIZE {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "response payload too large",
+        ));
+    }
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
-    frame
+    Ok(frame)
 }</code></pre>
+<p>The 64 KiB / 68 KiB limits here are example ceilings, not universal defaults. Derive them from your actual protocol and typical message sizes. Oversized defaults increase per-connection memory use and make amplification-by-buffering easier during load.</p>
 <p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
 <p>If the service must accept both IPv4 and IPv6, make that choice explicit. <code>0.0.0.0</code> is IPv4-only, while <code>[::]</code> is IPv6 and may or may not accept IPv4-mapped connections depending on the target OS and the <code>IPV6_V6ONLY</code> setting. Test the exact dual-stack behavior you intend to ship instead of assuming one listener covers both families everywhere.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>
@@ -7579,13 +7595,20 @@ impl Message {
 }
 
 /// Create an echo response message
-pub fn echo_response(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-    debug_assert!(!payload.is_empty());
-    debug_assert!(payload.len() &lt;= MAX_MESSAGE_SIZE - 4);
+pub fn echo_response(payload: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, ProtocolError&gt; {
+    if payload.is_empty() {
+        return Err(ProtocolError::EmptyMessage);
+    }
+    if payload.len() &gt; MAX_MESSAGE_SIZE - 4 {
+        return Err(ProtocolError::MessageTooLarge {
+            size: payload.len() + 4,
+            max: MAX_MESSAGE_SIZE,
+        });
+    }
     let len = payload.len() as u32;
     let mut response = len.to_be_bytes().to_vec();
     response.extend_from_slice(payload);
-    response
+    Ok(response)
 }
 
 #[derive(Debug, Error)]
@@ -7618,6 +7641,7 @@ pub enum ProtocolError {
 }
 <span class="boring">}</span></code></pre>
 <p>This server already keeps a fixed read buffer to reduce per-read allocation, but the same review rule still applies to copies you make after validation.</p>
+<p>The 64 KiB cap is an example policy for a small framed service. In a real protocol, derive this from the wire specification and observed traffic profile, then lower it for constrained deployments rather than copying the book’s ceiling blindly.</p>
 <h2 id="174-rate-limiter"><a class="header" href="#174-rate-limiter">17.4 Rate Limiter</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -7892,7 +7916,7 @@ impl ConnectionHandler {
                     Ok(msg) =&gt; {
                         if !self.request_limiter.check(addr.ip()) {
                             log::warn!("Per-request rate limit exceeded for {}", addr);
-                            let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                            let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                             timeout(
                                 Duration::from_secs(WRITE_TIMEOUT_SECS),
                                 stream.write_all(&amp;error_response),
@@ -7911,7 +7935,7 @@ impl ConnectionHandler {
                     Err(e) =&gt; {
                     if !self.request_limiter.check(addr.ip()) {
                         log::warn!("Per-request rate limit exceeded for {}", addr);
-                        let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                        let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                         timeout(
                             Duration::from_secs(WRITE_TIMEOUT_SECS),
                             stream.write_all(&amp;error_response),
@@ -7923,7 +7947,7 @@ impl ConnectionHandler {
                     }
                     log::warn!("Invalid message from {}: {}", addr, e);
                     // Keep parser details in logs, not on the wire.
-                    let error_response = echo_response(b"invalid request");
+                    let error_response = echo_response(b"invalid request")?;
                     timeout(
                         Duration::from_secs(WRITE_TIMEOUT_SECS),
                         stream.write_all(&amp;error_response),
@@ -7933,7 +7957,7 @@ impl ConnectionHandler {
                     }
                 };
                 // Echo response
-                let response = echo_response(message.payload());
+                let response = echo_response(message.payload())?;
                 
                 timeout(
                     Duration::from_secs(WRITE_TIMEOUT_SECS),
@@ -8113,7 +8137,7 @@ mod tests {
 
     #[test]
     fn test_echo_response_format() {
-        let response = echo_response(b"test");
+        let response = echo_response(b"test").unwrap();
         let len = u32::from_be_bytes([response[0], response[1], response[2], response[3]]);
         assert_eq!(len, 4);
         assert_eq!(&amp;response[4..], b"test");
@@ -8122,7 +8146,7 @@ mod tests {
     proptest! {
         #[test]
         fn message_roundtrip(payload in prop::collection::vec(any::&lt;u8&gt;(), 1..1000)) {
-            let response = echo_response(&amp;payload);
+            let response = echo_response(&amp;payload).unwrap();
             let msg = Message::from_bytes(&amp;response).unwrap();
 
             assert_eq!(msg.payload(), &amp;payload[..]);
@@ -8234,10 +8258,14 @@ mod tests {
 </span>// src/tlv.rs
 use std::fmt;
 
-/// Maximum single TLV value size (1 MiB)
+/// Maximum single TLV value size (1 MiB).
+/// Tune this to the largest field your protocol actually needs.
 const MAX_VALUE_SIZE: usize = 1024 * 1024;
 
-/// Maximum total message size (16 MiB)
+/// Maximum total message size (16 MiB).
+/// This is a teaching/example ceiling, not a universal default.
+/// Derive the real value from the protocol spec and lower it on
+/// memory-constrained deployments.
 const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
 
 /// TLV type tags with semantic meaning.
@@ -8377,6 +8405,8 @@ impl TlvMessage {
         }
         
         let mut records: Vec&lt;TlvRecord&gt; = Vec::new();
+        // A fixed 256-byte bitmap is cheap and allocation-free for a u8 tag
+        // space. For wider or sparse tag spaces, prefer a HashSet or similar.
         let mut seen_tags = [false; 256];
         let mut offset = 0usize;
         
@@ -9234,6 +9264,7 @@ fn mask_token(token: &amp;str) -&gt; String {
 }
 <span class="boring">}</span></code></pre>
 <p>Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.</p>
+<p>Treat attacker-controlled strings as structured fields, not preformatted log lines. If you still have to feed a line-oriented sink, strip or encode <code>\r</code> and <code>\n</code> first so request data cannot forge extra log entries.</p>
 <h3 id="1943-security-event-taxonomy"><a class="header" href="#1943-security-event-taxonomy">19.4.3 Security Event Taxonomy</a></h3>
 <p>Define a consistent set of security event types across your application for reliable alerting:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

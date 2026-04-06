@@ -575,6 +575,8 @@ fn mask_token(token: &str) -> String {
 
 Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.
 
+Treat attacker-controlled strings as structured fields, not preformatted log lines. If you still have to feed a line-oriented sink, strip or encode `\r` and `\n` first so request data cannot forge extra log entries.
+
 ### 19.4.3 Security Event Taxonomy
 
 Define a consistent set of security event types across your application for reliable alerting:

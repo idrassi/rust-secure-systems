@@ -448,7 +448,7 @@ Enable overflow checks globally:
 overflow-checks = true  # Panic on overflow instead of wrapping
 ```
 
-With `overflow-checks = true`, standard arithmetic (`+`, `-`, `*`) will panic on overflow rather than silently wrapping.
+With `overflow-checks = true`, standard arithmetic on primitive integer types (`+`, `-`, `*`) will panic on overflow rather than silently wrapping. Explicit methods such as `checked_add`, `wrapping_add`, and `saturating_add` keep their documented behavior regardless of this profile flag.
 
 ## 4.8 Const Generics and Type-Level Programming
 

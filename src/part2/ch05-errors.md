@@ -286,6 +286,8 @@ extern "C" fn exported_function(data: *const u8, len: usize) -> i32 {
 
 🔒 **Security pattern**: Wrap Rust functions called from C with `catch_unwind` when the ABI must survive panics and the build uses `panic = "unwind"`. A Rust panic that crosses an FFI boundary is undefined behavior.
 
+Chapter 10 returns to the same boundary from the ABI side: use this pattern together with its ownership, allocator, and `extern "C"` guidance.
+
 ## 5.6 Error Handling Patterns for Secure Code
 
 ### 5.6.1 Fail Fast, Fail Explicitly

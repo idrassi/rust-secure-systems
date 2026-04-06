@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -375,6 +375,7 @@ impl AtomicCounter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security note</strong>: Use <code>Ordering::SeqCst</code> (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.</p>
+<p>That said, <code>Acquire</code>/<code>Release</code> is already the standard, correct tool for one-way publication and producer-consumer handoff patterns. Use the stronger <code>SeqCst</code> default when the proof is unclear; use <code>Acquire</code>/<code>Release</code> when you can state the happens-before relationship precisely.</p>
 <h3 id="624-oncelockt-and-lazylockt---one-time-initialization"><a class="header" href="#624-oncelockt-and-lazylockt---one-time-initialization">6.2.4 <code>OnceLock&lt;T&gt;</code> and <code>LazyLock&lt;T&gt;</code> - One-Time Initialization</a></h3>
 <p>For lazily initialized shared state, prefer the standard library primitives over ad hoc double-checked locking:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -556,6 +557,7 @@ async fn handle_connection(
 <p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
 <h3 id="641-async-fn-in-traits"><a class="header" href="#641-async-fn-in-traits">6.4.1 <code>async fn</code> in Traits</a></h3>
 <p>Rust 1.75 stabilized <code>async fn</code> in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:</p>
+<p>Quick syntax recap: a trait normally declares behavior as methods such as <code>fn authenticate(&amp;self, ...) -&gt; Result&lt;...&gt;</code>. Writing <code>async fn</code> in the trait keeps the same shape, but the method now returns a future that the caller <code>.await</code>s.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>trait Authenticator {
@@ -597,6 +599,7 @@ while let Some(result) = tasks.join_next().await {
 <p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
+<p>Cancellation here means “the future is dropped.” Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

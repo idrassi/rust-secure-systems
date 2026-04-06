@@ -227,6 +227,8 @@ impl AtomicCounter {
 
 🔒 **Security note**: Use `Ordering::SeqCst` (sequentially consistent) unless you can prove a weaker ordering is correct. Incorrect memory ordering can lead to subtle data races that are extremely difficult to debug. The performance difference is rarely significant for security-critical code.
 
+That said, `Acquire`/`Release` is already the standard, correct tool for one-way publication and producer-consumer handoff patterns. Use the stronger `SeqCst` default when the proof is unclear; use `Acquire`/`Release` when you can state the happens-before relationship precisely.
+
 ### 6.2.4 `OnceLock<T>` and `LazyLock<T>` - One-Time Initialization
 
 For lazily initialized shared state, prefer the standard library primitives over ad hoc double-checked locking:
@@ -434,6 +436,8 @@ async fn handle_connection(
 
 Rust 1.75 stabilized `async fn` in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:
 
+Quick syntax recap: a trait normally declares behavior as methods such as `fn authenticate(&self, ...) -> Result<...>`. Writing `async fn` in the trait keeps the same shape, but the method now returns a future that the caller `.await`s.
+
 ```rust,no_run
 trait Authenticator {
     async fn authenticate(&self, token: &str) -> Result<UserId, AuthError>;
@@ -485,6 +489,8 @@ while let Some(result) = tasks.join_next().await {
 ## 6.5 Cancellation Safety in Async Rust
 
 One of the most subtle security pitfalls in async Rust is **cancellation safety** (sometimes called "cancel safety"). When a `tokio::select!` branch is not chosen, or a `JoinHandle` is aborted, the future at the other branch is **dropped** mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.
+
+Cancellation here means "the future is dropped." Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.
 
 ### 6.5.1 The Problem
 

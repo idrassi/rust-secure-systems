@@ -117,6 +117,8 @@ Use AAD for metadata that must remain in the clear but still be authenticated: p
 
 ⚠️ **API note**: `LessSafeKey` is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a `BoundKey` plus a `NonceSequence` when one component owns nonce generation.
 
+⚠️ **Nonce API caveat**: `Nonce::assume_unique_for_key()` does **not** verify uniqueness. It is a promise by the caller to `ring`. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.
+
 🔒 **Critical rules for nonce management**:
 1. **Never reuse a nonce** with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does **not** directly reveal the AES key, but it is still catastrophic.
 2. For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.
@@ -195,7 +197,7 @@ fn derive_key(secret: &[u8], salt: &[u8], info: &[u8]) -> [u8; 32] {
 use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; re-benchmark before release.
+const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
 
 fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
@@ -223,9 +225,11 @@ fn verify_password(password: &str, salt: &[u8], expected: &[u8; 32]) -> bool {
 🔒 **Security notes**:
 - `ring::pbkdf2::verify` uses constant-time comparison internally.
 - The `600_000` example matches OWASP's current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.
-- Prefer Argon2id over PBKDF2 for new systems (use the `argon2` crate).
+- Prefer **Argon2id** for new systems and general password storage.
+- Keep **PBKDF2-HMAC-SHA256** for FIPS-constrained environments or legacy interoperability where Argon2id is not an option.
 - Use a unique 16+ byte random salt per password.
 - Store the algorithm parameters with the password verifier so you can raise the cost over time.
+- In real services, load the cost parameter from validated startup configuration instead of baking a book example constant into the binary forever.
 
 For PBKDF2, keep the parameters and verifier together instead of storing loose fields:
 
@@ -679,7 +683,7 @@ In the next chapter, we enter the world of `unsafe` Rust—where the compiler's 
 
 ## 8.11 Exercises
 
-1. **Encrypt/Decrypt Roundtrip**: Using `ring`, implement AES-256-GCM encryption and decryption with proper nonce management. Use a counter-based nonce scheme. Write tests for: successful roundtrip, tampered ciphertext (should fail), wrong key (should fail), and replayed nonce (demonstrate the danger by showing the XOR of two plaintexts is revealed).
+1. **Encrypt/Decrypt Roundtrip**: Using `ring`, implement AES-256-GCM encryption and decryption with proper nonce management. Use a counter-based nonce scheme. Write tests for: successful roundtrip, tampered ciphertext (should fail), wrong key (should fail), and replayed nonce (demonstrate that nonce reuse leaks the XOR of plaintexts and explain why real AES-GCM reuse also breaks authentication).
 
 2. **Key Derivation Pipeline**: Implement a password-based key derivation pipeline: generate a random salt, derive a 256-bit key using PBKDF2 with 600,000 iterations, encrypt a message, then decrypt and verify. Store only the salt and ciphertext. Ensure the key is zeroized after use with the `zeroize` crate.
 

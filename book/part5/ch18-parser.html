@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -244,10 +244,14 @@
 </span>// src/tlv.rs
 use std::fmt;
 
-/// Maximum single TLV value size (1 MiB)
+/// Maximum single TLV value size (1 MiB).
+/// Tune this to the largest field your protocol actually needs.
 const MAX_VALUE_SIZE: usize = 1024 * 1024;
 
-/// Maximum total message size (16 MiB)
+/// Maximum total message size (16 MiB).
+/// This is a teaching/example ceiling, not a universal default.
+/// Derive the real value from the protocol spec and lower it on
+/// memory-constrained deployments.
 const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
 
 /// TLV type tags with semantic meaning.
@@ -387,6 +391,8 @@ impl TlvMessage {
         }
         
         let mut records: Vec&lt;TlvRecord&gt; = Vec::new();
+        // A fixed 256-byte bitmap is cheap and allocation-free for a u8 tag
+        // space. For wider or sparse tag spaces, prefer a HashSet or similar.
         let mut seen_tags = [false; 256];
         let mut offset = 0usize;
         

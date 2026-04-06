@@ -9,12 +9,17 @@ pub const MAX_FRAME_SIZE: usize = 4 + MAX_PAYLOAD_SIZE;
 pub const READ_TIMEOUT: Duration = Duration::from_secs(30);
 pub const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
-pub fn build_frame(payload: &[u8]) -> Vec<u8> {
-    debug_assert!(payload.len() <= MAX_PAYLOAD_SIZE);
+pub fn build_frame(payload: &[u8]) -> io::Result<Vec<u8>> {
+    if payload.len() > MAX_PAYLOAD_SIZE {
+        return Err(io::Error::new(
+            ErrorKind::InvalidData,
+            "response payload too large",
+        ));
+    }
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
-    frame
+    Ok(frame)
 }
 
 pub fn process_message(data: &[u8]) -> io::Result<Option<(Vec<u8>, usize)>> {
@@ -67,7 +72,7 @@ where
         buffered += n;
 
         while let Some((response, consumed)) = process_message(&buffer[..buffered])? {
-            let framed_response = build_frame(&response);
+            let framed_response = build_frame(&response)?;
             timeout(WRITE_TIMEOUT, stream.write_all(&framed_response)).await??;
 
             buffered -= consumed;
@@ -114,7 +119,7 @@ mod tests {
 
     #[test]
     fn process_message_handles_partial_and_complete_frames() {
-        let frame = build_frame(b"hello");
+        let frame = build_frame(b"hello").expect("frame");
         assert!(process_message(&frame[..2]).unwrap().is_none());
 
         let (payload, consumed) = process_message(&frame).unwrap().expect("frame");
@@ -124,8 +129,8 @@ mod tests {
 
     #[test]
     fn coalesced_frames_are_processed_one_by_one() {
-        let frame1 = build_frame(b"one");
-        let frame2 = build_frame(b"two");
+        let frame1 = build_frame(b"one").expect("frame1");
+        let frame2 = build_frame(b"two").expect("frame2");
         let mut combined = frame1.clone();
         combined.extend_from_slice(&frame2);
 
@@ -144,14 +149,14 @@ mod tests {
         let (mut client, server) = duplex(1024);
         let task = tokio::spawn(async move { handle_connection(server).await });
 
-        let frame1 = build_frame(b"alpha");
-        let frame2 = build_frame(b"beta");
+        let frame1 = build_frame(b"alpha").expect("frame1");
+        let frame2 = build_frame(b"beta").expect("frame2");
 
         client.write_all(&frame1[..3]).await.expect("first chunk");
         client.write_all(&frame1[3..]).await.expect("second chunk");
 
         let mut combined = frame2.clone();
-        combined.extend_from_slice(&build_frame(b"gamma"));
+        combined.extend_from_slice(&build_frame(b"gamma").expect("frame3"));
         client.write_all(&combined).await.expect("coalesced");
 
         let mut response1 = vec![0u8; frame1.len()];
@@ -162,7 +167,7 @@ mod tests {
         client.read_exact(&mut response2).await.expect("response2");
         assert_eq!(response2, frame2);
 
-        let frame3 = build_frame(b"gamma");
+        let frame3 = build_frame(b"gamma").expect("frame3");
         let mut response3 = vec![0u8; frame3.len()];
         client.read_exact(&mut response3).await.expect("response3");
         assert_eq!(response3, frame3);

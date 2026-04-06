@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -274,7 +274,7 @@ async fn handle_connection(
         // TCP is a byte stream: one read may contain part of a frame
         // or several complete frames back-to-back.
         while let Some((response, consumed)) = process_message(&amp;buffer[..buffered])? {
-            let framed_response = build_frame(&amp;response);
+            let framed_response = build_frame(&amp;response)?;
             tokio::time::timeout(
                 std::time::Duration::from_secs(10),
                 stream.write_all(&amp;framed_response)
@@ -319,13 +319,19 @@ fn process_message(
     Ok(Some((data[4..frame_len].to_vec(), frame_len)))
 }
 
-fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-    debug_assert!(payload.len() &lt;= MAX_PAYLOAD_SIZE);
+fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    if payload.len() &gt; MAX_PAYLOAD_SIZE {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "response payload too large",
+        ));
+    }
     let len = payload.len() as u32;
     let mut frame = len.to_be_bytes().to_vec();
     frame.extend_from_slice(payload);
-    frame
+    Ok(frame)
 }</code></pre>
+<p>The 64 KiB / 68 KiB limits here are example ceilings, not universal defaults. Derive them from your actual protocol and typical message sizes. Oversized defaults increase per-connection memory use and make amplification-by-buffering easier during load.</p>
 <p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
 <p>If the service must accept both IPv4 and IPv6, make that choice explicit. <code>0.0.0.0</code> is IPv4-only, while <code>[::]</code> is IPv6 and may or may not accept IPv4-mapped connections depending on the target OS and the <code>IPV6_V6ONLY</code> setting. Test the exact dual-stack behavior you intend to ship instead of assuming one listener covers both families everywhere.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>

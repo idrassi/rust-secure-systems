@@ -223,7 +223,7 @@ impl<'a> Parser<'a> {
 
 This ensures the `Parser` cannot outlive the `input` string it references.
 
-⚠️ **Performance note**: `chars().nth(self.position)` is `O(n)` because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once.
+⚠️ **Performance note**: `chars().nth(self.position)` is `O(n)` because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once with `char_indices()`.
 
 ## 3.4 Common Patterns for Security Developers
 

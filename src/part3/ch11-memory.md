@@ -152,7 +152,7 @@ fn parse_u32_be(data: &[u8], offset: usize) -> Option<u32> {
 }
 ```
 
-🔒 **Security practice**: Always use explicit endianness (`from_be_bytes`, `from_le_bytes`) rather than platform-dependent casts. Network protocols are big-endian; x86 is little-endian. Mixing them up is a subtle and dangerous bug.
+🔒 **Security practice**: Always use explicit endianness (`from_be_bytes`, `from_le_bytes`) rather than platform-dependent casts. Network protocols are big-endian; x86 is little-endian, while Wasm is specified as little-endian. Mixing them up is a subtle and dangerous bug.
 
 ## 11.3 Alignment and the `align` Representation
 

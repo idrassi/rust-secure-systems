@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -322,7 +322,7 @@ fn parse_u32_be(data: &amp;[u8], offset: usize) -&gt; Option&lt;u32&gt; {
     Some(u32::from_be_bytes(bytes))
 }
 <span class="boring">}</span></code></pre>
-<p>🔒 <strong>Security practice</strong>: Always use explicit endianness (<code>from_be_bytes</code>, <code>from_le_bytes</code>) rather than platform-dependent casts. Network protocols are big-endian; x86 is little-endian. Mixing them up is a subtle and dangerous bug.</p>
+<p>🔒 <strong>Security practice</strong>: Always use explicit endianness (<code>from_be_bytes</code>, <code>from_le_bytes</code>) rather than platform-dependent casts. Network protocols are big-endian; x86 is little-endian, while Wasm is specified as little-endian. Mixing them up is a subtle and dangerous bug.</p>
 <h2 id="113-alignment-and-the-align-representation"><a class="header" href="#113-alignment-and-the-align-representation">11.3 Alignment and the <code>align</code> Representation</a></h2>
 <h3 id="1131-controlling-alignment"><a class="header" href="#1131-controlling-alignment">11.3.1 Controlling Alignment</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

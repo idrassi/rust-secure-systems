@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -284,6 +284,7 @@ fn decrypt(
 <span class="boring">}</span></code></pre>
 <p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
 <p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
+<p>⚠️ <strong>Nonce API caveat</strong>: <code>Nonce::assume_unique_for_key()</code> does <strong>not</strong> verify uniqueness. It is a promise by the caller to <code>ring</code>. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
 <li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</li>
@@ -356,7 +357,7 @@ fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32
 </span>use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; re-benchmark before release.
+const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
 
 fn derive_key_from_password(password: &amp;str, salt: &amp;[u8]) -&gt; [u8; 32] {
     let mut key = [0u8; 32];
@@ -384,9 +385,11 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <ul>
 <li><code>ring::pbkdf2::verify</code> uses constant-time comparison internally.</li>
 <li>The <code>600_000</code> example matches OWASP’s current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.</li>
-<li>Prefer Argon2id over PBKDF2 for new systems (use the <code>argon2</code> crate).</li>
+<li>Prefer <strong>Argon2id</strong> for new systems and general password storage.</li>
+<li>Keep <strong>PBKDF2-HMAC-SHA256</strong> for FIPS-constrained environments or legacy interoperability where Argon2id is not an option.</li>
 <li>Use a unique 16+ byte random salt per password.</li>
 <li>Store the algorithm parameters with the password verifier so you can raise the cost over time.</li>
+<li>In real services, load the cost parameter from validated startup configuration instead of baking a book example constant into the binary forever.</li>
 </ul>
 <p>For PBKDF2, keep the parameters and verifier together instead of storing loose fields:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -787,7 +790,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <h2 id="811-exercises"><a class="header" href="#811-exercises">8.11 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Encrypt/Decrypt Roundtrip</strong>: Using <code>ring</code>, implement AES-256-GCM encryption and decryption with proper nonce management. Use a counter-based nonce scheme. Write tests for: successful roundtrip, tampered ciphertext (should fail), wrong key (should fail), and replayed nonce (demonstrate the danger by showing the XOR of two plaintexts is revealed).</p>
+<p><strong>Encrypt/Decrypt Roundtrip</strong>: Using <code>ring</code>, implement AES-256-GCM encryption and decryption with proper nonce management. Use a counter-based nonce scheme. Write tests for: successful roundtrip, tampered ciphertext (should fail), wrong key (should fail), and replayed nonce (demonstrate that nonce reuse leaks the XOR of plaintexts and explain why real AES-GCM reuse also breaks authentication).</p>
 </li>
 <li>
 <p><strong>Key Derivation Pipeline</strong>: Implement a password-based key derivation pipeline: generate a random salt, derive a 256-bit key using PBKDF2 with 600,000 iterations, encrypt a message, then decrypt and verify. Store only the salt and ciphertext. Ensure the key is zeroized after use with the <code>zeroize</code> crate.</p>

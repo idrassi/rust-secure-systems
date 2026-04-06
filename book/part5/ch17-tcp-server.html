@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -331,13 +331,20 @@ impl Message {
 }
 
 /// Create an echo response message
-pub fn echo_response(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-    debug_assert!(!payload.is_empty());
-    debug_assert!(payload.len() &lt;= MAX_MESSAGE_SIZE - 4);
+pub fn echo_response(payload: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, ProtocolError&gt; {
+    if payload.is_empty() {
+        return Err(ProtocolError::EmptyMessage);
+    }
+    if payload.len() &gt; MAX_MESSAGE_SIZE - 4 {
+        return Err(ProtocolError::MessageTooLarge {
+            size: payload.len() + 4,
+            max: MAX_MESSAGE_SIZE,
+        });
+    }
     let len = payload.len() as u32;
     let mut response = len.to_be_bytes().to_vec();
     response.extend_from_slice(payload);
-    response
+    Ok(response)
 }
 
 #[derive(Debug, Error)]
@@ -370,6 +377,7 @@ pub enum ProtocolError {
 }
 <span class="boring">}</span></code></pre>
 <p>This server already keeps a fixed read buffer to reduce per-read allocation, but the same review rule still applies to copies you make after validation.</p>
+<p>The 64 KiB cap is an example policy for a small framed service. In a real protocol, derive this from the wire specification and observed traffic profile, then lower it for constrained deployments rather than copying the book’s ceiling blindly.</p>
 <h2 id="174-rate-limiter"><a class="header" href="#174-rate-limiter">17.4 Rate Limiter</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -644,7 +652,7 @@ impl ConnectionHandler {
                     Ok(msg) =&gt; {
                         if !self.request_limiter.check(addr.ip()) {
                             log::warn!("Per-request rate limit exceeded for {}", addr);
-                            let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                            let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                             timeout(
                                 Duration::from_secs(WRITE_TIMEOUT_SECS),
                                 stream.write_all(&amp;error_response),
@@ -663,7 +671,7 @@ impl ConnectionHandler {
                     Err(e) =&gt; {
                     if !self.request_limiter.check(addr.ip()) {
                         log::warn!("Per-request rate limit exceeded for {}", addr);
-                        let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                        let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                         timeout(
                             Duration::from_secs(WRITE_TIMEOUT_SECS),
                             stream.write_all(&amp;error_response),
@@ -675,7 +683,7 @@ impl ConnectionHandler {
                     }
                     log::warn!("Invalid message from {}: {}", addr, e);
                     // Keep parser details in logs, not on the wire.
-                    let error_response = echo_response(b"invalid request");
+                    let error_response = echo_response(b"invalid request")?;
                     timeout(
                         Duration::from_secs(WRITE_TIMEOUT_SECS),
                         stream.write_all(&amp;error_response),
@@ -685,7 +693,7 @@ impl ConnectionHandler {
                     }
                 };
                 // Echo response
-                let response = echo_response(message.payload());
+                let response = echo_response(message.payload())?;
                 
                 timeout(
                     Duration::from_secs(WRITE_TIMEOUT_SECS),
@@ -865,7 +873,7 @@ mod tests {
 
     #[test]
     fn test_echo_response_format() {
-        let response = echo_response(b"test");
+        let response = echo_response(b"test").unwrap();
         let len = u32::from_be_bytes([response[0], response[1], response[2], response[3]]);
         assert_eq!(len, 4);
         assert_eq!(&amp;response[4..], b"test");
@@ -874,7 +882,7 @@ mod tests {
     proptest! {
         #[test]
         fn message_roundtrip(payload in prop::collection::vec(any::&lt;u8&gt;(), 1..1000)) {
-            let response = echo_response(&amp;payload);
+            let response = echo_response(&amp;payload).unwrap();
             let msg = Message::from_bytes(&amp;response).unwrap();
 
             assert_eq!(msg.payload(), &amp;payload[..]);

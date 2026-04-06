@@ -155,13 +155,20 @@ impl Message {
 }
 
 /// Create an echo response message
-pub fn echo_response(payload: &[u8]) -> Vec<u8> {
-    debug_assert!(!payload.is_empty());
-    debug_assert!(payload.len() <= MAX_MESSAGE_SIZE - 4);
+pub fn echo_response(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
+    if payload.is_empty() {
+        return Err(ProtocolError::EmptyMessage);
+    }
+    if payload.len() > MAX_MESSAGE_SIZE - 4 {
+        return Err(ProtocolError::MessageTooLarge {
+            size: payload.len() + 4,
+            max: MAX_MESSAGE_SIZE,
+        });
+    }
     let len = payload.len() as u32;
     let mut response = len.to_be_bytes().to_vec();
     response.extend_from_slice(payload);
-    response
+    Ok(response)
 }
 
 #[derive(Debug, Error)]
@@ -196,6 +203,8 @@ fn copy_frame_fallible(frame: &[u8]) -> std::io::Result<Vec<u8>> {
 ```
 
 This server already keeps a fixed read buffer to reduce per-read allocation, but the same review rule still applies to copies you make after validation.
+
+The 64 KiB cap is an example policy for a small framed service. In a real protocol, derive this from the wire specification and observed traffic profile, then lower it for constrained deployments rather than copying the book's ceiling blindly.
 
 ## 17.4 Rate Limiter
 
@@ -475,7 +484,7 @@ impl ConnectionHandler {
                     Ok(msg) => {
                         if !self.request_limiter.check(addr.ip()) {
                             log::warn!("Per-request rate limit exceeded for {}", addr);
-                            let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                            let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                             timeout(
                                 Duration::from_secs(WRITE_TIMEOUT_SECS),
                                 stream.write_all(&error_response),
@@ -494,7 +503,7 @@ impl ConnectionHandler {
                     Err(e) => {
                     if !self.request_limiter.check(addr.ip()) {
                         log::warn!("Per-request rate limit exceeded for {}", addr);
-                        let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                        let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                         timeout(
                             Duration::from_secs(WRITE_TIMEOUT_SECS),
                             stream.write_all(&error_response),
@@ -506,7 +515,7 @@ impl ConnectionHandler {
                     }
                     log::warn!("Invalid message from {}: {}", addr, e);
                     // Keep parser details in logs, not on the wire.
-                    let error_response = echo_response(b"invalid request");
+                    let error_response = echo_response(b"invalid request")?;
                     timeout(
                         Duration::from_secs(WRITE_TIMEOUT_SECS),
                         stream.write_all(&error_response),
@@ -516,7 +525,7 @@ impl ConnectionHandler {
                     }
                 };
                 // Echo response
-                let response = echo_response(message.payload());
+                let response = echo_response(message.payload())?;
                 
                 timeout(
                     Duration::from_secs(WRITE_TIMEOUT_SECS),
@@ -704,7 +713,7 @@ mod tests {
 
     #[test]
     fn test_echo_response_format() {
-        let response = echo_response(b"test");
+        let response = echo_response(b"test").unwrap();
         let len = u32::from_be_bytes([response[0], response[1], response[2], response[3]]);
         assert_eq!(len, 4);
         assert_eq!(&response[4..], b"test");
@@ -713,7 +722,7 @@ mod tests {
     proptest! {
         #[test]
         fn message_roundtrip(payload in prop::collection::vec(any::<u8>(), 1..1000)) {
-            let response = echo_response(&payload);
+            let response = echo_response(&payload).unwrap();
             let msg = Message::from_bytes(&response).unwrap();
 
             assert_eq!(msg.payload(), &payload[..]);

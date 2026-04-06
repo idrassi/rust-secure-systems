@@ -320,6 +320,10 @@ pub fn safe_path(base: &Path, user_path: &str) -> Result<PathBuf, ValidationErro
 
 ⚠️ **TOCTOU warning**: There is a time-of-check-to-time-of-use race between `canonicalize` and actually using the path. For maximum security, open the file immediately after validation and use the file descriptor.
 
+⚠️ **Symlink policy matters**: `canonicalize()` follows symlinks. That is correct when your rule is "the final resolved path must stay beneath this base directory." It is **not** the right rule when your threat model forbids symlinks entirely. In that case, inspect components with `symlink_metadata` or directory-fd based APIs and reject symlinked components instead of resolving through them.
+
+⚠️ **Temporary files**: Do not build temp-file paths by hand with `temp_dir().join(user_controlled_name)`. Use an API that creates and opens the file atomically, such as the `tempfile` crate, so attackers cannot win a race by pre-creating a symlink or predictable filename.
+
 ### 7.2.4 Integer Input Validation
 
 ```rust

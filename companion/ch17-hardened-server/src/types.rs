@@ -51,13 +51,20 @@ impl Message {
     }
 }
 
-pub fn echo_response(payload: &[u8]) -> Vec<u8> {
-    debug_assert!(!payload.is_empty());
-    debug_assert!(payload.len() <= MAX_MESSAGE_SIZE - 4);
+pub fn echo_response(payload: &[u8]) -> Result<Vec<u8>, ProtocolError> {
+    if payload.is_empty() {
+        return Err(ProtocolError::EmptyMessage);
+    }
+    if payload.len() > MAX_MESSAGE_SIZE - 4 {
+        return Err(ProtocolError::MessageTooLarge {
+            size: payload.len() + 4,
+            max: MAX_MESSAGE_SIZE,
+        });
+    }
     let len = payload.len() as u32;
     let mut response = len.to_be_bytes().to_vec();
     response.extend_from_slice(payload);
-    response
+    Ok(response)
 }
 
 #[derive(Debug, Error)]

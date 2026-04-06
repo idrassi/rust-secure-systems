@@ -64,10 +64,14 @@ Also distinguish **byte-size limits** from **stack-depth limits**. The TLV parse
 // src/tlv.rs
 use std::fmt;
 
-/// Maximum single TLV value size (1 MiB)
+/// Maximum single TLV value size (1 MiB).
+/// Tune this to the largest field your protocol actually needs.
 const MAX_VALUE_SIZE: usize = 1024 * 1024;
 
-/// Maximum total message size (16 MiB)
+/// Maximum total message size (16 MiB).
+/// This is a teaching/example ceiling, not a universal default.
+/// Derive the real value from the protocol spec and lower it on
+/// memory-constrained deployments.
 const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
 
 /// TLV type tags with semantic meaning.
@@ -207,6 +211,8 @@ impl TlvMessage {
         }
         
         let mut records: Vec<TlvRecord> = Vec::new();
+        // A fixed 256-byte bitmap is cheap and allocation-free for a u8 tag
+        // space. For wider or sparse tag spaces, prefer a HashSet or similar.
         let mut seen_tags = [false; 256];
         let mut offset = 0usize;
         

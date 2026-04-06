@@ -371,6 +371,8 @@ With `panic = "abort"`:
 
 ⚠️ **Trade-off**: With `panic = "abort"`, you lose the ability to catch panics. Ensure all error handling uses `Result` rather than relying on panic catching.
 
+See Chapter 5 for the panic-vs-`Result` design guidance that should shape the code before you rely on an aborting profile.
+
 ### 10.4.3 Signal Handlers and Thread-Local State
 
 Signal handlers are a special FFI trap because they run in an async-signal-safe context, not in an ordinary Rust execution environment. Whether the handler is installed from C or from Rust, do **not** allocate, lock a mutex, log through a normal formatter, or touch most runtime/library facilities from the handler. Set an atomic flag, write a byte to a self-pipe or `eventfd`, and let ordinary code handle the real shutdown or recovery work.

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -354,7 +354,7 @@ impl&lt;'a&gt; Parser&lt;'a&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
-<p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once.</p>
+<p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once with <code>char_indices()</code>.</p>
 <h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
 <h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
 <p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>

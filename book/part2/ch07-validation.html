@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -474,6 +474,8 @@ pub fn safe_path(base: &amp;Path, user_path: &amp;str) -&gt; Result&lt;PathBuf, 
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Prevents CWE-22 (Path Traversal). The canonicalization approach handles symlinks and <code>../</code> sequences correctly.</p>
 <p>⚠️ <strong>TOCTOU warning</strong>: There is a time-of-check-to-time-of-use race between <code>canonicalize</code> and actually using the path. For maximum security, open the file immediately after validation and use the file descriptor.</p>
+<p>⚠️ <strong>Symlink policy matters</strong>: <code>canonicalize()</code> follows symlinks. That is correct when your rule is “the final resolved path must stay beneath this base directory.” It is <strong>not</strong> the right rule when your threat model forbids symlinks entirely. In that case, inspect components with <code>symlink_metadata</code> or directory-fd based APIs and reject symlinked components instead of resolving through them.</p>
+<p>⚠️ <strong>Temporary files</strong>: Do not build temp-file paths by hand with <code>temp_dir().join(user_controlled_name)</code>. Use an API that creates and opens the file atomically, such as the <code>tempfile</code> crate, so attackers cannot win a race by pre-creating a symlink or predictable filename.</p>
 <h3 id="724-integer-input-validation"><a class="header" href="#724-integer-input-validation">7.2.4 Integer Input Validation</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

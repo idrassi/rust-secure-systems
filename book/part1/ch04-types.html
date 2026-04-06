@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
+            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -574,7 +574,7 @@ fn safe_multiply(a: u64, b: u64) -&gt; Option&lt;u64&gt; {
 <pre><code class="language-toml">[profile.release]
 overflow-checks = true  # Panic on overflow instead of wrapping
 </code></pre>
-<p>With <code>overflow-checks = true</code>, standard arithmetic (<code>+</code>, <code>-</code>, <code>*</code>) will panic on overflow rather than silently wrapping.</p>
+<p>With <code>overflow-checks = true</code>, standard arithmetic on primitive integer types (<code>+</code>, <code>-</code>, <code>*</code>) will panic on overflow rather than silently wrapping. Explicit methods such as <code>checked_add</code>, <code>wrapping_add</code>, and <code>saturating_add</code> keep their documented behavior regardless of this profile flag.</p>
 <h2 id="48-const-generics-and-type-level-programming"><a class="header" href="#48-const-generics-and-type-level-programming">4.8 Const Generics and Type-Level Programming</a></h2>
 <p>Rust supports const generics, allowing compile-time values as type parameters:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

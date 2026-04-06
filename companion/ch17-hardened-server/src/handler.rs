@@ -137,7 +137,7 @@ impl ConnectionHandler {
                     Ok(msg) => {
                         if !self.request_limiter.check(addr.ip()) {
                             log::warn!("Per-request rate limit exceeded for {}", addr);
-                            let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                            let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                             timeout(
                                 Duration::from_secs(WRITE_TIMEOUT_SECS),
                                 stream.write_all(&error_response),
@@ -158,7 +158,7 @@ impl ConnectionHandler {
                     Err(e) => {
                         if !self.request_limiter.check(addr.ip()) {
                             log::warn!("Per-request rate limit exceeded for {}", addr);
-                            let error_response = echo_response(RATE_LIMIT_RESPONSE);
+                            let error_response = echo_response(RATE_LIMIT_RESPONSE)?;
                             timeout(
                                 Duration::from_secs(WRITE_TIMEOUT_SECS),
                                 stream.write_all(&error_response),
@@ -173,7 +173,7 @@ impl ConnectionHandler {
 
                         log::warn!("Invalid message from {}: {}", addr, e);
                         // Keep parser details in logs, not on the wire.
-                        let error_response = echo_response(INVALID_REQUEST_RESPONSE);
+                        let error_response = echo_response(INVALID_REQUEST_RESPONSE)?;
                         timeout(
                             Duration::from_secs(WRITE_TIMEOUT_SECS),
                             stream.write_all(&error_response),
@@ -184,7 +184,7 @@ impl ConnectionHandler {
                     }
                 };
 
-                let response = echo_response(message.payload());
+                let response = echo_response(message.payload())?;
                 timeout(
                     Duration::from_secs(WRITE_TIMEOUT_SECS),
                     stream.write_all(&response),
