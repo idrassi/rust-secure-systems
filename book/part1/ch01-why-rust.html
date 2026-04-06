@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -336,7 +336,7 @@ fn main() {
 <tr><td>Memory safety</td><td>Compile-time</td><td>No</td><td>GC</td><td>GC</td></tr>
 <tr><td>No GC overhead</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>Zero-cost abstractions</td><td>✅</td><td>Manual</td><td>Partial</td><td>❌</td></tr>
-<tr><td>Compile-time data race freedom</td><td>✅</td><td>❌</td><td>Partial</td><td>Runtime primitives only</td></tr>
+<tr><td>Compile-time data race freedom</td><td>✅</td><td>❌</td><td>❌</td><td>Runtime primitives only</td></tr>
 <tr><td>Systems-level control</td><td>✅</td><td>✅</td><td>Partial</td><td>❌</td></tr>
 <tr><td>Predictable performance</td><td>✅</td><td>✅</td><td>With GC pauses</td><td>❌</td></tr>
 <tr><td>FFI to C</td><td>✅</td><td>N/A</td><td>✅</td><td>✅</td></tr>
@@ -344,7 +344,7 @@ fn main() {
 </tbody>
 </table>
 </div>
-<p>Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.</p>
+<p>Go provides memory safety through garbage collection, but it does not prevent data races between goroutines at compile time. Go’s race detector is useful, but it is a runtime tool rather than a compile-time guarantee. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.</p>
 <h2 id="16-summary"><a class="header" href="#16-summary">1.6 Summary</a></h2>
 <ul>
 <li>Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.</li>

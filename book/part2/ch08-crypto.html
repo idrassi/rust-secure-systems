@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -382,7 +382,7 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <p>🔒 <strong>Security notes</strong>:</p>
 <ul>
 <li><code>ring::pbkdf2::verify</code> uses constant-time comparison internally.</li>
-<li>Treat PBKDF2 iteration counts as a time-sensitive policy knob, not a timeless constant from a book. Benchmark on your hardware and compare against current OWASP and NIST guidance before release.</li>
+<li>The <code>600_000</code> example matches OWASP’s current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.</li>
 <li>Prefer Argon2id over PBKDF2 for new systems (use the <code>argon2</code> crate).</li>
 <li>Use a unique 16+ byte random salt per password.</li>
 <li>Store the algorithm parameters with the password verifier so you can raise the cost over time.</li>
@@ -592,6 +592,7 @@ fn use_key() {
 <p>⚠️ <strong>Clone caveat</strong>: If a secret type also implements <code>Clone</code>, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.</p>
 <p>⚠️ <strong>Deserialize caveat</strong>: If a secret-bearing type also implements <code>serde::Deserialize</code>, every successful parse creates another live secret instance. Treat deserialization boundaries the same way you treat <code>Clone</code>: minimize copies and ensure each instance is dropped on its own lifecycle.</p>
 <p>Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so <code>ZeroizeOnDrop</code> fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as <code>mem::forget</code>, or reference cycles that prevent <code>Drop</code> from ever running.</p>
+<p>One important caveat is shared ownership. If a secret is wrapped in <code>Arc&lt;T&gt;</code>, aborting one task only drops that task’s clone. The secret is zeroized when the <strong>last</strong> strong reference disappears, not when any individual task is cancelled. Avoid long-lived <code>Arc</code> clones of raw secret material unless you are deliberately managing every copy’s lifetime.</p>
 <h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
@@ -665,6 +666,7 @@ fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
 }
 <span class="boring">}</span></code></pre>
 <p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
+<p>⚠️ <strong>Verification note</strong>: Treat constant-time behavior as a property of the compiled code on the targets you actually ship. Source-level review is necessary but not sufficient. Tools such as <code>dudect</code> (statistical timing tests) and <code>ctgrind</code> (secret-dependent control-flow and memory-access checks) help validate whether a “constant-time” path still behaves that way after optimization on a specific platform.</p>
 <h3 id="865-hardware-backed-and-os-managed-key-storage"><a class="header" href="#865-hardware-backed-and-os-managed-key-storage">8.6.5 Hardware-Backed and OS-Managed Key Storage</a></h3>
 <p>For high-value long-lived keys, keep private-key operations inside a keystore or hardware boundary rather than loading raw key bytes into the application process. Typical options include PKCS#11 devices and HSMs (<code>cryptoki</code>), TPM-backed keys (<code>tss-esapi</code> over <code>tpm2-tss</code>), and OS-managed stores such as DPAPI, Credential Manager, macOS Keychain, Linux keyrings, or Secret Service.</p>
 <p>Use these when host compromise, compliance requirements, or signing authority justify the operational cost. Design the application around key handles and operations such as sign, decrypt, or unwrap; avoid exporting the private key unless migration or backup requires it. Chapter 19 returns to the production deployment tradeoffs.</p>

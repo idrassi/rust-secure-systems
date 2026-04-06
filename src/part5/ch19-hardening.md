@@ -27,6 +27,8 @@ opt-level = "z"              # Optimize for size (smaller binary, better cache b
 
 `panic = "abort"` is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips `Drop` on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.
 
+Be precise about `strip`: `strip = true` means `debuginfo`, not full symbol stripping. Use `strip = "symbols"` when you intentionally want the more aggressive setting shown here.
+
 ### 19.1.2 Linker Hardening Flags
 
 ```toml
@@ -862,7 +864,30 @@ systemd-analyze security secure-server
 # Overall exposure level for secure-server: 0.2 LOW
 ```
 
-### 19.6.2 AppArmor / SELinux Profiles
+### 19.6.2 Landlock (Unprivileged Linux Sandboxing)
+
+Landlock is useful when you want a Linux service to restrict its own filesystem access from **inside the process**, without requiring root to install a system-wide profile. That makes it a good complement to seccomp and systemd units: the service can start normally, open the exact files it needs, and then drop future path access for the rest of its lifetime.
+
+```rust,ignore
+use landlock::{
+    ABI, Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr,
+    RulesetCreatedAttr,
+};
+
+let abi = ABI::V1;
+let access_all = AccessFs::from_all(abi);
+let access_read = AccessFs::from_read(abi);
+
+let status = Ruleset::default()
+    .handle_access(access_all)?
+    .create()?
+    .add_rule(PathBeneath::new(PathFd::new("/etc/secure-server")?, access_read))?
+    .restrict_self()?;
+```
+
+Apply Landlock after opening the sockets, configuration files, and log destinations the service genuinely needs. It does not replace seccomp or container policy; it narrows filesystem authority from inside the already-running process.
+
+### 19.6.3 AppArmor / SELinux Profiles
 
 For additional Mandatory Access Control (MAC), create an AppArmor profile:
 
@@ -905,7 +930,7 @@ An example AppArmor profile:
 }
 ```
 
-🔒 **Security practice**: Use at least one layer of MAC (systemd sandboxing, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in `unsafe` code, the OS-level restrictions limit what an attacker can do.
+🔒 **Security practice**: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in `unsafe` code, the OS-level restrictions limit what an attacker can do.
 
 ## 19.7 Release Checklist
 
@@ -951,14 +976,14 @@ Before deploying a Rust application to production:
 
 - Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.
 - Use multi-stage Docker builds with distroless base images.
-- Run as non-root with minimal capabilities and seccomp filtering.
+- Run as non-root with minimal capabilities, seccomp filtering, and optional Landlock path restrictions.
 - Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.
 - Verify hardening with `checksec` or manual checks.
 - Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.
 - Use hardware-backed or platform-managed keystores for high-value long-lived keys when compromise of the host must not reveal raw key material.
 - **Use structured tracing** (`tracing` crate with JSON output) for security event logging, with consistent event types and spans that carry request context.
 - Integrate logs with a SIEM for automated alerting on security events.
-- Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.
+- Apply OS-level hardening: systemd sandboxing, Landlock, AppArmor/SELinux, resource limits.
 - Follow the release checklist for every production deployment.
 
 This concludes the book. You now have the knowledge and practical skills to write secure systems software in Rust—from the language fundamentals through production deployment. The security landscape evolves constantly; continue learning, continue auditing, and continue building systems that are secure by design.

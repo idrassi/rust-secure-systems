@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -557,7 +557,8 @@ mod unsafe_tests {
 /// assert!(validate_username("john_doe123").is_ok());
 /// assert!(validate_username("").is_err());
 /// assert!(validate_username("user@evil").is_err());
-/// assert!(validate_username("a".repeat(65).as_str()).is_err());
+/// let long = "a".repeat(65);
+/// assert!(validate_username(&amp;long).is_err());
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum ValidationError {

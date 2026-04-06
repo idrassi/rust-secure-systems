@@ -221,7 +221,7 @@ unsafe impl GlobalAlloc for SecureAllocator {
 static GLOBAL: SecureAllocator = SecureAllocator;
 ```
 
-Because the zeroing loop already uses `write_volatile`, the `compiler_fence` here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement.
+Because the zeroing loop already uses `write_volatile`, the `compiler_fence` here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement. Placing the fence **after** the loop is enough: it prevents the compiler from sinking the wipe past the eventual deallocation, so you do not need a fence between each volatile write.
 
 ⚠️ **Note**: This is a simplified example. A production secure allocator should also:
 - Lock pages containing keys (prevent swapping to disk)
@@ -364,7 +364,7 @@ Rust's default allocator does **not** place guard pages between heap allocations
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 ```
 
-If you do not need allocator-specific behavior, omit `#[global_allocator]` entirely. Rebinding `std::alloc::System` to itself is a no-op; either keep the default allocator implicitly or install a real replacement allocator / hardened wrapper such as the earlier `SecureAllocator` example.
+If you do not need allocator-specific behavior, omit `#[global_allocator]` entirely. This note applies to declarations such as `static GLOBAL: std::alloc::System = std::alloc::System;`, which simply rebind the default allocator to itself. The earlier `SecureAllocator` example is **not** a no-op: it installs a real wrapper that changes deallocation behavior.
 
 ## 11.6 Summary
 

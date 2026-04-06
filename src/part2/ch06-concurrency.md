@@ -252,7 +252,7 @@ impl Queue {
         while items.is_empty() {
             items = self.available.wait(items).unwrap();
         }
-        items.pop_front().unwrap()
+        items.pop_front().expect("queue must be non-empty after wait loop")
     }
 }
 ```
@@ -402,6 +402,8 @@ async fn handle_connection(
 }
 ```
 
+⚠️ **Security note**: `0.0.0.0` binds to every interface. Use it only when you intentionally want the service exposed that broadly. For local development prefer `127.0.0.1`; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually intend to expose.
+
 ⚠️ **Important difference**: `tokio::sync::Mutex` (async) vs. `std::sync::Mutex` (blocking):
 - Use `std::sync::Mutex` when the critical section is short and CPU-bound.
 - Use `tokio::sync::Mutex` when you need to hold the lock across `.await` points.
@@ -423,6 +425,42 @@ trait Authenticator {
 ```
 
 This is a good fit for internal application traits where you control both callers and implementors. For public library traits, decide up front whether implementors must return `Send` futures, because that requirement becomes part of the trait's API surface and cannot be added later without a breaking change.
+
+The stable pattern the Rust team recommends for public async traits is to expose the choice explicitly:
+
+```rust,ignore
+#[trait_variant::make(Authenticator: Send)]
+pub trait LocalAuthenticator {
+    async fn authenticate(&self, token: &str) -> Result<UserId, AuthError>;
+}
+```
+
+This gives you a local non-`Send` trait plus a `Send`-capable variant for callers that need `tokio::spawn` or another multithreaded executor. If you also need trait objects today, keep using a boxed-future pattern or `async-trait`.
+
+### 6.4.2 `JoinSet` for Scoped Task Groups
+
+When you spawn a dynamic set of related tasks and plan to await them as a group, prefer `tokio::task::JoinSet` over manually collecting `Vec<JoinHandle<_>>` values:
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::tokio as tokio;
+use tokio::task::JoinSet;
+
+# async fn check_peer(_addr: std::net::SocketAddr) -> std::io::Result<()> { Ok(()) }
+# async fn scan(addrs: Vec<std::net::SocketAddr>) -> std::io::Result<()> {
+let mut tasks = JoinSet::new();
+for addr in addrs {
+    tasks.spawn(check_peer(addr));
+}
+
+while let Some(result) = tasks.join_next().await {
+    result??;
+}
+# Ok(())
+# }
+```
+
+`JoinSet` fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a `Semaphore` when you also need a hard concurrency cap.
 
 ## 6.5 Cancellation Safety in Async Rust
 
@@ -634,14 +672,16 @@ impl Decoder for LengthPrefixedCodec {
 
 Cancellation also matters for secret handling. If a future owns a `ZeroizeOnDrop` secret and is cancelled via `tokio::select!` or `JoinHandle::abort()`, dropping the future still runs `Drop` for those fields. That is a useful safety property, but it does not repair partially-applied protocol side effects, and it does not help on paths that skip destructors entirely.
 
+One important caveat: if the secret is wrapped in `Arc<T>`, aborting one task only drops that task's clone. Zeroization happens when the **last** strong reference goes away, not when any particular task is aborted. Avoid long-lived `Arc` clones of raw secret material; prefer request-local ownership or shared handles to an external keystore.
+
 ### 6.5.3 Other Async Pitfalls
 
 | Pitfall | Description | Mitigation |
 |---------|-------------|------------|
 | **Task starvation** | A busy task never yields, starving others | Use `tokio::task::yield_now()` in tight loops; use cooperative budgeting |
-| **Unbounded spawning** | `tokio::spawn` without limits → OOM | Use a `Semaphore` to limit concurrent tasks |
+| **Unbounded spawning** | `tokio::spawn` without limits → OOM | Use a `Semaphore` to cap concurrency and a `JoinSet` to own the spawned task group |
 | **Blocking in async** | Calling `std::thread::sleep` or CPU-heavy work blocks the executor | Use `tokio::task::spawn_blocking` for blocking operations |
-| **Aborted task cleanup** | `JoinHandle::abort()` drops the future; `Drop` guards still run, but partially-completed side effects may remain inconsistent | Use `Drop` guards for secrets and locks, plus explicit rollback or structured concurrency for external side effects |
+| **Aborted task cleanup** | `JoinHandle::abort()` drops the future; task-owned `Drop` guards run, but `Arc`-shared state may outlive the task | Use `Drop` guards for secrets and locks, avoid long-lived `Arc` copies of raw secrets, plus explicit rollback or structured concurrency for external side effects |
 
 ## 6.6 Common Concurrency Pitfalls (and How Rust Prevents Them)
 

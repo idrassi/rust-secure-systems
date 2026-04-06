@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -381,7 +381,7 @@ fn main() {
 <tr><td>Memory safety</td><td>Compile-time</td><td>No</td><td>GC</td><td>GC</td></tr>
 <tr><td>No GC overhead</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
 <tr><td>Zero-cost abstractions</td><td>✅</td><td>Manual</td><td>Partial</td><td>❌</td></tr>
-<tr><td>Compile-time data race freedom</td><td>✅</td><td>❌</td><td>Partial</td><td>Runtime primitives only</td></tr>
+<tr><td>Compile-time data race freedom</td><td>✅</td><td>❌</td><td>❌</td><td>Runtime primitives only</td></tr>
 <tr><td>Systems-level control</td><td>✅</td><td>✅</td><td>Partial</td><td>❌</td></tr>
 <tr><td>Predictable performance</td><td>✅</td><td>✅</td><td>With GC pauses</td><td>❌</td></tr>
 <tr><td>FFI to C</td><td>✅</td><td>N/A</td><td>✅</td><td>✅</td></tr>
@@ -389,7 +389,7 @@ fn main() {
 </tbody>
 </table>
 </div>
-<p>Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.</p>
+<p>Go provides memory safety through garbage collection, but it does not prevent data races between goroutines at compile time. Go’s race detector is useful, but it is a runtime tool rather than a compile-time guarantee. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.</p>
 <h2 id="16-summary"><a class="header" href="#16-summary">1.6 Summary</a></h2>
 <ul>
 <li>Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.</li>
@@ -514,6 +514,7 @@ cargo clippy --workspace --all-targets --all-features -- \
   -W clippy::arithmetic_side_effects \
   -W clippy::unwrap_in_result
 </code></pre>
+<p><code>-D warnings</code> promotes warning-level Clippy diagnostics to errors, so the explicit <code>-W clippy::...</code> flags here are mainly about <em>which</em> lints you want enabled and visible in the command. Read it as: “turn on these lints, then fail the build on all warnings.”</p>
 <p>Treat <code>clippy::indexing_slicing</code> and <code>clippy::arithmetic_side_effects</code> as review aids rather than “must be zero everywhere” policy knobs. In security-sensitive parsing code they are excellent prompts for manual review, but they are heuristic and will still warn on code that already proved bounds through surrounding checks.</p>
 <h3 id="232-rustfmt--consistent-code-formatting"><a class="header" href="#232-rustfmt--consistent-code-formatting">2.3.2 rustfmt — Consistent Code Formatting</a></h3>
 <pre><code class="language-bash">rustup component add rustfmt
@@ -930,7 +931,8 @@ impl Drop for SecureBuffer {
         for byte in self.data.iter_mut() {
             unsafe { std::ptr::write_volatile(byte, 0); }
         }
-        // Compiler barrier to keep the optimizer from reordering the volatile writes.
+        // A barrier after the wipe is enough: it keeps the optimizer from
+        // moving or eliding the volatile writes before the eventual free.
         std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // Vec will be freed after this
     }
@@ -1229,6 +1231,43 @@ fn get_user(id: UserId) -&gt; Option&lt;User&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use newtypes (tuple structs with a single field) to prevent type confusion. A <code>UserId(u64)</code> is distinct from a <code>u64</code>, and the compiler will catch if you pass the wrong type. This prevents CWE-20 (Improper Input Validation) caused by type confusion.</p>
+<h3 id="authorization-with-role-and-capability-types"><a class="header" href="#authorization-with-role-and-capability-types">Authorization with Role and Capability Types</a></h3>
+<p>Authentication tells you <strong>who</strong> the caller is. Authorization decides <strong>what</strong> that caller may do. Rust’s type system can make privileged paths harder to misuse by representing authority explicitly instead of threading raw booleans, strings, or ad hoc role checks through the codebase.</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::marker::PhantomData;
+
+#[derive(Clone, Copy)]
+struct UserId(u64);
+
+struct Guest;
+struct Admin;
+
+struct Session&lt;Role&gt; {
+    user_id: UserId,
+    _role: PhantomData&lt;Role&gt;,
+}
+
+struct ReadSecrets;
+struct RotateKeys;
+
+struct Capability&lt;P&gt;(PhantomData&lt;P&gt;);
+
+fn view_audit_log(_session: &amp;Session&lt;Admin&gt;) {}
+
+fn read_secret(_cap: &amp;Capability&lt;ReadSecrets&gt;, _key_id: &amp;str) -&gt; Option&lt;String&gt; {
+    Some("redacted".to_string())
+}
+
+fn rotate_signing_key(_cap: &amp;Capability&lt;RotateKeys&gt;) {}
+<span class="boring">}</span></code></pre>
+<p>This gives you three useful patterns:</p>
+<ul>
+<li><strong>RBAC with marker types</strong>: only code that has already checked policy should be able to construct <code>Session&lt;Admin&gt;</code>.</li>
+<li><strong>Capability-based security</strong>: functions accept a narrow authority token such as <code>Capability&lt;RotateKeys&gt;</code> instead of a broad “current user” handle.</li>
+<li><strong>Confused deputy defense</strong>: helpers can only exercise the authority they were explicitly handed, which is safer than reaching into ambient global state or reusing the caller’s full identity.</li>
+</ul>
+<p>Keep constructors for privileged sessions and capabilities private to the module that performs the actual policy decision. That way, authorization is enforced once at the boundary and then preserved by the type system.</p>
 <h2 id="45-traits--defining-shared-behavior"><a class="header" href="#45-traits--defining-shared-behavior">4.5 Traits — Defining Shared Behavior</a></h2>
 <p>Traits are Rust’s answer to interfaces:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2148,7 +2187,7 @@ impl Queue {
         while items.is_empty() {
             items = self.available.wait(items).unwrap();
         }
-        items.pop_front().unwrap()
+        items.pop_front().expect("queue must be non-empty after wait loop")
     }
 }
 <span class="boring">}</span></code></pre>
@@ -2278,6 +2317,7 @@ async fn handle_connection(
     // Connection handling logic
     Ok(())
 }</code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>0.0.0.0</code> binds to every interface. Use it only when you intentionally want the service exposed that broadly. For local development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually intend to expose.</p>
 <p>⚠️ <strong>Important difference</strong>: <code>tokio::sync::Mutex</code> (async) vs. <code>std::sync::Mutex</code> (blocking):</p>
 <ul>
 <li>Use <code>std::sync::Mutex</code> when the critical section is short and CPU-bound.</li>
@@ -2297,6 +2337,34 @@ async fn handle_connection(
 </span><span class="boring">struct AuthError;
 </span><span class="boring">}</span></code></pre>
 <p>This is a good fit for internal application traits where you control both callers and implementors. For public library traits, decide up front whether implementors must return <code>Send</code> futures, because that requirement becomes part of the trait’s API surface and cannot be added later without a breaking change.</p>
+<p>The stable pattern the Rust team recommends for public async traits is to expose the choice explicitly:</p>
+<pre><code class="language-rust ignore">#[trait_variant::make(Authenticator: Send)]
+pub trait LocalAuthenticator {
+    async fn authenticate(&amp;self, token: &amp;str) -&gt; Result&lt;UserId, AuthError&gt;;
+}</code></pre>
+<p>This gives you a local non-<code>Send</code> trait plus a <code>Send</code>-capable variant for callers that need <code>tokio::spawn</code> or another multithreaded executor. If you also need trait objects today, keep using a boxed-future pattern or <code>async-trait</code>.</p>
+<h3 id="642-joinset-for-scoped-task-groups"><a class="header" href="#642-joinset-for-scoped-task-groups">6.4.2 <code>JoinSet</code> for Scoped Task Groups</a></h3>
+<p>When you spawn a dynamic set of related tasks and plan to await them as a group, prefer <code>tokio::task::JoinSet</code> over manually collecting <code>Vec&lt;JoinHandle&lt;_&gt;&gt;</code> values:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use tokio::task::JoinSet;
+
+<span class="boring">async fn check_peer(_addr: std::net::SocketAddr) -&gt; std::io::Result&lt;()&gt; { Ok(()) }
+</span><span class="boring">async fn scan(addrs: Vec&lt;std::net::SocketAddr&gt;) -&gt; std::io::Result&lt;()&gt; {
+</span>let mut tasks = JoinSet::new();
+for addr in addrs {
+    tasks.spawn(check_peer(addr));
+}
+
+while let Some(result) = tasks.join_next().await {
+    result??;
+}
+<span class="boring">Ok(())
+</span><span class="boring">}
+</span><span class="boring">}</span></code></pre>
+<p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
@@ -2495,6 +2563,7 @@ impl Decoder for LengthPrefixedCodec {
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Always use a framed codec (<code>tokio_util::codec</code>) or equivalent buffering layer for production async network code. It ensures cancellation safety, enforces message size limits, and prevents partial-read desynchronization.</p>
 <p>Cancellation also matters for secret handling. If a future owns a <code>ZeroizeOnDrop</code> secret and is cancelled via <code>tokio::select!</code> or <code>JoinHandle::abort()</code>, dropping the future still runs <code>Drop</code> for those fields. That is a useful safety property, but it does not repair partially-applied protocol side effects, and it does not help on paths that skip destructors entirely.</p>
+<p>One important caveat: if the secret is wrapped in <code>Arc&lt;T&gt;</code>, aborting one task only drops that task’s clone. Zeroization happens when the <strong>last</strong> strong reference goes away, not when any particular task is aborted. Avoid long-lived <code>Arc</code> clones of raw secret material; prefer request-local ownership or shared handles to an external keystore.</p>
 <h3 id="653-other-async-pitfalls"><a class="header" href="#653-other-async-pitfalls">6.5.3 Other Async Pitfalls</a></h3>
 <div class="table-wrapper">
 <table>
@@ -2503,9 +2572,9 @@ impl Decoder for LengthPrefixedCodec {
 </thead>
 <tbody>
 <tr><td><strong>Task starvation</strong></td><td>A busy task never yields, starving others</td><td>Use <code>tokio::task::yield_now()</code> in tight loops; use cooperative budgeting</td></tr>
-<tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to limit concurrent tasks</td></tr>
+<tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to cap concurrency and a <code>JoinSet</code> to own the spawned task group</td></tr>
 <tr><td><strong>Blocking in async</strong></td><td>Calling <code>std::thread::sleep</code> or CPU-heavy work blocks the executor</td><td>Use <code>tokio::task::spawn_blocking</code> for blocking operations</td></tr>
-<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; <code>Drop</code> guards still run, but partially-completed side effects may remain inconsistent</td><td>Use <code>Drop</code> guards for secrets and locks, plus explicit rollback or structured concurrency for external side effects</td></tr>
+<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; task-owned <code>Drop</code> guards run, but <code>Arc</code>-shared state may outlive the task</td><td>Use <code>Drop</code> guards for secrets and locks, avoid long-lived <code>Arc</code> copies of raw secrets, plus explicit rollback or structured concurrency for external side effects</td></tr>
 </tbody>
 </table>
 </div>
@@ -3347,7 +3416,7 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <p>🔒 <strong>Security notes</strong>:</p>
 <ul>
 <li><code>ring::pbkdf2::verify</code> uses constant-time comparison internally.</li>
-<li>Treat PBKDF2 iteration counts as a time-sensitive policy knob, not a timeless constant from a book. Benchmark on your hardware and compare against current OWASP and NIST guidance before release.</li>
+<li>The <code>600_000</code> example matches OWASP’s current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.</li>
 <li>Prefer Argon2id over PBKDF2 for new systems (use the <code>argon2</code> crate).</li>
 <li>Use a unique 16+ byte random salt per password.</li>
 <li>Store the algorithm parameters with the password verifier so you can raise the cost over time.</li>
@@ -3557,6 +3626,7 @@ fn use_key() {
 <p>⚠️ <strong>Clone caveat</strong>: If a secret type also implements <code>Clone</code>, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.</p>
 <p>⚠️ <strong>Deserialize caveat</strong>: If a secret-bearing type also implements <code>serde::Deserialize</code>, every successful parse creates another live secret instance. Treat deserialization boundaries the same way you treat <code>Clone</code>: minimize copies and ensure each instance is dropped on its own lifecycle.</p>
 <p>Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so <code>ZeroizeOnDrop</code> fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as <code>mem::forget</code>, or reference cycles that prevent <code>Drop</code> from ever running.</p>
+<p>One important caveat is shared ownership. If a secret is wrapped in <code>Arc&lt;T&gt;</code>, aborting one task only drops that task’s clone. The secret is zeroized when the <strong>last</strong> strong reference disappears, not when any individual task is cancelled. Avoid long-lived <code>Arc</code> clones of raw secret material unless you are deliberately managing every copy’s lifetime.</p>
 <h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
@@ -3630,6 +3700,7 @@ fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
 }
 <span class="boring">}</span></code></pre>
 <p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
+<p>⚠️ <strong>Verification note</strong>: Treat constant-time behavior as a property of the compiled code on the targets you actually ship. Source-level review is necessary but not sufficient. Tools such as <code>dudect</code> (statistical timing tests) and <code>ctgrind</code> (secret-dependent control-flow and memory-access checks) help validate whether a “constant-time” path still behaves that way after optimization on a specific platform.</p>
 <h3 id="865-hardware-backed-and-os-managed-key-storage"><a class="header" href="#865-hardware-backed-and-os-managed-key-storage">8.6.5 Hardware-Backed and OS-Managed Key Storage</a></h3>
 <p>For high-value long-lived keys, keep private-key operations inside a keystore or hardware boundary rather than loading raw key bytes into the application process. Typical options include PKCS#11 devices and HSMs (<code>cryptoki</code>), TPM-backed keys (<code>tss-esapi</code> over <code>tpm2-tss</code>), and OS-managed stores such as DPAPI, Credential Manager, macOS Keychain, Linux keyrings, or Secret Service.</p>
 <p>Use these when host compromise, compliance requirements, or signing authority justify the operational cost. Design the application around key handles and operations such as sign, decrypt, or unwrap; avoid exporting the private key unless migration or backup requires it. Chapter 19 returns to the production deployment tradeoffs.</p>
@@ -3880,6 +3951,12 @@ pub unsafe fn read_u32_at(data: &amp;[u8], offset: usize) -&gt; u32 {
 </span><span class="boring">fn main() {
 </span>use std::ptr::NonNull;
 
+#[derive(Debug)]
+pub enum RawVecError {
+    CapacityOverflow,
+    LayoutOverflow,
+}
+
 /// A vec-like structure that tracks allocated but uninitialized memory.
 pub struct RawVec&lt;T&gt; {
     ptr: NonNull&lt;T&gt;,
@@ -3895,33 +3972,36 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
         }
     }
     
-    pub fn with_capacity(capacity: usize) -&gt; Self {
+    pub fn with_capacity(capacity: usize) -&gt; Result&lt;Self, RawVecError&gt; {
         let mut rv = Self::new();
         if capacity &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() != 0 {
-            rv.grow(capacity);
+            rv.grow(capacity)?;
         }
-        rv
+        Ok(rv)
     }
     
-    fn grow(&amp;mut self, min_cap: usize) {
+    fn grow(&amp;mut self, min_cap: usize) -&gt; Result&lt;(), RawVecError&gt; {
         assert!(std::mem::size_of::&lt;T&gt;() != 0, "zero-sized types never allocate");
         let doubled = self.cap.checked_mul(2)
-            .expect("capacity overflow");
+            .ok_or(RawVecError::CapacityOverflow)?;
         let new_cap = min_cap.max(doubled);
         let new_layout = std::alloc::Layout::array::&lt;T&gt;(new_cap)
-            .expect("allocation overflow");
+            .map_err(|_| RawVecError::LayoutOverflow)?;
         
         let new_ptr = if self.cap == 0 {
             unsafe { std::alloc::alloc(new_layout) }
         } else {
             let old_layout = std::alloc::Layout::array::&lt;T&gt;(self.cap)
-                .expect("old layout overflow");
+                .map_err(|_| RawVecError::LayoutOverflow)?;
             unsafe { std::alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size()) }
         };
         
-        self.ptr = NonNull::new(new_ptr as *mut T)
-            .expect("allocation failed");
+        self.ptr = match NonNull::new(new_ptr as *mut T) {
+            Some(ptr) =&gt; ptr,
+            None =&gt; std::alloc::handle_alloc_error(new_layout),
+        };
         self.cap = new_cap;
+        Ok(())
     }
     
     /// Returns a pointer to the buffer.
@@ -3949,6 +4029,7 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>This version turns size arithmetic failures into normal errors. It still mirrors the standard library’s usual OOM behavior by delegating null allocations to <code>handle_alloc_error</code>; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18’s <code>try_reserve_exact</code> example.</p>
 <h3 id="934-unsafecellt-is-the-foundation-of-interior-mutability"><a class="header" href="#934-unsafecellt-is-the-foundation-of-interior-mutability">9.3.4 <code>UnsafeCell&lt;T&gt;</code> Is the Foundation of Interior Mutability</a></h3>
 <p>If shared state can be mutated through a shared reference, the storage must live inside <code>UnsafeCell&lt;T&gt;</code> (or a safe abstraction built on top of it, such as <code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>, or atomics):</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -4249,7 +4330,7 @@ impl&lt;V&gt; FastMap&lt;V&gt; {
 <p>Consider both the empty-table case (<code>self.entries.len() == 0</code>, so the modulo panics) and the unchecked write path.</p>
 </li>
 <li>
-<p><strong>Safe Wrapper</strong>: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use <code>MaybeUninit&lt;T&gt;</code> for the backing array. The public API must be fully safe: <code>push()</code>, <code>pop()</code>, and <code>get()</code> should never cause UB regardless of how they are called. Add a <code># Safety</code> comment to every <code>unsafe</code> block.</p>
+<p><strong>Safe Wrapper</strong>: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use <code>MaybeUninit&lt;T&gt;</code> for the backing array. The public API must be fully safe: <code>push()</code>, <code>pop()</code>, and <code>get()</code> should never cause UB regardless of how they are called. Add a <code># Safety</code> comment to every <code>unsafe</code> block, using the checklist in §9.5.1 to explain validity, bounds, aliasing/lifetimes, initialization, synchronization assumptions, and why safe callers cannot trigger UB.</p>
 </li>
 <li>
 <p><strong>Miri Exploration</strong>: Write a small function that creates undefined behavior (e.g., use-after-free via raw pointer, or out-of-bounds access via <code>get_unchecked</code>). Run it under normal execution (it may appear to work), then run it under <code>cargo miri</code> and observe the detection. Fix the bug and verify Miri passes.</p>
@@ -4598,12 +4679,13 @@ pub extern "C" fn create_buffer(size: usize) -&gt; *mut u8 {
 
 #[unsafe(no_mangle)]
 /// # Safety
-/// `ptr` and `size` must come from `create_buffer`, and this function must be
+/// `ptr` and `size` must come from `create_buffer`; `size` is the exact byte
+/// length originally requested from `create_buffer`; and this function must be
 /// called at most once for a given allocation.
 pub unsafe extern "C" fn free_buffer(ptr: *mut u8, size: usize) {
     if !ptr.is_null() {
         unsafe {
-            // Reconstruct the boxed slice to let Rust free it properly.
+            // Reconstruct the boxed slice using the original byte length.
             let slice = std::ptr::slice_from_raw_parts_mut(ptr, size);
             let _ = Box::from_raw(slice);
         }
@@ -4899,7 +4981,7 @@ unsafe impl GlobalAlloc for SecureAllocator {
 #[global_allocator]
 static GLOBAL: SecureAllocator = SecureAllocator;
 <span class="boring">}</span></code></pre>
-<p>Because the zeroing loop already uses <code>write_volatile</code>, the <code>compiler_fence</code> here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement.</p>
+<p>Because the zeroing loop already uses <code>write_volatile</code>, the <code>compiler_fence</code> here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement. Placing the fence <strong>after</strong> the loop is enough: it prevents the compiler from sinking the wipe past the eventual deallocation, so you do not need a fence between each volatile write.</p>
 <p>⚠️ <strong>Note</strong>: This is a simplified example. A production secure allocator should also:</p>
 <ul>
 <li>Lock pages containing keys (prevent swapping to disk)</li>
@@ -5021,7 +5103,7 @@ rustflags = ["-C", "force-frame-pointers=yes"]
 <pre><code class="language-bash"># Run with ASan to detect heap buffer overflows
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 </code></pre>
-<p>If you do not need allocator-specific behavior, omit <code>#[global_allocator]</code> entirely. Rebinding <code>std::alloc::System</code> to itself is a no-op; either keep the default allocator implicitly or install a real replacement allocator / hardened wrapper such as the earlier <code>SecureAllocator</code> example.</p>
+<p>If you do not need allocator-specific behavior, omit <code>#[global_allocator]</code> entirely. This note applies to declarations such as <code>static GLOBAL: std::alloc::System = std::alloc::System;</code>, which simply rebind the default allocator to itself. The earlier <code>SecureAllocator</code> example is <strong>not</strong> a no-op: it installs a real wrapper that changes deallocation behavior.</p>
 <h2 id="116-summary"><a class="header" href="#116-summary">11.6 Summary</a></h2>
 <ul>
 <li>Use <code>#[repr(C)]</code> for FFI-compatible and wire-format structures.</li>
@@ -5087,8 +5169,6 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     });
     
     let listener = TcpListener::bind("0.0.0.0:8443").await?;
-    // Note: 0.0.0.0 binds to all interfaces. In production, consider binding
-    // to a specific interface or 127.0.0.1 for development.
     println!("Server listening on port 8443");
     
     loop {
@@ -5194,6 +5274,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
     frame.extend_from_slice(payload);
     frame
 }</code></pre>
+<p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>
 <p>On Unix, broken-pipe <code>SIGPIPE</code> delivery is a classic networking footgun. For Rust socket code, <code>std::net</code> and Tokio already suppress <code>SIGPIPE</code> on TCP sockets (<code>MSG_NOSIGNAL</code> / <code>SO_NOSIGPIPE</code> style handling), so a dead peer normally becomes an <code>io::Error</code>, not process termination. Revisit <code>SIGPIPE</code> only when you drop to raw <code>libc</code> writes, interact with pipes or child stdio, or deliberately change the process signal disposition.</p>
 <p>🔒 <strong>Security measures in this server</strong>:</p>
@@ -5383,6 +5464,7 @@ loop {
     });
 }
 <span class="boring">}</span></code></pre>
+<p>If you need to track a scoped group of child connection tasks for a request fan-out, shutdown phase, or bounded worker pool, prefer <code>JoinSet</code> over manually storing <code>JoinHandle</code>s in a <code>Vec</code>. Dropping the set aborts unfinished tasks instead of letting them linger detached.</p>
 <p>🔒 <strong>TLS hardening checklist</strong>:</p>
 <ul>
 <li>✅ Use TLS 1.2 minimum (prefer TLS 1.3)</li>
@@ -5491,6 +5573,8 @@ let resolver = Resolver::builder_with_config(
 ).build();
 
 let ips = resolver.lookup_ip("api.example.com.").await?;</code></pre>
+<p>This example is marked <code>ignore</code> because resolver constructors and presets can shift across crate releases; keep the exact version you ship in a real integration test.</p>
+<p>APIs that accept hostnames through <code>ToSocketAddrs</code> or string-based <code>TcpStream::connect</code> resolve names as part of generic address conversion and may block the current thread. If your outbound policy depends on SSRF filtering, DNS rebinding defenses, or a specific resolver transport, resolve with your chosen resolver first, validate each returned <code>SocketAddr</code>, and only then connect.</p>
 <p>Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services that make authorization or routing decisions from hostnames.</p>
 <h3 id="1233-preventing-amplification-attacks"><a class="header" href="#1233-preventing-amplification-attacks">12.3.3 Preventing Amplification Attacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -6002,7 +6086,8 @@ mod unsafe_tests {
 /// assert!(validate_username("john_doe123").is_ok());
 /// assert!(validate_username("").is_err());
 /// assert!(validate_username("user@evil").is_err());
-/// assert!(validate_username("a".repeat(65).as_str()).is_err());
+/// let long = "a".repeat(65);
+/// assert!(validate_username(&amp;long).is_err());
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum ValidationError {
@@ -6533,6 +6618,9 @@ libfuzzer_sys::fuzz_target!(|actions: Vec&lt;FuzzAction&gt;| {
 <li>
 <p><strong>Custom Arbitrary</strong>: Implement <code>Arbitrary</code> for a custom <code>TlvPacket</code> struct using the <code>arbitrary</code> crate. Write a structured fuzz target that generates semantically valid TLV packets, mutates them, and feeds them to your parser. Compare the coverage achieved with structured vs. unstructured fuzzing.</p>
 </li>
+<li>
+<p><strong>Sanitizer Pass</strong>: Take a concurrent or FFI-heavy example from Chapters 6, 9, or 10 and run it under ThreadSanitizer or MemorySanitizer on nightly. Record what prerequisites were needed (supported target, instrumented dependencies, clean rebuild, etc.), capture any finding you get, and either fix it or explain why the run was clean.</p>
+</li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="chapter-15--static-analysis-and-auditing"><a class="header" href="#chapter-15--static-analysis-and-auditing">Chapter 15 — Static Analysis and Auditing</a></h1>
@@ -7052,6 +7140,13 @@ enable-builtin-globs = true
 include-dependencies = true
 </code></pre>
 <p>This does <strong>not</strong> sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk.</p>
+<h3 id="1644-cargo-supply-chain-for-publisher-visibility"><a class="header" href="#1644-cargo-supply-chain-for-publisher-visibility">16.4.4 <code>cargo-supply-chain</code> for Publisher Visibility</a></h3>
+<p><code>cargo-deny</code> tells you whether a dependency violates policy. <code>cargo-supply-chain</code> answers a different question: <em>who</em> are you implicitly trusting across the full dependency graph?</p>
+<pre><code class="language-bash">cargo install cargo-supply-chain --locked
+cargo supply-chain publishers
+cargo supply-chain crates
+</code></pre>
+<p>Use it to spot one-off publishers, surprising maintainer concentration, or dependency subtrees published by accounts you have never reviewed. That context is especially useful when assessing typosquatting and maintainer-account compromise risks, and it complements the deeper per-version review flows from <code>cargo-vet</code>.</p>
 <h2 id="165-build-reproducibility"><a class="header" href="#165-build-reproducibility">16.5 Build Reproducibility</a></h2>
 <h3 id="1651-reproducible-builds"><a class="header" href="#1651-reproducible-builds">16.5.1 Reproducible Builds</a></h3>
 <p>A reproducible build produces identical output given the same source code, regardless of the build environment. This enables third-party verification that a binary was built from the claimed source.</p>
@@ -7076,6 +7171,7 @@ RUSTFLAGS = "--remap-path-prefix=/build/workdir=."
 SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 </code></pre>
 <p>Absolute paths in debug info, non-deterministic linkers, and <code>build.rs</code> scripts are common causes of Rust build drift. <code>SOURCE_DATE_EPOCH</code> can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.</p>
+<p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
 <h3 id="1652-binary-verification"><a class="header" href="#1652-binary-verification">16.5.2 Binary Verification</a></h3>
 <pre><code class="language-bash"># Compare builds
 sha256sum target/release/my-binary
@@ -7210,6 +7306,7 @@ jobs:
 <li>Minimize dependency count; prefer the standard library.</li>
 <li>Commit <code>Cargo.lock</code> for reproducible builds.</li>
 <li>Use <code>cargo-deny</code> to enforce license, source, and ban policies.</li>
+<li>Use <code>cargo-supply-chain</code> to see who publishes and maintains the crates you implicitly trust.</li>
 <li>Vendor dependencies for air-gapped builds.</li>
 <li>Audit <code>build.rs</code> scripts— they have full system access at build time.</li>
 <li>Build in sandboxed environments with <code>--frozen --offline</code>.</li>
@@ -7853,9 +7950,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
             if let Err(e) = result {
                 log::error!("Fatal error for {}: {}", addr, e);
             }
+            // `permit` was moved into `handle`; it is dropped when `handle`
+            // returns, decrementing the connection count on every exit path.
         });
     }
 }</code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>0.0.0.0</code> is intentional here because this example represents the externally reachable production service. For local development bind <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer path you actually intend to expose.</p>
 <p>Admission control happens before <code>tls_acceptor.accept()</code>, so connection floods consume a bounded number of slots and cannot trigger unlimited concurrent handshakes. A separate per-request limiter runs once enough bytes are buffered to classify a frame, so malformed requests also consume the same request budget and one long-lived TLS session cannot bypass brute-force throttling.</p>
 <blockquote>
 <p><strong>Note</strong>: The handler already accepts any <code>AsyncRead + AsyncWrite + Unpin</code> stream, so the same code works with <code>TcpStream</code>, <code>tokio_rustls::server::TlsStream&lt;TcpStream&gt;</code>, and test doubles.</p>
@@ -8040,10 +8140,11 @@ const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
 
 /// TLV type tags with semantic meaning.
 ///
-/// Note: We do **not** use `#[repr(u8)]` here because this enum has a
-/// data-carrying variant (`Extension`), which is incompatible with explicit
-/// discriminant annotations in `#[repr(u8)]`. Instead, the `from_byte` and
-/// `as_byte` methods handle the tag↔enum mapping manually.
+/// Note: We do **not** use `#[repr(u8)]` for the wire-format mapping here.
+/// `Extension(u8)` is a catch-all for many possible extension tag bytes, so the
+/// enum's in-memory discriminant is not the same thing as the protocol tag.
+/// Instead, the `from_byte` and `as_byte` methods handle the tag↔enum mapping
+/// manually.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TlvTag {
     Padding,
@@ -8524,6 +8625,7 @@ opt-level = "z"              # Optimize for size (smaller binary, better cache b
 # debug = 1                  # Use this only when shipping an unstripped artifact
 </code></pre>
 <p><code>panic = "abort"</code> is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips <code>Drop</code> on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.</p>
+<p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
 [build]
@@ -9289,7 +9391,24 @@ systemd-analyze security secure-server
  # ...
 # Overall exposure level for secure-server: 0.2 LOW
 </code></pre>
-<h3 id="1962-apparmor--selinux-profiles"><a class="header" href="#1962-apparmor--selinux-profiles">19.6.2 AppArmor / SELinux Profiles</a></h3>
+<h3 id="1962-landlock-unprivileged-linux-sandboxing"><a class="header" href="#1962-landlock-unprivileged-linux-sandboxing">19.6.2 Landlock (Unprivileged Linux Sandboxing)</a></h3>
+<p>Landlock is useful when you want a Linux service to restrict its own filesystem access from <strong>inside the process</strong>, without requiring root to install a system-wide profile. That makes it a good complement to seccomp and systemd units: the service can start normally, open the exact files it needs, and then drop future path access for the rest of its lifetime.</p>
+<pre><code class="language-rust ignore">use landlock::{
+    ABI, Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr,
+    RulesetCreatedAttr,
+};
+
+let abi = ABI::V1;
+let access_all = AccessFs::from_all(abi);
+let access_read = AccessFs::from_read(abi);
+
+let status = Ruleset::default()
+    .handle_access(access_all)?
+    .create()?
+    .add_rule(PathBeneath::new(PathFd::new("/etc/secure-server")?, access_read))?
+    .restrict_self()?;</code></pre>
+<p>Apply Landlock after opening the sockets, configuration files, and log destinations the service genuinely needs. It does not replace seccomp or container policy; it narrows filesystem authority from inside the already-running process.</p>
+<h3 id="1963-apparmor--selinux-profiles"><a class="header" href="#1963-apparmor--selinux-profiles">19.6.3 AppArmor / SELinux Profiles</a></h3>
 <p>For additional Mandatory Access Control (MAC), create an AppArmor profile:</p>
 <pre><code class="language-bash"># Generate a baseline profile
 aa-genprof /usr/local/bin/secure-server
@@ -9325,7 +9444,7 @@ aa-genprof /usr/local/bin/secure-server
   deny /** l,
 }
 </code></pre>
-<p>🔒 <strong>Security practice</strong>: Use at least one layer of MAC (systemd sandboxing, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
+<p>🔒 <strong>Security practice</strong>: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
 <h2 id="197-release-checklist"><a class="header" href="#197-release-checklist">19.7 Release Checklist</a></h2>
 <p>Before deploying a Rust application to production:</p>
 <h3 id="build-verification"><a class="header" href="#build-verification">Build Verification</a></h3>
@@ -9373,14 +9492,14 @@ aa-genprof /usr/local/bin/secure-server
 <ul>
 <li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>
 <li>Use multi-stage Docker builds with distroless base images.</li>
-<li>Run as non-root with minimal capabilities and seccomp filtering.</li>
+<li>Run as non-root with minimal capabilities, seccomp filtering, and optional Landlock path restrictions.</li>
 <li>Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.</li>
 <li>Verify hardening with <code>checksec</code> or manual checks.</li>
 <li>Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.</li>
 <li>Use hardware-backed or platform-managed keystores for high-value long-lived keys when compromise of the host must not reveal raw key material.</li>
 <li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
 <li>Integrate logs with a SIEM for automated alerting on security events.</li>
-<li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>
+<li>Apply OS-level hardening: systemd sandboxing, Landlock, AppArmor/SELinux, resource limits.</li>
 <li>Follow the release checklist for every production deployment.</li>
 </ul>
 <p>This concludes the book. You now have the knowledge and practical skills to write secure systems software in Rust—from the language fundamentals through production deployment. The security landscape evolves constantly; continue learning, continue auditing, and continue building systems that are secure by design.</p>

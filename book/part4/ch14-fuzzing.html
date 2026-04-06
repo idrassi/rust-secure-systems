@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -599,6 +599,9 @@ libfuzzer_sys::fuzz_target!(|actions: Vec&lt;FuzzAction&gt;| {
 </li>
 <li>
 <p><strong>Custom Arbitrary</strong>: Implement <code>Arbitrary</code> for a custom <code>TlvPacket</code> struct using the <code>arbitrary</code> crate. Write a structured fuzz target that generates semantically valid TLV packets, mutates them, and feeds them to your parser. Compare the coverage achieved with structured vs. unstructured fuzzing.</p>
+</li>
+<li>
+<p><strong>Sanitizer Pass</strong>: Take a concurrent or FFI-heavy example from Chapters 6, 9, or 10 and run it under ThreadSanitizer or MemorySanitizer on nightly. Record what prerequisites were needed (supported target, instrumented dependencies, clean rebuild, etc.), capture any finding you get, and either fix it or explain why the run was clean.</p>
 </li>
 </ol>
 

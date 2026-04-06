@@ -459,3 +459,5 @@ In the next chapter, we cover static analysis and code auditing—tools and tech
 2. **Fuzz Target**: Create a fuzz target for a URL parser. Run `cargo-fuzz` for at least 30 minutes. Examine any crashes or hangs found. Minimize the crashing input, analyze the root cause, fix the bug, and add a regression test.
 
 3. **Custom Arbitrary**: Implement `Arbitrary` for a custom `TlvPacket` struct using the `arbitrary` crate. Write a structured fuzz target that generates semantically valid TLV packets, mutates them, and feeds them to your parser. Compare the coverage achieved with structured vs. unstructured fuzzing.
+
+4. **Sanitizer Pass**: Take a concurrent or FFI-heavy example from Chapters 6, 9, or 10 and run it under ThreadSanitizer or MemorySanitizer on nightly. Record what prerequisites were needed (supported target, instrumented dependencies, clean rebuild, etc.), capture any finding you get, and either fix it or explain why the run was clean.

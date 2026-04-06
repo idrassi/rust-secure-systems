@@ -227,6 +227,46 @@ fn get_user(id: UserId) -> Option<User> {
 
 🔒 **Security pattern**: Use newtypes (tuple structs with a single field) to prevent type confusion. A `UserId(u64)` is distinct from a `u64`, and the compiler will catch if you pass the wrong type. This prevents CWE-20 (Improper Input Validation) caused by type confusion.
 
+### Authorization with Role and Capability Types
+
+Authentication tells you **who** the caller is. Authorization decides **what** that caller may do. Rust's type system can make privileged paths harder to misuse by representing authority explicitly instead of threading raw booleans, strings, or ad hoc role checks through the codebase.
+
+```rust
+use std::marker::PhantomData;
+
+#[derive(Clone, Copy)]
+struct UserId(u64);
+
+struct Guest;
+struct Admin;
+
+struct Session<Role> {
+    user_id: UserId,
+    _role: PhantomData<Role>,
+}
+
+struct ReadSecrets;
+struct RotateKeys;
+
+struct Capability<P>(PhantomData<P>);
+
+fn view_audit_log(_session: &Session<Admin>) {}
+
+fn read_secret(_cap: &Capability<ReadSecrets>, _key_id: &str) -> Option<String> {
+    Some("redacted".to_string())
+}
+
+fn rotate_signing_key(_cap: &Capability<RotateKeys>) {}
+```
+
+This gives you three useful patterns:
+
+- **RBAC with marker types**: only code that has already checked policy should be able to construct `Session<Admin>`.
+- **Capability-based security**: functions accept a narrow authority token such as `Capability<RotateKeys>` instead of a broad "current user" handle.
+- **Confused deputy defense**: helpers can only exercise the authority they were explicitly handed, which is safer than reaching into ambient global state or reusing the caller's full identity.
+
+Keep constructors for privileged sessions and capabilities private to the module that performs the actual policy decision. That way, authorization is enforced once at the boundary and then preserved by the type system.
+
 ## 4.5 Traits — Defining Shared Behavior
 
 Traits are Rust's answer to interfaces:

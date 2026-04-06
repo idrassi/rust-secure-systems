@@ -636,10 +636,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Err(e) = result {
                 log::error!("Fatal error for {}: {}", addr, e);
             }
+            // `permit` was moved into `handle`; it is dropped when `handle`
+            // returns, decrementing the connection count on every exit path.
         });
     }
 }
 ```
+
+⚠️ **Security note**: `0.0.0.0` is intentional here because this example represents the externally reachable production service. For local development bind `127.0.0.1`; in production prefer the specific interface, socket-activation unit, or load-balancer path you actually intend to expose.
 
 Admission control happens before `tls_acceptor.accept()`, so connection floods consume a bounded number of slots and cannot trigger unlimited concurrent handshakes. A separate per-request limiter runs once enough bytes are buffered to classify a frame, so malformed requests also consume the same request budget and one long-lived TLS session cannot bypass brute-force throttling.
 

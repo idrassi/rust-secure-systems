@@ -43,8 +43,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     
     let listener = TcpListener::bind("0.0.0.0:8443").await?;
-    // Note: 0.0.0.0 binds to all interfaces. In production, consider binding
-    // to a specific interface or 127.0.0.1 for development.
     println!("Server listening on port 8443");
     
     loop {
@@ -151,6 +149,8 @@ fn build_frame(payload: &[u8]) -> Vec<u8> {
     frame
 }
 ```
+
+⚠️ **Security note**: Binding to `0.0.0.0` exposes the service on **every** interface. Use it only when that exposure is intentional. For development prefer `127.0.0.1`; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.
 
 This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.
 
@@ -353,6 +353,8 @@ loop {
 # }
 ```
 
+If you need to track a scoped group of child connection tasks for a request fan-out, shutdown phase, or bounded worker pool, prefer `JoinSet` over manually storing `JoinHandle`s in a `Vec`. Dropping the set aborts unfinished tasks instead of letting them linger detached.
+
 🔒 **TLS hardening checklist**:
 - ✅ Use TLS 1.2 minimum (prefer TLS 1.3)
 - ✅ Use AEAD ciphers only (AES-GCM, ChaCha20-Poly1305)
@@ -473,6 +475,10 @@ let resolver = Resolver::builder_with_config(
 
 let ips = resolver.lookup_ip("api.example.com.").await?;
 ```
+
+This example is marked `ignore` because resolver constructors and presets can shift across crate releases; keep the exact version you ship in a real integration test.
+
+APIs that accept hostnames through `ToSocketAddrs` or string-based `TcpStream::connect` resolve names as part of generic address conversion and may block the current thread. If your outbound policy depends on SSRF filtering, DNS rebinding defenses, or a specific resolver transport, resolve with your chosen resolver first, validate each returned `SocketAddr`, and only then connect.
 
 Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services that make authorization or routing decisions from hostnames.
 

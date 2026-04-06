@@ -72,10 +72,11 @@ const MAX_TOTAL_SIZE: usize = 16 * 1024 * 1024;
 
 /// TLV type tags with semantic meaning.
 ///
-/// Note: We do **not** use `#[repr(u8)]` here because this enum has a
-/// data-carrying variant (`Extension`), which is incompatible with explicit
-/// discriminant annotations in `#[repr(u8)]`. Instead, the `from_byte` and
-/// `as_byte` methods handle the tag↔enum mapping manually.
+/// Note: We do **not** use `#[repr(u8)]` for the wire-format mapping here.
+/// `Extension(u8)` is a catch-all for many possible extension tag bytes, so the
+/// enum's in-memory discriminant is not the same thing as the protocol tag.
+/// Instead, the `from_byte` and `as_byte` methods handle the tag↔enum mapping
+/// manually.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TlvTag {
     Padding,

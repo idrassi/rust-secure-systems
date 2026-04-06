@@ -220,7 +220,7 @@ fn verify_password(password: &str, salt: &[u8], expected: &[u8; 32]) -> bool {
 
 🔒 **Security notes**:
 - `ring::pbkdf2::verify` uses constant-time comparison internally.
-- Treat PBKDF2 iteration counts as a time-sensitive policy knob, not a timeless constant from a book. Benchmark on your hardware and compare against current OWASP and NIST guidance before release.
+- The `600_000` example matches OWASP's current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.
 - Prefer Argon2id over PBKDF2 for new systems (use the `argon2` crate).
 - Use a unique 16+ byte random salt per password.
 - Store the algorithm parameters with the password verifier so you can raise the cost over time.
@@ -458,6 +458,8 @@ fn use_key() {
 
 Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so `ZeroizeOnDrop` fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as `mem::forget`, or reference cycles that prevent `Drop` from ever running.
 
+One important caveat is shared ownership. If a secret is wrapped in `Arc<T>`, aborting one task only drops that task's clone. The secret is zeroized when the **last** strong reference disappears, not when any individual task is cancelled. Avoid long-lived `Arc` clones of raw secret material unless you are deliberately managing every copy's lifetime.
+
 ### 8.6.2 The `secrecy` Crate — Encapsulating Secrets
 
 ```toml
@@ -541,6 +543,8 @@ fn tags_match(provided: &[u8; 32], expected: &[u8; 32]) -> Choice {
 ```
 
 `Choice` is intentionally not a normal `bool`; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary `if`/`match` only on public values that are already safe to reveal.
+
+⚠️ **Verification note**: Treat constant-time behavior as a property of the compiled code on the targets you actually ship. Source-level review is necessary but not sufficient. Tools such as `dudect` (statistical timing tests) and `ctgrind` (secret-dependent control-flow and memory-access checks) help validate whether a "constant-time" path still behaves that way after optimization on a specific platform.
 
 ### 8.6.5 Hardware-Backed and OS-Managed Key Storage
 

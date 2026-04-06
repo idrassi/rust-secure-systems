@@ -124,6 +124,12 @@ Wrap unsafe code in safe APIs:
 ```rust
 use std::ptr::NonNull;
 
+#[derive(Debug)]
+pub enum RawVecError {
+    CapacityOverflow,
+    LayoutOverflow,
+}
+
 /// A vec-like structure that tracks allocated but uninitialized memory.
 pub struct RawVec<T> {
     ptr: NonNull<T>,
@@ -139,33 +145,36 @@ impl<T> RawVec<T> {
         }
     }
     
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Result<Self, RawVecError> {
         let mut rv = Self::new();
         if capacity > 0 && std::mem::size_of::<T>() != 0 {
-            rv.grow(capacity);
+            rv.grow(capacity)?;
         }
-        rv
+        Ok(rv)
     }
     
-    fn grow(&mut self, min_cap: usize) {
+    fn grow(&mut self, min_cap: usize) -> Result<(), RawVecError> {
         assert!(std::mem::size_of::<T>() != 0, "zero-sized types never allocate");
         let doubled = self.cap.checked_mul(2)
-            .expect("capacity overflow");
+            .ok_or(RawVecError::CapacityOverflow)?;
         let new_cap = min_cap.max(doubled);
         let new_layout = std::alloc::Layout::array::<T>(new_cap)
-            .expect("allocation overflow");
+            .map_err(|_| RawVecError::LayoutOverflow)?;
         
         let new_ptr = if self.cap == 0 {
             unsafe { std::alloc::alloc(new_layout) }
         } else {
             let old_layout = std::alloc::Layout::array::<T>(self.cap)
-                .expect("old layout overflow");
+                .map_err(|_| RawVecError::LayoutOverflow)?;
             unsafe { std::alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size()) }
         };
         
-        self.ptr = NonNull::new(new_ptr as *mut T)
-            .expect("allocation failed");
+        self.ptr = match NonNull::new(new_ptr as *mut T) {
+            Some(ptr) => ptr,
+            None => std::alloc::handle_alloc_error(new_layout),
+        };
         self.cap = new_cap;
+        Ok(())
     }
     
     /// Returns a pointer to the buffer.
@@ -193,6 +202,8 @@ impl<T> Drop for RawVec<T> {
     }
 }
 ```
+
+This version turns size arithmetic failures into normal errors. It still mirrors the standard library's usual OOM behavior by delegating null allocations to `handle_alloc_error`; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18's `try_reserve_exact` example.
 
 ### 9.3.4 `UnsafeCell<T>` Is the Foundation of Interior Mutability
 
@@ -530,6 +541,6 @@ In the next chapter, we explore the Foreign Function Interface—calling C code 
    ```
    Consider both the empty-table case (`self.entries.len() == 0`, so the modulo panics) and the unchecked write path.
 
-2. **Safe Wrapper**: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use `MaybeUninit<T>` for the backing array. The public API must be fully safe: `push()`, `pop()`, and `get()` should never cause UB regardless of how they are called. Add a `# Safety` comment to every `unsafe` block.
+2. **Safe Wrapper**: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use `MaybeUninit<T>` for the backing array. The public API must be fully safe: `push()`, `pop()`, and `get()` should never cause UB regardless of how they are called. Add a `# Safety` comment to every `unsafe` block, using the checklist in §9.5.1 to explain validity, bounds, aliasing/lifetimes, initialization, synchronization assumptions, and why safe callers cannot trigger UB.
 
 3. **Miri Exploration**: Write a small function that creates undefined behavior (e.g., use-after-free via raw pointer, or out-of-bounds access via `get_unchecked`). Run it under normal execution (it may appear to work), then run it under `cargo miri` and observe the detection. Fix the bug and verify Miri passes.

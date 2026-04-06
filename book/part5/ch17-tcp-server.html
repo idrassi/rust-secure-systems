@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -802,9 +802,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
             if let Err(e) = result {
                 log::error!("Fatal error for {}: {}", addr, e);
             }
+            // `permit` was moved into `handle`; it is dropped when `handle`
+            // returns, decrementing the connection count on every exit path.
         });
     }
 }</code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>0.0.0.0</code> is intentional here because this example represents the externally reachable production service. For local development bind <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer path you actually intend to expose.</p>
 <p>Admission control happens before <code>tls_acceptor.accept()</code>, so connection floods consume a bounded number of slots and cannot trigger unlimited concurrent handshakes. A separate per-request limiter runs once enough bytes are buffered to classify a frame, so malformed requests also consume the same request budget and one long-lived TLS session cannot bypass brute-force throttling.</p>
 <blockquote>
 <p><strong>Note</strong>: The handler already accepts any <code>AsyncRead + AsyncWrite + Unpin</code> stream, so the same code works with <code>TcpStream</code>, <code>tokio_rustls::server::TlsStream&lt;TcpStream&gt;</code>, and test doubles.</p>

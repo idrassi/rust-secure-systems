@@ -139,6 +139,8 @@ cargo clippy --workspace --all-targets --all-features -- \
   -W clippy::unwrap_in_result
 ```
 
+`-D warnings` promotes warning-level Clippy diagnostics to errors, so the explicit `-W clippy::...` flags here are mainly about *which* lints you want enabled and visible in the command. Read it as: "turn on these lints, then fail the build on all warnings."
+
 Treat `clippy::indexing_slicing` and `clippy::arithmetic_side_effects` as review aids rather than "must be zero everywhere" policy knobs. In security-sensitive parsing code they are excellent prompts for manual review, but they are heuristic and will still warn on code that already proved bounds through surrounding checks.
 
 ### 2.3.2 rustfmt — Consistent Code Formatting

@@ -181,6 +181,18 @@ include-dependencies = true
 
 This does **not** sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk.
 
+### 16.4.4 `cargo-supply-chain` for Publisher Visibility
+
+`cargo-deny` tells you whether a dependency violates policy. `cargo-supply-chain` answers a different question: *who* are you implicitly trusting across the full dependency graph?
+
+```bash
+cargo install cargo-supply-chain --locked
+cargo supply-chain publishers
+cargo supply-chain crates
+```
+
+Use it to spot one-off publishers, surprising maintainer concentration, or dependency subtrees published by accounts you have never reviewed. That context is especially useful when assessing typosquatting and maintainer-account compromise risks, and it complements the deeper per-version review flows from `cargo-vet`.
+
 ## 16.5 Build Reproducibility
 
 ### 16.5.1 Reproducible Builds
@@ -214,6 +226,8 @@ SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 ```
 
 Absolute paths in debug info, non-deterministic linkers, and `build.rs` scripts are common causes of Rust build drift. `SOURCE_DATE_EPOCH` can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.
+
+Be precise about `strip`: `strip = true` means `debuginfo`, not full symbol stripping. Use `strip = "symbols"` when you intentionally want the more aggressive setting shown here.
 
 ### 16.5.2 Binary Verification
 
@@ -382,6 +396,7 @@ Keep dependency updates small and reviewable: enable Dependabot or Renovate for 
 - Minimize dependency count; prefer the standard library.
 - Commit `Cargo.lock` for reproducible builds.
 - Use `cargo-deny` to enforce license, source, and ban policies.
+- Use `cargo-supply-chain` to see who publishes and maintains the crates you implicitly trust.
 - Vendor dependencies for air-gapped builds.
 - Audit `build.rs` scripts— they have full system access at build time.
 - Build in sandboxed environments with `--frozen --offline`.

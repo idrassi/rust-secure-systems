@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -292,6 +292,12 @@ pub unsafe fn read_u32_at(data: &amp;[u8], offset: usize) -&gt; u32 {
 </span><span class="boring">fn main() {
 </span>use std::ptr::NonNull;
 
+#[derive(Debug)]
+pub enum RawVecError {
+    CapacityOverflow,
+    LayoutOverflow,
+}
+
 /// A vec-like structure that tracks allocated but uninitialized memory.
 pub struct RawVec&lt;T&gt; {
     ptr: NonNull&lt;T&gt;,
@@ -307,33 +313,36 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
         }
     }
     
-    pub fn with_capacity(capacity: usize) -&gt; Self {
+    pub fn with_capacity(capacity: usize) -&gt; Result&lt;Self, RawVecError&gt; {
         let mut rv = Self::new();
         if capacity &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() != 0 {
-            rv.grow(capacity);
+            rv.grow(capacity)?;
         }
-        rv
+        Ok(rv)
     }
     
-    fn grow(&amp;mut self, min_cap: usize) {
+    fn grow(&amp;mut self, min_cap: usize) -&gt; Result&lt;(), RawVecError&gt; {
         assert!(std::mem::size_of::&lt;T&gt;() != 0, "zero-sized types never allocate");
         let doubled = self.cap.checked_mul(2)
-            .expect("capacity overflow");
+            .ok_or(RawVecError::CapacityOverflow)?;
         let new_cap = min_cap.max(doubled);
         let new_layout = std::alloc::Layout::array::&lt;T&gt;(new_cap)
-            .expect("allocation overflow");
+            .map_err(|_| RawVecError::LayoutOverflow)?;
         
         let new_ptr = if self.cap == 0 {
             unsafe { std::alloc::alloc(new_layout) }
         } else {
             let old_layout = std::alloc::Layout::array::&lt;T&gt;(self.cap)
-                .expect("old layout overflow");
+                .map_err(|_| RawVecError::LayoutOverflow)?;
             unsafe { std::alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size()) }
         };
         
-        self.ptr = NonNull::new(new_ptr as *mut T)
-            .expect("allocation failed");
+        self.ptr = match NonNull::new(new_ptr as *mut T) {
+            Some(ptr) =&gt; ptr,
+            None =&gt; std::alloc::handle_alloc_error(new_layout),
+        };
         self.cap = new_cap;
+        Ok(())
     }
     
     /// Returns a pointer to the buffer.
@@ -361,6 +370,7 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>This version turns size arithmetic failures into normal errors. It still mirrors the standard library’s usual OOM behavior by delegating null allocations to <code>handle_alloc_error</code>; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18’s <code>try_reserve_exact</code> example.</p>
 <h3 id="934-unsafecellt-is-the-foundation-of-interior-mutability"><a class="header" href="#934-unsafecellt-is-the-foundation-of-interior-mutability">9.3.4 <code>UnsafeCell&lt;T&gt;</code> Is the Foundation of Interior Mutability</a></h3>
 <p>If shared state can be mutated through a shared reference, the storage must live inside <code>UnsafeCell&lt;T&gt;</code> (or a safe abstraction built on top of it, such as <code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>, or atomics):</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -661,7 +671,7 @@ impl&lt;V&gt; FastMap&lt;V&gt; {
 <p>Consider both the empty-table case (<code>self.entries.len() == 0</code>, so the modulo panics) and the unchecked write path.</p>
 </li>
 <li>
-<p><strong>Safe Wrapper</strong>: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use <code>MaybeUninit&lt;T&gt;</code> for the backing array. The public API must be fully safe: <code>push()</code>, <code>pop()</code>, and <code>get()</code> should never cause UB regardless of how they are called. Add a <code># Safety</code> comment to every <code>unsafe</code> block.</p>
+<p><strong>Safe Wrapper</strong>: Write a safe wrapper around a raw pointer-based circular buffer. The unsafe internals should use <code>MaybeUninit&lt;T&gt;</code> for the backing array. The public API must be fully safe: <code>push()</code>, <code>pop()</code>, and <code>get()</code> should never cause UB regardless of how they are called. Add a <code># Safety</code> comment to every <code>unsafe</code> block, using the checklist in §9.5.1 to explain validity, bounds, aliasing/lifetimes, initialization, synchronization assumptions, and why safe callers cannot trigger UB.</p>
 </li>
 <li>
 <p><strong>Miri Exploration</strong>: Write a small function that creates undefined behavior (e.g., use-after-free via raw pointer, or out-of-bounds access via <code>get_unchecked</code>). Run it under normal execution (it may appear to work), then run it under <code>cargo miri</code> and observe the detection. Fix the bug and verify Miri passes.</p>

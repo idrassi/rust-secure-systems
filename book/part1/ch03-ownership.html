@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -369,7 +369,8 @@ impl Drop for SecureBuffer {
         for byte in self.data.iter_mut() {
             unsafe { std::ptr::write_volatile(byte, 0); }
         }
-        // Compiler barrier to keep the optimizer from reordering the volatile writes.
+        // A barrier after the wipe is enough: it keeps the optimizer from
+        // moving or eliding the volatile writes before the eventual free.
         std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // Vec will be freed after this
     }

@@ -411,7 +411,8 @@ mod unsafe_tests {
 /// assert!(validate_username("john_doe123").is_ok());
 /// assert!(validate_username("").is_err());
 /// assert!(validate_username("user@evil").is_err());
-/// assert!(validate_username("a".repeat(65).as_str()).is_err());
+/// let long = "a".repeat(65);
+/// assert!(validate_username(&long).is_err());
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub enum ValidationError {

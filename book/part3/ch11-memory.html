@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -381,7 +381,7 @@ unsafe impl GlobalAlloc for SecureAllocator {
 #[global_allocator]
 static GLOBAL: SecureAllocator = SecureAllocator;
 <span class="boring">}</span></code></pre>
-<p>Because the zeroing loop already uses <code>write_volatile</code>, the <code>compiler_fence</code> here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement.</p>
+<p>Because the zeroing loop already uses <code>write_volatile</code>, the <code>compiler_fence</code> here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement. Placing the fence <strong>after</strong> the loop is enough: it prevents the compiler from sinking the wipe past the eventual deallocation, so you do not need a fence between each volatile write.</p>
 <p>⚠️ <strong>Note</strong>: This is a simplified example. A production secure allocator should also:</p>
 <ul>
 <li>Lock pages containing keys (prevent swapping to disk)</li>
@@ -503,7 +503,7 @@ rustflags = ["-C", "force-frame-pointers=yes"]
 <pre><code class="language-bash"># Run with ASan to detect heap buffer overflows
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 </code></pre>
-<p>If you do not need allocator-specific behavior, omit <code>#[global_allocator]</code> entirely. Rebinding <code>std::alloc::System</code> to itself is a no-op; either keep the default allocator implicitly or install a real replacement allocator / hardened wrapper such as the earlier <code>SecureAllocator</code> example.</p>
+<p>If you do not need allocator-specific behavior, omit <code>#[global_allocator]</code> entirely. This note applies to declarations such as <code>static GLOBAL: std::alloc::System = std::alloc::System;</code>, which simply rebind the default allocator to itself. The earlier <code>SecureAllocator</code> example is <strong>not</strong> a no-op: it installs a real wrapper that changes deallocation behavior.</p>
 <h2 id="116-summary"><a class="header" href="#116-summary">11.6 Summary</a></h2>
 <ul>
 <li>Use <code>#[repr(C)]</code> for FFI-compatible and wire-format structures.</li>

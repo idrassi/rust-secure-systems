@@ -164,13 +164,13 @@ Rust is increasingly adopted in security-critical domains:
 | Memory safety | Compile-time | No | GC | GC |
 | No GC overhead | ✅ | ✅ | ❌ | ❌ |
 | Zero-cost abstractions | ✅ | Manual | Partial | ❌ |
-| Compile-time data race freedom | ✅ | ❌ | Partial | Runtime primitives only |
+| Compile-time data race freedom | ✅ | ❌ | ❌ | Runtime primitives only |
 | Systems-level control | ✅ | ✅ | Partial | ❌ |
 | Predictable performance | ✅ | ✅ | With GC pauses | ❌ |
 | FFI to C | ✅ | N/A | ✅ | ✅ |
 | Deterministic destruction | ✅ | Manual | ❌ | ❌ |
 
-Go provides memory safety through garbage collection, but it does not prevent data races between goroutines. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.
+Go provides memory safety through garbage collection, but it does not prevent data races between goroutines at compile time. Go's race detector is useful, but it is a runtime tool rather than a compile-time guarantee. Java and C# provide locks, atomics, and memory-model guarantees, but they do not provide compile-time race prevention. Only Rust provides both memory safety and compile-time data race freedom without runtime GC overhead.
 
 ## 1.6 Summary
 

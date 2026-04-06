@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -203,6 +203,7 @@ opt-level = "z"              # Optimize for size (smaller binary, better cache b
 # debug = 1                  # Use this only when shipping an unstripped artifact
 </code></pre>
 <p><code>panic = "abort"</code> is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips <code>Drop</code> on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.</p>
+<p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
 [build]
@@ -968,7 +969,24 @@ systemd-analyze security secure-server
  # ...
 # Overall exposure level for secure-server: 0.2 LOW
 </code></pre>
-<h3 id="1962-apparmor--selinux-profiles"><a class="header" href="#1962-apparmor--selinux-profiles">19.6.2 AppArmor / SELinux Profiles</a></h3>
+<h3 id="1962-landlock-unprivileged-linux-sandboxing"><a class="header" href="#1962-landlock-unprivileged-linux-sandboxing">19.6.2 Landlock (Unprivileged Linux Sandboxing)</a></h3>
+<p>Landlock is useful when you want a Linux service to restrict its own filesystem access from <strong>inside the process</strong>, without requiring root to install a system-wide profile. That makes it a good complement to seccomp and systemd units: the service can start normally, open the exact files it needs, and then drop future path access for the rest of its lifetime.</p>
+<pre><code class="language-rust ignore">use landlock::{
+    ABI, Access, AccessFs, PathBeneath, PathFd, Ruleset, RulesetAttr,
+    RulesetCreatedAttr,
+};
+
+let abi = ABI::V1;
+let access_all = AccessFs::from_all(abi);
+let access_read = AccessFs::from_read(abi);
+
+let status = Ruleset::default()
+    .handle_access(access_all)?
+    .create()?
+    .add_rule(PathBeneath::new(PathFd::new("/etc/secure-server")?, access_read))?
+    .restrict_self()?;</code></pre>
+<p>Apply Landlock after opening the sockets, configuration files, and log destinations the service genuinely needs. It does not replace seccomp or container policy; it narrows filesystem authority from inside the already-running process.</p>
+<h3 id="1963-apparmor--selinux-profiles"><a class="header" href="#1963-apparmor--selinux-profiles">19.6.3 AppArmor / SELinux Profiles</a></h3>
 <p>For additional Mandatory Access Control (MAC), create an AppArmor profile:</p>
 <pre><code class="language-bash"># Generate a baseline profile
 aa-genprof /usr/local/bin/secure-server
@@ -1004,7 +1022,7 @@ aa-genprof /usr/local/bin/secure-server
   deny /** l,
 }
 </code></pre>
-<p>🔒 <strong>Security practice</strong>: Use at least one layer of MAC (systemd sandboxing, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
+<p>🔒 <strong>Security practice</strong>: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
 <h2 id="197-release-checklist"><a class="header" href="#197-release-checklist">19.7 Release Checklist</a></h2>
 <p>Before deploying a Rust application to production:</p>
 <h3 id="build-verification"><a class="header" href="#build-verification">Build Verification</a></h3>
@@ -1052,14 +1070,14 @@ aa-genprof /usr/local/bin/secure-server
 <ul>
 <li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>
 <li>Use multi-stage Docker builds with distroless base images.</li>
-<li>Run as non-root with minimal capabilities and seccomp filtering.</li>
+<li>Run as non-root with minimal capabilities, seccomp filtering, and optional Landlock path restrictions.</li>
 <li>Use Wasm runtimes such as Wasmtime when you must isolate untrusted in-process extensions or parsers.</li>
 <li>Verify hardening with <code>checksec</code> or manual checks.</li>
 <li>Load secrets from vaults or permission-restricted runtime files, never hardcode or rely on environment variables for long-lived production secrets.</li>
 <li>Use hardware-backed or platform-managed keystores for high-value long-lived keys when compromise of the host must not reveal raw key material.</li>
 <li><strong>Use structured tracing</strong> (<code>tracing</code> crate with JSON output) for security event logging, with consistent event types and spans that carry request context.</li>
 <li>Integrate logs with a SIEM for automated alerting on security events.</li>
-<li>Apply OS-level hardening: systemd sandboxing, AppArmor/SELinux, resource limits.</li>
+<li>Apply OS-level hardening: systemd sandboxing, Landlock, AppArmor/SELinux, resource limits.</li>
 <li>Follow the release checklist for every production deployment.</li>
 </ul>
 <p>This concludes the book. You now have the knowledge and practical skills to write secure systems software in Rust—from the language fundamentals through production deployment. The security landscape evolves constantly; continue learning, continue auditing, and continue building systems that are secure by design.</p>

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -398,7 +398,7 @@ impl Queue {
         while items.is_empty() {
             items = self.available.wait(items).unwrap();
         }
-        items.pop_front().unwrap()
+        items.pop_front().expect("queue must be non-empty after wait loop")
     }
 }
 <span class="boring">}</span></code></pre>
@@ -528,6 +528,7 @@ async fn handle_connection(
     // Connection handling logic
     Ok(())
 }</code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>0.0.0.0</code> binds to every interface. Use it only when you intentionally want the service exposed that broadly. For local development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually intend to expose.</p>
 <p>⚠️ <strong>Important difference</strong>: <code>tokio::sync::Mutex</code> (async) vs. <code>std::sync::Mutex</code> (blocking):</p>
 <ul>
 <li>Use <code>std::sync::Mutex</code> when the critical section is short and CPU-bound.</li>
@@ -547,6 +548,34 @@ async fn handle_connection(
 </span><span class="boring">struct AuthError;
 </span><span class="boring">}</span></code></pre>
 <p>This is a good fit for internal application traits where you control both callers and implementors. For public library traits, decide up front whether implementors must return <code>Send</code> futures, because that requirement becomes part of the trait’s API surface and cannot be added later without a breaking change.</p>
+<p>The stable pattern the Rust team recommends for public async traits is to expose the choice explicitly:</p>
+<pre><code class="language-rust ignore">#[trait_variant::make(Authenticator: Send)]
+pub trait LocalAuthenticator {
+    async fn authenticate(&amp;self, token: &amp;str) -&gt; Result&lt;UserId, AuthError&gt;;
+}</code></pre>
+<p>This gives you a local non-<code>Send</code> trait plus a <code>Send</code>-capable variant for callers that need <code>tokio::spawn</code> or another multithreaded executor. If you also need trait objects today, keep using a boxed-future pattern or <code>async-trait</code>.</p>
+<h3 id="642-joinset-for-scoped-task-groups"><a class="header" href="#642-joinset-for-scoped-task-groups">6.4.2 <code>JoinSet</code> for Scoped Task Groups</a></h3>
+<p>When you spawn a dynamic set of related tasks and plan to await them as a group, prefer <code>tokio::task::JoinSet</code> over manually collecting <code>Vec&lt;JoinHandle&lt;_&gt;&gt;</code> values:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use tokio::task::JoinSet;
+
+<span class="boring">async fn check_peer(_addr: std::net::SocketAddr) -&gt; std::io::Result&lt;()&gt; { Ok(()) }
+</span><span class="boring">async fn scan(addrs: Vec&lt;std::net::SocketAddr&gt;) -&gt; std::io::Result&lt;()&gt; {
+</span>let mut tasks = JoinSet::new();
+for addr in addrs {
+    tasks.spawn(check_peer(addr));
+}
+
+while let Some(result) = tasks.join_next().await {
+    result??;
+}
+<span class="boring">Ok(())
+</span><span class="boring">}
+</span><span class="boring">}</span></code></pre>
+<p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
@@ -745,6 +774,7 @@ impl Decoder for LengthPrefixedCodec {
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Always use a framed codec (<code>tokio_util::codec</code>) or equivalent buffering layer for production async network code. It ensures cancellation safety, enforces message size limits, and prevents partial-read desynchronization.</p>
 <p>Cancellation also matters for secret handling. If a future owns a <code>ZeroizeOnDrop</code> secret and is cancelled via <code>tokio::select!</code> or <code>JoinHandle::abort()</code>, dropping the future still runs <code>Drop</code> for those fields. That is a useful safety property, but it does not repair partially-applied protocol side effects, and it does not help on paths that skip destructors entirely.</p>
+<p>One important caveat: if the secret is wrapped in <code>Arc&lt;T&gt;</code>, aborting one task only drops that task’s clone. Zeroization happens when the <strong>last</strong> strong reference goes away, not when any particular task is aborted. Avoid long-lived <code>Arc</code> clones of raw secret material; prefer request-local ownership or shared handles to an external keystore.</p>
 <h3 id="653-other-async-pitfalls"><a class="header" href="#653-other-async-pitfalls">6.5.3 Other Async Pitfalls</a></h3>
 <div class="table-wrapper">
 <table>
@@ -753,9 +783,9 @@ impl Decoder for LengthPrefixedCodec {
 </thead>
 <tbody>
 <tr><td><strong>Task starvation</strong></td><td>A busy task never yields, starving others</td><td>Use <code>tokio::task::yield_now()</code> in tight loops; use cooperative budgeting</td></tr>
-<tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to limit concurrent tasks</td></tr>
+<tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to cap concurrency and a <code>JoinSet</code> to own the spawned task group</td></tr>
 <tr><td><strong>Blocking in async</strong></td><td>Calling <code>std::thread::sleep</code> or CPU-heavy work blocks the executor</td><td>Use <code>tokio::task::spawn_blocking</code> for blocking operations</td></tr>
-<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; <code>Drop</code> guards still run, but partially-completed side effects may remain inconsistent</td><td>Use <code>Drop</code> guards for secrets and locks, plus explicit rollback or structured concurrency for external side effects</td></tr>
+<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; task-owned <code>Drop</code> guards run, but <code>Arc</code>-shared state may outlive the task</td><td>Use <code>Drop</code> guards for secrets and locks, avoid long-lived <code>Arc</code> copies of raw secrets, plus explicit rollback or structured concurrency for external side effects</td></tr>
 </tbody>
 </table>
 </div>

@@ -148,7 +148,8 @@ pub extern "C" fn create_buffer(size: usize) -> *mut u8 {
 #[unsafe(no_mangle)]
 /// # Safety
 ///
-/// `ptr` and `size` must come from `create_buffer`, and `free_buffer` must be
+/// `ptr` and `size` must come from `create_buffer`; `size` is the exact byte
+/// length originally requested from `create_buffer`; and `free_buffer` must be
 /// called at most once for a given allocation.
 pub unsafe extern "C" fn free_buffer(ptr: *mut u8, size: usize) {
     if !ptr.is_null() {

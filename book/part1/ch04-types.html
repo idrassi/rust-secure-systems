@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -380,6 +380,43 @@ fn get_user(id: UserId) -&gt; Option&lt;User&gt; {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use newtypes (tuple structs with a single field) to prevent type confusion. A <code>UserId(u64)</code> is distinct from a <code>u64</code>, and the compiler will catch if you pass the wrong type. This prevents CWE-20 (Improper Input Validation) caused by type confusion.</p>
+<h3 id="authorization-with-role-and-capability-types"><a class="header" href="#authorization-with-role-and-capability-types">Authorization with Role and Capability Types</a></h3>
+<p>Authentication tells you <strong>who</strong> the caller is. Authorization decides <strong>what</strong> that caller may do. Rust’s type system can make privileged paths harder to misuse by representing authority explicitly instead of threading raw booleans, strings, or ad hoc role checks through the codebase.</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::marker::PhantomData;
+
+#[derive(Clone, Copy)]
+struct UserId(u64);
+
+struct Guest;
+struct Admin;
+
+struct Session&lt;Role&gt; {
+    user_id: UserId,
+    _role: PhantomData&lt;Role&gt;,
+}
+
+struct ReadSecrets;
+struct RotateKeys;
+
+struct Capability&lt;P&gt;(PhantomData&lt;P&gt;);
+
+fn view_audit_log(_session: &amp;Session&lt;Admin&gt;) {}
+
+fn read_secret(_cap: &amp;Capability&lt;ReadSecrets&gt;, _key_id: &amp;str) -&gt; Option&lt;String&gt; {
+    Some("redacted".to_string())
+}
+
+fn rotate_signing_key(_cap: &amp;Capability&lt;RotateKeys&gt;) {}
+<span class="boring">}</span></code></pre>
+<p>This gives you three useful patterns:</p>
+<ul>
+<li><strong>RBAC with marker types</strong>: only code that has already checked policy should be able to construct <code>Session&lt;Admin&gt;</code>.</li>
+<li><strong>Capability-based security</strong>: functions accept a narrow authority token such as <code>Capability&lt;RotateKeys&gt;</code> instead of a broad “current user” handle.</li>
+<li><strong>Confused deputy defense</strong>: helpers can only exercise the authority they were explicitly handed, which is safer than reaching into ambient global state or reusing the caller’s full identity.</li>
+</ul>
+<p>Keep constructors for privileged sessions and capabilities private to the module that performs the actual policy decision. That way, authorization is enforced once at the boundary and then preserved by the type system.</p>
 <h2 id="45-traits--defining-shared-behavior"><a class="header" href="#45-traits--defining-shared-behavior">4.5 Traits — Defining Shared Behavior</a></h2>
 <p>Traits are Rust’s answer to interfaces:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

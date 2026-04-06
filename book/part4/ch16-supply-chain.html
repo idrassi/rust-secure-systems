@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -338,6 +338,13 @@ enable-builtin-globs = true
 include-dependencies = true
 </code></pre>
 <p>This does <strong>not</strong> sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk.</p>
+<h3 id="1644-cargo-supply-chain-for-publisher-visibility"><a class="header" href="#1644-cargo-supply-chain-for-publisher-visibility">16.4.4 <code>cargo-supply-chain</code> for Publisher Visibility</a></h3>
+<p><code>cargo-deny</code> tells you whether a dependency violates policy. <code>cargo-supply-chain</code> answers a different question: <em>who</em> are you implicitly trusting across the full dependency graph?</p>
+<pre><code class="language-bash">cargo install cargo-supply-chain --locked
+cargo supply-chain publishers
+cargo supply-chain crates
+</code></pre>
+<p>Use it to spot one-off publishers, surprising maintainer concentration, or dependency subtrees published by accounts you have never reviewed. That context is especially useful when assessing typosquatting and maintainer-account compromise risks, and it complements the deeper per-version review flows from <code>cargo-vet</code>.</p>
 <h2 id="165-build-reproducibility"><a class="header" href="#165-build-reproducibility">16.5 Build Reproducibility</a></h2>
 <h3 id="1651-reproducible-builds"><a class="header" href="#1651-reproducible-builds">16.5.1 Reproducible Builds</a></h3>
 <p>A reproducible build produces identical output given the same source code, regardless of the build environment. This enables third-party verification that a binary was built from the claimed source.</p>
@@ -362,6 +369,7 @@ RUSTFLAGS = "--remap-path-prefix=/build/workdir=."
 SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 </code></pre>
 <p>Absolute paths in debug info, non-deterministic linkers, and <code>build.rs</code> scripts are common causes of Rust build drift. <code>SOURCE_DATE_EPOCH</code> can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.</p>
+<p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
 <h3 id="1652-binary-verification"><a class="header" href="#1652-binary-verification">16.5.2 Binary Verification</a></h3>
 <pre><code class="language-bash"># Compare builds
 sha256sum target/release/my-binary
@@ -496,6 +504,7 @@ jobs:
 <li>Minimize dependency count; prefer the standard library.</li>
 <li>Commit <code>Cargo.lock</code> for reproducible builds.</li>
 <li>Use <code>cargo-deny</code> to enforce license, source, and ban policies.</li>
+<li>Use <code>cargo-supply-chain</code> to see who publishes and maintains the crates you implicitly trust.</li>
 <li>Vendor dependencies for air-gapped builds.</li>
 <li>Audit <code>build.rs</code> scripts— they have full system access at build time.</li>
 <li>Build in sandboxed environments with <code>--frozen --offline</code>.</li>

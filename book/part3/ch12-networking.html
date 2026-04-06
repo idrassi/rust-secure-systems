@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
+            window.path_to_searchindex_js = "../searchindex-d8002632.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -221,8 +221,6 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     });
     
     let listener = TcpListener::bind("0.0.0.0:8443").await?;
-    // Note: 0.0.0.0 binds to all interfaces. In production, consider binding
-    // to a specific interface or 127.0.0.1 for development.
     println!("Server listening on port 8443");
     
     loop {
@@ -328,6 +326,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
     frame.extend_from_slice(payload);
     frame
 }</code></pre>
+<p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>
 <p>On Unix, broken-pipe <code>SIGPIPE</code> delivery is a classic networking footgun. For Rust socket code, <code>std::net</code> and Tokio already suppress <code>SIGPIPE</code> on TCP sockets (<code>MSG_NOSIGNAL</code> / <code>SO_NOSIGPIPE</code> style handling), so a dead peer normally becomes an <code>io::Error</code>, not process termination. Revisit <code>SIGPIPE</code> only when you drop to raw <code>libc</code> writes, interact with pipes or child stdio, or deliberately change the process signal disposition.</p>
 <p>🔒 <strong>Security measures in this server</strong>:</p>
@@ -517,6 +516,7 @@ loop {
     });
 }
 <span class="boring">}</span></code></pre>
+<p>If you need to track a scoped group of child connection tasks for a request fan-out, shutdown phase, or bounded worker pool, prefer <code>JoinSet</code> over manually storing <code>JoinHandle</code>s in a <code>Vec</code>. Dropping the set aborts unfinished tasks instead of letting them linger detached.</p>
 <p>🔒 <strong>TLS hardening checklist</strong>:</p>
 <ul>
 <li>✅ Use TLS 1.2 minimum (prefer TLS 1.3)</li>
@@ -625,6 +625,8 @@ let resolver = Resolver::builder_with_config(
 ).build();
 
 let ips = resolver.lookup_ip("api.example.com.").await?;</code></pre>
+<p>This example is marked <code>ignore</code> because resolver constructors and presets can shift across crate releases; keep the exact version you ship in a real integration test.</p>
+<p>APIs that accept hostnames through <code>ToSocketAddrs</code> or string-based <code>TcpStream::connect</code> resolve names as part of generic address conversion and may block the current thread. If your outbound policy depends on SSRF filtering, DNS rebinding defenses, or a specific resolver transport, resolve with your chosen resolver first, validate each returned <code>SocketAddr</code>, and only then connect.</p>
 <p>Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services that make authorization or routing decisions from hostnames.</p>
 <h3 id="1233-preventing-amplification-attacks"><a class="header" href="#1233-preventing-amplification-attacks">12.3.3 Preventing Amplification Attacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
