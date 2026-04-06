@@ -173,12 +173,14 @@ fn handle_error(err: AuthError) {
         AuthError::AccountLocked => println!("Account locked"),
         AuthError::TokenExpired => println!("Token expired"),
         AuthError::RateLimited => println!("Rate limited"),
-        // #[non_exhaustive] requires a wildcard arm, ensuring future
-        // variants added to AuthError don't break compilation
+        // Downstream crates matching a public `#[non_exhaustive]` enum
+        // must include a wildcard arm for future variants.
         _ => println!("Unknown auth error"),
     }
 }
 ```
+
+Inside the crate that defines `AuthError`, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point. The `#[non_exhaustive]` guarantee matters at the public API boundary: downstream crates importing `AuthError` must include a fallback arm.
 
 🔒 **Security pattern**: Use `#[non_exhaustive]` on public enums in library APIs. If you add a new error variant (e.g., `CertificateRevoked`), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without `#[non_exhaustive]`, adding a variant is a breaking change: downstream `match` expressions without a wildcard fail to compile, while matches that already use `_` continue compiling and may route the new case through a generic fallback path.
 

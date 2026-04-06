@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -290,7 +290,7 @@ fn bind(port: BindPort) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
-<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
+<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. NFKC is more aggressive: it folds compatibility characters such as full-width forms, which is often desirable for login identifiers and usernames but too destructive for free-form content. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
 <h3 id="layer-2-parse-dont-validate"><a class="header" href="#layer-2-parse-dont-validate">Layer 2: Parse, Don’t Validate</a></h3>
 <p>The principle comes from functional programming: instead of checking if data is valid and then using it, <strong>parse</strong> the data into a strongly-typed representation that is valid by construction:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -388,6 +388,7 @@ fn list_directory(path: &amp;Path) -&gt; io::Result&lt;String&gt; {
 <ul>
 <li><strong>SQL</strong>: Use parameterized queries or your ORM’s bind API (<code>sqlx</code>, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.</li>
 <li><strong>HTML / XSS</strong>: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.</li>
+<li><strong>HTTP headers</strong>: Never splice attacker-controlled strings directly into header lines. Reject <code>\r</code>/<code>\n</code>, let a real HTTP library serialize the header map, and treat response splitting as an injection sink just like SQL or shell construction.</li>
 </ul>
 <p>For example, with <code>sqlx</code>:</p>
 <pre><code class="language-rust ignore">// BAD: attacker input changes the SQL structure

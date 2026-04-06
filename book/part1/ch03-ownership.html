@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -384,7 +384,7 @@ fn main() {
 }</code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
 <p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
-<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + compiler-fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the crate:</p>
+<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + compiler-fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the <code>zeroize</code> crate, as shown below:</p>
 <p>The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware <code>fence</code> is not required for this example.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -400,7 +400,28 @@ struct SecureBuffer {
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
 <p>Deserialization has the same lifecycle cost: every <code>serde::Deserialize</code> call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.</p>
-<h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
+<h3 id="342-manuallydropt--controlled-destruction-boundaries"><a class="header" href="#342-manuallydropt--controlled-destruction-boundaries">3.4.2 <code>ManuallyDrop&lt;T&gt;</code> — Controlled Destruction Boundaries</a></h3>
+<p>Most code should let Rust run destructors automatically. <code>ManuallyDrop&lt;T&gt;</code> exists for the narrower cases where you need to suppress that automatic <code>Drop</code> temporarily, such as handing ownership across an FFI boundary or forcing one resource to outlive another during teardown:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::mem::ManuallyDrop;
+
+struct OwnedFd(i32);
+
+impl Drop for OwnedFd {
+    fn drop(&amp;mut self) {
+        // Real code would call close(self.0) or the platform equivalent.
+        println!("closing fd {}", self.0);
+    }
+}
+
+fn transfer_fd_to_foreign_code(fd: OwnedFd) -&gt; i32 {
+    let fd = ManuallyDrop::new(fd);
+    fd.0
+}
+<span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>ManuallyDrop</code> disables Rust’s automatic cleanup, so a mistake becomes a leak or double-free bug immediately. Use it only at clearly documented ownership boundaries and keep exactly one deallocation path for the wrapped value.</p>
+<h3 id="343-interior-mutability--refcellt-and-cellt"><a class="header" href="#343-interior-mutability--refcellt-and-cellt">3.4.3 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -422,7 +443,7 @@ impl Logger {
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Security note</strong>: <code>RefCell</code> enforces borrowing rules at <strong>runtime</strong> instead of compile time. If you violate the rules (e.g., calling <code>borrow_mut()</code> while a <code>borrow()</code> is active), the program panics. Use <code>RefCell</code> only when you cannot satisfy the borrow checker at compile time, and ensure your usage patterns cannot lead to panics.</p>
-<h3 id="343-self-referential-types-and-pin"><a class="header" href="#343-self-referential-types-and-pin">3.4.3 Self-Referential Types and <code>Pin</code></a></h3>
+<h3 id="344-self-referential-types-and-pin"><a class="header" href="#344-self-referential-types-and-pin">3.4.4 Self-Referential Types and <code>Pin</code></a></h3>
 <p>Self-referential types (structs where one field references another) are a challenge in Rust. Most developers encounter this indirectly through <code>async fn</code>: the compiler-generated future may hold references into its own state machine, so it must not be moved after polling begins.</p>
 <p><code>Pin&lt;P&gt;</code> is the tool Rust uses to express that guarantee. Pinning does not magically make arbitrary self-references safe; it only promises that the pointee will not move after it has been pinned. If you think you need a hand-written self-referential struct, first try a simpler design: store offsets instead of references, split the owned buffer from the parsed view, or borrow from an external owner instead of borrowing from <code>self</code>.</p>
 <p>🔒 <strong>Security relevance</strong>: <code>Pin</code> matters when implementing low-level async runtimes, protocol state machines, or custom pointer types. Used correctly, it prevents bugs where internal references are invalidated by moves. Used incorrectly with <code>unsafe</code>, it can recreate the same dangling-reference class Rust normally eliminates.</p>
@@ -451,6 +472,7 @@ impl Logger {
 <li>The borrow checker enforces: either one mutable reference <strong>or</strong> any number of immutable references.</li>
 <li>Lifetimes ensure references cannot outlive the data they reference.</li>
 <li><code>Drop</code> provides deterministic cleanup on normal destruction paths; use it to hook secure wiping, but do not assume it runs on abort or forced-exit paths.</li>
+<li><code>ManuallyDrop&lt;T&gt;</code> is for explicit ownership-transfer and destruction-order boundaries; use it sparingly and document who frees the value.</li>
 <li>Interior mutability (<code>RefCell</code>, <code>Cell</code>) moves borrow checking to runtime; use sparingly.</li>
 </ul>
 <p>Understanding ownership is the foundation. In the next chapter, we explore Rust’s type system and how it prevents entire categories of security bugs.</p>

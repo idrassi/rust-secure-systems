@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -437,6 +437,10 @@ fn process_data(slice: &amp;[u8]) -&gt; Result&lt;i32, ()&gt; {
 }
 
 extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
+    if data.is_null() {
+        return -1;
+    }
+
     let result = panic::catch_unwind(|| {
         let slice = unsafe { std::slice::from_raw_parts(data, len) };
         process_data(slice)

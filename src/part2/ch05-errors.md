@@ -265,6 +265,10 @@ fn process_data(slice: &[u8]) -> Result<i32, ()> {
 }
 
 extern "C" fn exported_function(data: *const u8, len: usize) -> i32 {
+    if data.is_null() {
+        return -1;
+    }
+
     let result = panic::catch_unwind(|| {
         let slice = unsafe { std::slice::from_raw_parts(data, len) };
         process_data(slice)

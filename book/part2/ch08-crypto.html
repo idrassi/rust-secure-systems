@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -197,6 +197,7 @@
 <li>HMAC</li>
 <li>Constant-time comparisons</li>
 </ul>
+<p>Its surface area is intentionally narrower than the full Rust crypto ecosystem. Reach for other reviewed crates when you need features outside that core, such as Argon2 password hashing, misuse-resistant AEADs like AES-GCM-SIV, extended-nonce AEADs like XChaCha20-Poly1305, or newer experimental primitives.</p>
 <pre><code class="language-toml"># Cargo.toml
 [dependencies]
 ring = "0.17"
@@ -438,6 +439,7 @@ fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
 <li><strong>Parallelism</strong>: 1 degree of parallelism minimum</li>
 <li>Adjust upward based on your hardware and acceptable verification latency</li>
 </ul>
+<p>⚠️ <strong>Legacy migration note</strong>: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.</p>
 <h2 id="84-digital-signatures"><a class="header" href="#84-digital-signatures">8.4 Digital Signatures</a></h2>
 <h3 id="ed25519-signatures"><a class="header" href="#ed25519-signatures">Ed25519 Signatures</a></h3>
 <p>Ed25519 is the recommended signature scheme for most applications — it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
@@ -667,6 +669,7 @@ fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
 <span class="boring">}</span></code></pre>
 <p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
 <p>⚠️ <strong>Verification note</strong>: Treat constant-time behavior as a property of the compiled code on the targets you actually ship. Source-level review is necessary but not sufficient. Tools such as <code>dudect</code> (statistical timing tests) and <code>ctgrind</code> (secret-dependent control-flow and memory-access checks) help validate whether a “constant-time” path still behaves that way after optimization on a specific platform.</p>
+<p>When benchmarking these paths with <code>criterion</code> or ad hoc timing loops, pass both the secret inputs and the observed outputs through <code>std::hint::black_box</code>. Otherwise LLVM may fold away work that is present in production and give you a false sense of constant-time behavior.</p>
 <h3 id="865-hardware-backed-and-os-managed-key-storage"><a class="header" href="#865-hardware-backed-and-os-managed-key-storage">8.6.5 Hardware-Backed and OS-Managed Key Storage</a></h3>
 <p>For high-value long-lived keys, keep private-key operations inside a keystore or hardware boundary rather than loading raw key bytes into the application process. Typical options include PKCS#11 devices and HSMs (<code>cryptoki</code>), TPM-backed keys (<code>tss-esapi</code> over <code>tpm2-tss</code>), and OS-managed stores such as DPAPI, Credential Manager, macOS Keychain, Linux keyrings, or Secret Service.</p>
 <p>Use these when host compromise, compliance requirements, or signing authority justify the operational cost. Design the application around key handles and operations such as sign, decrypt, or unwrap; avoid exporting the private key unless migration or backup requires it. Chapter 19 returns to the production deployment tradeoffs.</p>

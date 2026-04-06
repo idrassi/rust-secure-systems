@@ -66,7 +66,7 @@ rustflags = [
 ]
 ```
 
-Treat CET as advanced hardening, not a copy-paste default. Verify support with `rustc --print target-features --target x86_64-unknown-linux-gnu`, then confirm the resulting binary actually carries the properties you expect.
+Treat CET as advanced hardening, not a copy-paste default. Verify support with `rustc --print target-features --target x86_64-unknown-linux-gnu`, then confirm the resulting binary actually carries the properties you expect. Make CI fail closed here: if the requested target feature is unavailable or the final binary does not show the expected hardening property, stop the release rather than assuming the flag "probably worked."
 
 ### 19.1.3 Windows-Specific Hardening
 
@@ -194,7 +194,7 @@ No capability is added here because the sample server binds to port 8443, which 
 
 If you do need privileged startup behavior, prefer **privilege separation** over granting those powers to the long-lived worker. Common patterns include systemd socket activation, a tiny privileged parent that opens sockets or files and passes file descriptors to the Rust service, or a short bootstrap phase that drops to an unprivileged UID/GID before parsing untrusted input. Keep the component that touches attacker-controlled data as the least-privileged process in the design.
 
-Enable `RUST_BACKTRACE=1` only during controlled debugging sessions, not as a standing production setting.
+Enable `RUST_BACKTRACE=1` only during controlled debugging sessions, not as a standing production setting. Backtraces leak internal module names, file-system paths, and library layout details that help attackers profile the target and sometimes reveal more than the external error contract intended (CWE-209).
 
 ### 19.2.3 Seccomp Profile
 

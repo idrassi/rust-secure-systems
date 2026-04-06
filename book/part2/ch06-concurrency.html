@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -264,6 +264,22 @@ fn main() {
 }</code></pre>
 <p>The <code>move</code> here moves the <code>&amp;mut u64</code> borrow into each closure, not the integer itself. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
 <p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
+<p>On constrained systems, pair this with <code>std::thread::Builder</code> when you need explicit thread names or stack-size control:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::thread;
+
+let worker = thread::Builder::new()
+    .name("frame-parser".into())
+    .stack_size(256 * 1024)
+    .spawn(|| {
+        // Worker logic
+    })?;
+
+worker.join().unwrap();
+<span class="boring">Ok::&lt;(), std::io::Error&gt;(())
+</span><span class="boring">}</span></code></pre>
+<p>Set custom stack sizes only when you understand the recursion depth and per-thread buffer usage. Too-small stacks turn parsing bugs into hard crashes.</p>
 <h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
 <h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
 <p><code>Mutex&lt;T&gt;</code> provides exclusive access to <code>T</code>. The lock guard pattern ensures the lock is always released:</p>
@@ -376,6 +392,9 @@ fn trust_anchors() -&gt; &amp;'static [&amp;'static str] {
 <p><code>OnceLock</code> is ideal for values loaded once from configuration, certificates, or policy files. <code>LazyLock</code> is convenient when the initializer is fixed at compile time. Both avoid races around first-use initialization without needing an external crate.</p>
 <h3 id="625-condvar---wait-for-state-changes-without-spinning"><a class="header" href="#625-condvar---wait-for-state-changes-without-spinning">6.2.5 <code>Condvar</code> - Wait for State Changes Without Spinning</a></h3>
 <p>Use a condition variable when threads must sleep until a predicate becomes true:</p>
+<blockquote>
+<p><strong>Note</strong>: As in the surrounding examples, <code>.unwrap()</code> is used here for brevity. In production code, handle poisoned mutexes explicitly instead of panicking.</p>
+</blockquote>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use std::collections::VecDeque;
@@ -709,6 +728,10 @@ impl FramedReader {
         debug_assert!(
             self.read_pos &gt;= 4,
             "advance() requires a previously buffered frame header"
+        );
+        debug_assert!(
+            self.read_pos &gt;= 4 + self.current_message_len(),
+            "advance() requires a complete buffered frame"
         );
         let message_end = 4 + self.current_message_len();
         let remaining = self.read_pos - message_end;

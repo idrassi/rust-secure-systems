@@ -129,6 +129,8 @@ impl TlvTag {
     }
 
     fn is_reserved_extension_value(byte: u8) -> bool {
+        // `from_byte` maps 0x00..=0x0A to named variants, so this guard mainly
+        // defends manual construction such as `TlvTag::Extension(0x01)`.
         matches!(byte, 0x00..=0x0A)
     }
 }
@@ -205,6 +207,7 @@ impl TlvMessage {
         }
         
         let mut records: Vec<TlvRecord> = Vec::new();
+        let mut seen_tags = [false; 256];
         let mut offset = 0usize;
         
         while offset < data.len() {
@@ -247,9 +250,11 @@ impl TlvMessage {
             offset = end;
             
             if !matches!(tag, TlvTag::Padding) {
-                if records.iter().any(|record| record.tag == tag) {
+                let tag_byte = tag.as_byte() as usize;
+                if seen_tags[tag_byte] {
                     return Err(ParseError::DuplicateTag { tag });
                 }
+                seen_tags[tag_byte] = true;
                 records.push(TlvRecord::new(tag, value)?);
             }
         }

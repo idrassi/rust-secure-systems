@@ -371,6 +371,12 @@ With `panic = "abort"`:
 
 ⚠️ **Trade-off**: With `panic = "abort"`, you lose the ability to catch panics. Ensure all error handling uses `Result` rather than relying on panic catching.
 
+### 10.4.3 Signal Handlers and Thread-Local State
+
+Signal handlers are a special FFI trap because they run in an async-signal-safe context, not in an ordinary Rust execution environment. Whether the handler is installed from C or from Rust, do **not** allocate, lock a mutex, log through a normal formatter, or touch most runtime/library facilities from the handler. Set an atomic flag, write a byte to a self-pipe or `eventfd`, and let ordinary code handle the real shutdown or recovery work.
+
+Thread-local state deserves the same caution. A callback from C into Rust may run on a foreign thread that never initialized the Rust-side context you expected, and a signal can interrupt code while TLS-backed state is mid-update. Treat `thread_local!` values as thread-scoped implementation details, not as a cross-language global state mechanism.
+
 ## 10.5 Ownership Across the FFI Boundary
 
 The most dangerous aspect of FFI is ownership confusion. Who allocates? Who frees?

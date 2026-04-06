@@ -262,7 +262,7 @@ fn main() {
 
 ⚠️ **Panic behavior matters**: `Drop` runs on normal return and during unwinding, but it does not run if the process aborts. If you set `panic = "abort"` for FFI or hardening reasons, do not assume `Drop`-based wiping protects panic paths.
 
-⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. We show the `write_volatile` + compiler-fence pattern first so you can see the optimization hazard that motivates `zeroize`; in practice you should prefer the crate:
+⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. We show the `write_volatile` + compiler-fence pattern first so you can see the optimization hazard that motivates `zeroize`; in practice you should prefer the `zeroize` crate, as shown below:
 
 The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware `fence` is not required for this example.
 
@@ -283,7 +283,31 @@ Neither `Drop` nor `zeroize` is a complete secret-lifecycle guarantee. They do n
 
 Deserialization has the same lifecycle cost: every `serde::Deserialize` call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.
 
-### 3.4.2 Interior Mutability — `RefCell<T>` and `Cell<T>`
+### 3.4.2 `ManuallyDrop<T>` — Controlled Destruction Boundaries
+
+Most code should let Rust run destructors automatically. `ManuallyDrop<T>` exists for the narrower cases where you need to suppress that automatic `Drop` temporarily, such as handing ownership across an FFI boundary or forcing one resource to outlive another during teardown:
+
+```rust
+use std::mem::ManuallyDrop;
+
+struct OwnedFd(i32);
+
+impl Drop for OwnedFd {
+    fn drop(&mut self) {
+        // Real code would call close(self.0) or the platform equivalent.
+        println!("closing fd {}", self.0);
+    }
+}
+
+fn transfer_fd_to_foreign_code(fd: OwnedFd) -> i32 {
+    let fd = ManuallyDrop::new(fd);
+    fd.0
+}
+```
+
+⚠️ **Security note**: `ManuallyDrop` disables Rust's automatic cleanup, so a mistake becomes a leak or double-free bug immediately. Use it only at clearly documented ownership boundaries and keep exactly one deallocation path for the wrapped value.
+
+### 3.4.3 Interior Mutability — `RefCell<T>` and `Cell<T>`
 
 Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:
 
@@ -308,7 +332,7 @@ impl Logger {
 
 ⚠️ **Security note**: `RefCell` enforces borrowing rules at **runtime** instead of compile time. If you violate the rules (e.g., calling `borrow_mut()` while a `borrow()` is active), the program panics. Use `RefCell` only when you cannot satisfy the borrow checker at compile time, and ensure your usage patterns cannot lead to panics.
 
-### 3.4.3 Self-Referential Types and `Pin`
+### 3.4.4 Self-Referential Types and `Pin`
 
 Self-referential types (structs where one field references another) are a challenge in Rust. Most developers encounter this indirectly through `async fn`: the compiler-generated future may hold references into its own state machine, so it must not be moved after polling begins.
 
@@ -336,6 +360,7 @@ Self-referential types (structs where one field references another) are a challe
 - The borrow checker enforces: either one mutable reference **or** any number of immutable references.
 - Lifetimes ensure references cannot outlive the data they reference.
 - `Drop` provides deterministic cleanup on normal destruction paths; use it to hook secure wiping, but do not assume it runs on abort or forced-exit paths.
+- `ManuallyDrop<T>` is for explicit ownership-transfer and destruction-order boundaries; use it sparingly and document who frees the value.
 - Interior mutability (`RefCell`, `Cell`) moves borrow checking to runtime; use sparingly.
 
 Understanding ownership is the foundation. In the next chapter, we explore Rust's type system and how it prevents entire categories of security bugs.

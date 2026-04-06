@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -238,7 +238,7 @@ rustflags = [
     # "-C", "target-feature=+ibt",  # Indirect Branch Tracking on toolchains that expose it
 ]
 </code></pre>
-<p>Treat CET as advanced hardening, not a copy-paste default. Verify support with <code>rustc --print target-features --target x86_64-unknown-linux-gnu</code>, then confirm the resulting binary actually carries the properties you expect.</p>
+<p>Treat CET as advanced hardening, not a copy-paste default. Verify support with <code>rustc --print target-features --target x86_64-unknown-linux-gnu</code>, then confirm the resulting binary actually carries the properties you expect. Make CI fail closed here: if the requested target feature is unavailable or the final binary does not show the expected hardening property, stop the release rather than assuming the flag “probably worked.”</p>
 <h3 id="1913-windows-specific-hardening"><a class="header" href="#1913-windows-specific-hardening">19.1.3 Windows-Specific Hardening</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Windows)
 [build]
@@ -357,7 +357,7 @@ services:
 <p>Only add <code>seccomp:seccomp-profile.json</code> after you have produced a profile that is strictly tighter than the runtime default for the exact image you deploy.</p>
 <p>No capability is added here because the sample server binds to port 8443, which is not a privileged port on Linux. Only add <code>NET_BIND_SERVICE</code> if you must bind below 1024.</p>
 <p>If you do need privileged startup behavior, prefer <strong>privilege separation</strong> over granting those powers to the long-lived worker. Common patterns include systemd socket activation, a tiny privileged parent that opens sockets or files and passes file descriptors to the Rust service, or a short bootstrap phase that drops to an unprivileged UID/GID before parsing untrusted input. Keep the component that touches attacker-controlled data as the least-privileged process in the design.</p>
-<p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting.</p>
+<p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting. Backtraces leak internal module names, file-system paths, and library layout details that help attackers profile the target and sometimes reveal more than the external error contract intended (CWE-209).</p>
 <h3 id="1923-seccomp-profile"><a class="header" href="#1923-seccomp-profile">19.2.3 Seccomp Profile</a></h3>
 <p>The safest default is to keep Docker or Podman’s built-in seccomp profile. Do <strong>not</strong> replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.</p>
 <p>When you do need a custom profile, derive it from the runtime default profile for the exact engine version you deploy, trace the syscalls your service actually needs, and then tighten from there. The example below is an <strong>illustrative excerpt</strong>, not a complete profile:</p>

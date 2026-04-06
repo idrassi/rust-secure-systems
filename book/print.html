@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -255,6 +255,7 @@
 </tbody>
 </table>
 </div>
+<p><code>CWE-367</code> is a more specific child of the broader <code>CWE-362</code> race-condition family. We list it separately because TOCTOU deserves its own design discussion in secure systems code.</p>
 <p>These are not theoretical risks. They are the most exploited vulnerability classes in real-world attacks, enabling remote code execution, privilege escalation, and data theft.</p>
 <h2 id="12-what-makes-rust-different"><a class="header" href="#12-what-makes-rust-different">1.2 What Makes Rust Different</a></h2>
 <p>Rust addresses these problems through three pillars:</p>
@@ -370,6 +371,7 @@ fn main() {
 <li><strong>Cryptography</strong>: The <code>ring</code> crate, TLS implementations</li>
 <li><strong>Embedded</strong>: TrustZone TAs, secure bootloaders</li>
 <li><strong>Tooling</strong>: Password managers, VPN clients, endpoint security agents</li>
+<li><strong>High assurance</strong>: Formal-verification tools such as Kani and Prusti for bounded proofs and contracts (see Chapter 15)</li>
 </ul>
 <h2 id="15-comparison-with-other-safe-languages"><a class="header" href="#15-comparison-with-other-safe-languages">1.5 Comparison with Other “Safe” Languages</a></h2>
 <div class="table-wrapper">
@@ -946,7 +948,7 @@ fn main() {
 }</code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
 <p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
-<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + compiler-fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the crate:</p>
+<p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + compiler-fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the <code>zeroize</code> crate, as shown below:</p>
 <p>The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware <code>fence</code> is not required for this example.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -962,7 +964,28 @@ struct SecureBuffer {
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
 <p>Deserialization has the same lifecycle cost: every <code>serde::Deserialize</code> call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.</p>
-<h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
+<h3 id="342-manuallydropt--controlled-destruction-boundaries"><a class="header" href="#342-manuallydropt--controlled-destruction-boundaries">3.4.2 <code>ManuallyDrop&lt;T&gt;</code> — Controlled Destruction Boundaries</a></h3>
+<p>Most code should let Rust run destructors automatically. <code>ManuallyDrop&lt;T&gt;</code> exists for the narrower cases where you need to suppress that automatic <code>Drop</code> temporarily, such as handing ownership across an FFI boundary or forcing one resource to outlive another during teardown:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::mem::ManuallyDrop;
+
+struct OwnedFd(i32);
+
+impl Drop for OwnedFd {
+    fn drop(&amp;mut self) {
+        // Real code would call close(self.0) or the platform equivalent.
+        println!("closing fd {}", self.0);
+    }
+}
+
+fn transfer_fd_to_foreign_code(fd: OwnedFd) -&gt; i32 {
+    let fd = ManuallyDrop::new(fd);
+    fd.0
+}
+<span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Security note</strong>: <code>ManuallyDrop</code> disables Rust’s automatic cleanup, so a mistake becomes a leak or double-free bug immediately. Use it only at clearly documented ownership boundaries and keep exactly one deallocation path for the wrapped value.</p>
+<h3 id="343-interior-mutability--refcellt-and-cellt"><a class="header" href="#343-interior-mutability--refcellt-and-cellt">3.4.3 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -984,7 +1007,7 @@ impl Logger {
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Security note</strong>: <code>RefCell</code> enforces borrowing rules at <strong>runtime</strong> instead of compile time. If you violate the rules (e.g., calling <code>borrow_mut()</code> while a <code>borrow()</code> is active), the program panics. Use <code>RefCell</code> only when you cannot satisfy the borrow checker at compile time, and ensure your usage patterns cannot lead to panics.</p>
-<h3 id="343-self-referential-types-and-pin"><a class="header" href="#343-self-referential-types-and-pin">3.4.3 Self-Referential Types and <code>Pin</code></a></h3>
+<h3 id="344-self-referential-types-and-pin"><a class="header" href="#344-self-referential-types-and-pin">3.4.4 Self-Referential Types and <code>Pin</code></a></h3>
 <p>Self-referential types (structs where one field references another) are a challenge in Rust. Most developers encounter this indirectly through <code>async fn</code>: the compiler-generated future may hold references into its own state machine, so it must not be moved after polling begins.</p>
 <p><code>Pin&lt;P&gt;</code> is the tool Rust uses to express that guarantee. Pinning does not magically make arbitrary self-references safe; it only promises that the pointee will not move after it has been pinned. If you think you need a hand-written self-referential struct, first try a simpler design: store offsets instead of references, split the owned buffer from the parsed view, or borrow from an external owner instead of borrowing from <code>self</code>.</p>
 <p>🔒 <strong>Security relevance</strong>: <code>Pin</code> matters when implementing low-level async runtimes, protocol state machines, or custom pointer types. Used correctly, it prevents bugs where internal references are invalidated by moves. Used incorrectly with <code>unsafe</code>, it can recreate the same dangling-reference class Rust normally eliminates.</p>
@@ -1013,6 +1036,7 @@ impl Logger {
 <li>The borrow checker enforces: either one mutable reference <strong>or</strong> any number of immutable references.</li>
 <li>Lifetimes ensure references cannot outlive the data they reference.</li>
 <li><code>Drop</code> provides deterministic cleanup on normal destruction paths; use it to hook secure wiping, but do not assume it runs on abort or forced-exit paths.</li>
+<li><code>ManuallyDrop&lt;T&gt;</code> is for explicit ownership-transfer and destruction-order boundaries; use it sparingly and document who frees the value.</li>
 <li>Interior mutability (<code>RefCell</code>, <code>Cell</code>) moves borrow checking to runtime; use sparingly.</li>
 </ul>
 <p>Understanding ownership is the foundation. In the next chapter, we explore Rust’s type system and how it prevents entire categories of security bugs.</p>
@@ -1183,12 +1207,13 @@ fn handle_error(err: AuthError) {
         AuthError::AccountLocked =&gt; println!("Account locked"),
         AuthError::TokenExpired =&gt; println!("Token expired"),
         AuthError::RateLimited =&gt; println!("Rate limited"),
-        // #[non_exhaustive] requires a wildcard arm, ensuring future
-        // variants added to AuthError don't break compilation
+        // Downstream crates matching a public `#[non_exhaustive]` enum
+        // must include a wildcard arm for future variants.
         _ =&gt; println!("Unknown auth error"),
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Inside the crate that defines <code>AuthError</code>, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point. The <code>#[non_exhaustive]</code> guarantee matters at the public API boundary: downstream crates importing <code>AuthError</code> must include a fallback arm.</p>
 <p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change: downstream <code>match</code> expressions without a wildcard fail to compile, while matches that already use <code>_</code> continue compiling and may route the new case through a generic fallback path.</p>
 <h2 id="44-structs-and-tuples"><a class="header" href="#44-structs-and-tuples">4.4 Structs and Tuples</a></h2>
 <h3 id="structs"><a class="header" href="#structs">Structs</a></h3>
@@ -1735,6 +1760,10 @@ fn process_data(slice: &amp;[u8]) -&gt; Result&lt;i32, ()&gt; {
 }
 
 extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
+    if data.is_null() {
+        return -1;
+    }
+
     let result = panic::catch_unwind(|| {
         let slice = unsafe { std::slice::from_raw_parts(data, len) };
         process_data(slice)
@@ -2053,6 +2082,22 @@ fn main() {
 }</code></pre>
 <p>The <code>move</code> here moves the <code>&amp;mut u64</code> borrow into each closure, not the integer itself. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
 <p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
+<p>On constrained systems, pair this with <code>std::thread::Builder</code> when you need explicit thread names or stack-size control:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::thread;
+
+let worker = thread::Builder::new()
+    .name("frame-parser".into())
+    .stack_size(256 * 1024)
+    .spawn(|| {
+        // Worker logic
+    })?;
+
+worker.join().unwrap();
+<span class="boring">Ok::&lt;(), std::io::Error&gt;(())
+</span><span class="boring">}</span></code></pre>
+<p>Set custom stack sizes only when you understand the recursion depth and per-thread buffer usage. Too-small stacks turn parsing bugs into hard crashes.</p>
 <h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
 <h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
 <p><code>Mutex&lt;T&gt;</code> provides exclusive access to <code>T</code>. The lock guard pattern ensures the lock is always released:</p>
@@ -2165,6 +2210,9 @@ fn trust_anchors() -&gt; &amp;'static [&amp;'static str] {
 <p><code>OnceLock</code> is ideal for values loaded once from configuration, certificates, or policy files. <code>LazyLock</code> is convenient when the initializer is fixed at compile time. Both avoid races around first-use initialization without needing an external crate.</p>
 <h3 id="625-condvar---wait-for-state-changes-without-spinning"><a class="header" href="#625-condvar---wait-for-state-changes-without-spinning">6.2.5 <code>Condvar</code> - Wait for State Changes Without Spinning</a></h3>
 <p>Use a condition variable when threads must sleep until a predicate becomes true:</p>
+<blockquote>
+<p><strong>Note</strong>: As in the surrounding examples, <code>.unwrap()</code> is used here for brevity. In production code, handle poisoned mutexes explicitly instead of panicking.</p>
+</blockquote>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>use std::collections::VecDeque;
@@ -2499,6 +2547,10 @@ impl FramedReader {
             self.read_pos &gt;= 4,
             "advance() requires a previously buffered frame header"
         );
+        debug_assert!(
+            self.read_pos &gt;= 4 + self.current_message_len(),
+            "advance() requires a complete buffered frame"
+        );
         let message_end = 4 + self.current_message_len();
         let remaining = self.read_pos - message_end;
         if remaining &gt; 0 {
@@ -2772,7 +2824,7 @@ fn bind(port: BindPort) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
-<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
+<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. NFKC is more aggressive: it folds compatibility characters such as full-width forms, which is often desirable for login identifiers and usernames but too destructive for free-form content. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
 <h3 id="layer-2-parse-dont-validate"><a class="header" href="#layer-2-parse-dont-validate">Layer 2: Parse, Don’t Validate</a></h3>
 <p>The principle comes from functional programming: instead of checking if data is valid and then using it, <strong>parse</strong> the data into a strongly-typed representation that is valid by construction:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2870,6 +2922,7 @@ fn list_directory(path: &amp;Path) -&gt; io::Result&lt;String&gt; {
 <ul>
 <li><strong>SQL</strong>: Use parameterized queries or your ORM’s bind API (<code>sqlx</code>, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.</li>
 <li><strong>HTML / XSS</strong>: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.</li>
+<li><strong>HTTP headers</strong>: Never splice attacker-controlled strings directly into header lines. Reject <code>\r</code>/<code>\n</code>, let a real HTTP library serialize the header map, and treat response splitting as an injection sink just like SQL or shell construction.</li>
 </ul>
 <p>For example, with <code>sqlx</code>:</p>
 <pre><code class="language-rust ignore">// BAD: attacker input changes the SQL structure
@@ -3231,6 +3284,7 @@ where
 <li>HMAC</li>
 <li>Constant-time comparisons</li>
 </ul>
+<p>Its surface area is intentionally narrower than the full Rust crypto ecosystem. Reach for other reviewed crates when you need features outside that core, such as Argon2 password hashing, misuse-resistant AEADs like AES-GCM-SIV, extended-nonce AEADs like XChaCha20-Poly1305, or newer experimental primitives.</p>
 <pre><code class="language-toml"># Cargo.toml
 [dependencies]
 ring = "0.17"
@@ -3472,6 +3526,7 @@ fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
 <li><strong>Parallelism</strong>: 1 degree of parallelism minimum</li>
 <li>Adjust upward based on your hardware and acceptable verification latency</li>
 </ul>
+<p>⚠️ <strong>Legacy migration note</strong>: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.</p>
 <h2 id="84-digital-signatures"><a class="header" href="#84-digital-signatures">8.4 Digital Signatures</a></h2>
 <h3 id="ed25519-signatures"><a class="header" href="#ed25519-signatures">Ed25519 Signatures</a></h3>
 <p>Ed25519 is the recommended signature scheme for most applications — it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
@@ -3701,6 +3756,7 @@ fn tags_match(provided: &amp;[u8; 32], expected: &amp;[u8; 32]) -&gt; Choice {
 <span class="boring">}</span></code></pre>
 <p><code>Choice</code> is intentionally not a normal <code>bool</code>; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary <code>if</code>/<code>match</code> only on public values that are already safe to reveal.</p>
 <p>⚠️ <strong>Verification note</strong>: Treat constant-time behavior as a property of the compiled code on the targets you actually ship. Source-level review is necessary but not sufficient. Tools such as <code>dudect</code> (statistical timing tests) and <code>ctgrind</code> (secret-dependent control-flow and memory-access checks) help validate whether a “constant-time” path still behaves that way after optimization on a specific platform.</p>
+<p>When benchmarking these paths with <code>criterion</code> or ad hoc timing loops, pass both the secret inputs and the observed outputs through <code>std::hint::black_box</code>. Otherwise LLVM may fold away work that is present in production and give you a false sense of constant-time behavior.</p>
 <h3 id="865-hardware-backed-and-os-managed-key-storage"><a class="header" href="#865-hardware-backed-and-os-managed-key-storage">8.6.5 Hardware-Backed and OS-Managed Key Storage</a></h3>
 <p>For high-value long-lived keys, keep private-key operations inside a keystore or hardware boundary rather than loading raw key bytes into the application process. Typical options include PKCS#11 devices and HSMs (<code>cryptoki</code>), TPM-backed keys (<code>tss-esapi</code> over <code>tpm2-tss</code>), and OS-managed stores such as DPAPI, Credential Manager, macOS Keychain, Linux keyrings, or Secret Service.</p>
 <p>Use these when host compromise, compliance requirements, or signing authority justify the operational cost. Design the application around key handles and operations such as sign, decrypt, or unwrap; avoid exporting the private key unless migration or backup requires it. Chapter 19 returns to the production deployment tradeoffs.</p>
@@ -4294,7 +4350,7 @@ fn test_atomic_counter() {
 //     ...
 // }
 <span class="boring">}</span></code></pre>
-<p>Prusti is still research-grade but is maturing rapidly. For security-critical components, it can provide mathematical guarantees that go beyond what testing can achieve.</p>
+<p>Prusti is still research-grade and best suited to small, focused proofs rather than “turn it on for the whole crate” CI. For security-critical components, it can provide mathematical guarantees that go beyond what testing can achieve, but treat it as a high-assurance specialist tool, not a drop-in replacement for normal review and testing.</p>
 <h2 id="96-summary"><a class="header" href="#96-summary">9.6 Summary</a></h2>
 <ul>
 <li><code>unsafe</code> allows five specific operations that bypass safety checks.</li>
@@ -4662,6 +4718,9 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 <li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
 </ul>
 <p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
+<h3 id="1043-signal-handlers-and-thread-local-state"><a class="header" href="#1043-signal-handlers-and-thread-local-state">10.4.3 Signal Handlers and Thread-Local State</a></h3>
+<p>Signal handlers are a special FFI trap because they run in an async-signal-safe context, not in an ordinary Rust execution environment. Whether the handler is installed from C or from Rust, do <strong>not</strong> allocate, lock a mutex, log through a normal formatter, or touch most runtime/library facilities from the handler. Set an atomic flag, write a byte to a self-pipe or <code>eventfd</code>, and let ordinary code handle the real shutdown or recovery work.</p>
+<p>Thread-local state deserves the same caution. A callback from C into Rust may run on a foreign thread that never initialized the Rust-side context you expected, and a signal can interrupt code while TLS-backed state is mid-update. Treat <code>thread_local!</code> values as thread-scoped implementation details, not as a cross-language global state mechanism.</p>
 <h2 id="105-ownership-across-the-ffi-boundary"><a class="header" href="#105-ownership-across-the-ffi-boundary">10.5 Ownership Across the FFI Boundary</a></h2>
 <p>The most dangerous aspect of FFI is ownership confusion. Who allocates? Who frees?</p>
 <h3 id="pattern-1-rust-allocates-rust-frees"><a class="header" href="#pattern-1-rust-allocates-rust-frees">Pattern 1: Rust Allocates, Rust Frees</a></h3>
@@ -5275,6 +5334,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
     frame
 }</code></pre>
 <p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
+<p>If the service must accept both IPv4 and IPv6, make that choice explicit. <code>0.0.0.0</code> is IPv4-only, while <code>[::]</code> is IPv6 and may or may not accept IPv4-mapped connections depending on the target OS and the <code>IPV6_V6ONLY</code> setting. Test the exact dual-stack behavior you intend to ship instead of assuming one listener covers both families everywhere.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>
 <p>On Unix, broken-pipe <code>SIGPIPE</code> delivery is a classic networking footgun. For Rust socket code, <code>std::net</code> and Tokio already suppress <code>SIGPIPE</code> on TCP sockets (<code>MSG_NOSIGNAL</code> / <code>SO_NOSIGPIPE</code> style handling), so a dead peer normally becomes an <code>io::Error</code>, not process termination. Revisit <code>SIGPIPE</code> only when you drop to raw <code>libc</code> writes, interact with pipes or child stdio, or deliberately change the process signal disposition.</p>
 <p>🔒 <strong>Security measures in this server</strong>:</p>
@@ -5913,7 +5973,11 @@ mod negative_tests {
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod invariant_tests {
     use super::*;
-    
+
+    // Assume the surrounding module provides concrete `encrypt`, `decrypt`,
+    // `generate_random_key`, `generate_random_bytes`, and `generate_nonce`
+    // helpers. Replace them with your real primitives in a concrete codebase.
+
     /// Property: encryption followed by decryption always returns the original plaintext
     #[test]
     fn encrypt_decrypt_roundtrip() {
@@ -6424,7 +6488,7 @@ cargo +nightly fuzz run parse_message -s address
 cargo +nightly fuzz run parse_message fuzz/artifacts/parse_message/crash-&lt;hash&gt;
 </code></pre>
 <h3 id="1424-fuzzing-best-practices"><a class="header" href="#1424-fuzzing-best-practices">14.2.4 Fuzzing Best Practices</a></h3>
-<p><code>cargo-fuzz</code> is the default choice for libFuzzer-based coverage-guided fuzzing in Rust, but it is not the only engine. AFL.rs is also worth knowing when you want AFL/AFL++ style workflows or need to compare engines on the same parser.</p>
+<p><code>cargo-fuzz</code> is the default choice for libFuzzer-based coverage-guided fuzzing in Rust, but it is not the only engine. AFL.rs is also worth knowing when you want AFL/AFL++ style workflows or need to compare engines on the same parser. <code>honggfuzz-rs</code> is another practical option when you want a mature multi-process engine with good multicore support.</p>
 <p>🔒 <strong>Fuzzing strategy for security-critical code</strong>:</p>
 <ol>
 <li>
@@ -6477,6 +6541,25 @@ jobs:
 <ol start="6">
 <li><strong>Probe algorithmic complexity, not just crashes</strong>: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard <code>regex</code> crate avoids classic catastrophic backtracking for its supported syntax, but backtracking engines such as <code>fancy-regex</code> and custom parsers can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.</li>
 </ol>
+<h3 id="1425-differential-fuzzing"><a class="header" href="#1425-differential-fuzzing">14.2.5 Differential Fuzzing</a></h3>
+<p>When you have two implementations of the same format or algorithm, fuzz them against each other. This is especially valuable during rewrites, parser hardening, or “safe Rust replacement for legacy C” projects:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate libfuzzer_sys;
+</span><span class="boring">fn legacy_c_parser(_data: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, ()&gt; { Ok(Vec::new()) }
+</span><span class="boring">fn rust_parser(_data: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, ()&gt; { Ok(Vec::new()) }
+</span>libfuzzer_sys::fuzz_target!(|data: &amp;[u8]| {
+    let reference = legacy_c_parser(data);
+    let candidate = rust_parser(data);
+
+    assert_eq!(candidate.is_ok(), reference.is_ok());
+
+    if let (Ok(left), Ok(right)) = (candidate, reference) {
+        assert_eq!(left, right);
+    }
+});
+<span class="boring">}</span></code></pre>
+<p>Differential fuzzing catches a different class of bug than ordinary crash fuzzing: semantic disagreement. One parser accepting inputs the other rejects, or two implementations normalizing fields differently, can be just as security-relevant as a panic.</p>
 <h2 id="143-guided-fuzzing-for-security"><a class="header" href="#143-guided-fuzzing-for-security">14.3 Guided Fuzzing for Security</a></h2>
 <h3 id="1431-fuzzing-for-memory-safety-miri--fuzzing"><a class="header" href="#1431-fuzzing-for-memory-safety-miri--fuzzing">14.3.1 Fuzzing for Memory Safety (Miri + Fuzzing)</a></h3>
 <p>Combine Miri with fuzzing to detect undefined behavior. You need a test harness that reads corpus files and passes them to the parser:</p>
@@ -6600,6 +6683,7 @@ libfuzzer_sys::fuzz_target!(|actions: Vec&lt;FuzzAction&gt;| {
 <ul>
 <li><strong>Property-based testing</strong> (<code>proptest</code>, <code>quickcheck</code>): Generates random inputs to test invariants. Good for mathematical properties and roundtrip tests.</li>
 <li><strong>Fuzzing</strong> (<code>cargo-fuzz</code>): Coverage-guided input generation. Best for parsers, decoders, and protocol handlers.</li>
+<li>Differential fuzzing is useful when you have a reference implementation, older parser, or wire-compatible rewrite to compare against.</li>
 <li>Fuzz <strong>every</strong> input-processing function—especially network parsers.</li>
 <li>Use structured fuzzing (<code>arbitrary</code>) for complex input types.</li>
 <li>Run fuzzing continuously in CI and maintain a seed corpus.</li>
@@ -6760,7 +6844,7 @@ Solution: upgrade to a reviewed fixed release
 <p>For CI integration and dashboards, use machine-readable output:</p>
 <pre><code class="language-bash">cargo audit --json &gt; audit.json
 </code></pre>
-<p>Parse the JSON in your pipeline if you need to gate on specific severities, emit SARIF-like annotations, or archive reviewed exceptions with the rest of the build artifacts.</p>
+<p>Parse the JSON in your pipeline if you need to gate on specific severities, archive reviewed exceptions with the rest of the build artifacts, or convert findings into SARIF for GitHub Code Scanning and similar dashboards.</p>
 <h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
 <pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
 cargo geiger --all-features
@@ -6880,6 +6964,20 @@ Failed in:
     cargo install cargo-semver-checks --version 0.47.0 --locked
     cargo semver-checks
 </code></pre>
+<h3 id="1543-cargo-expand---audit-generated-macro-code"><a class="header" href="#1543-cargo-expand---audit-generated-macro-code">15.4.3 <code>cargo-expand</code> - Audit Generated Macro Code</a></h3>
+<p>Procedural macros are a compile-time trust boundary. Before you sign off on a crate that leans heavily on derives or attribute macros, inspect the generated Rust:</p>
+<pre><code class="language-bash">cargo install cargo-expand --locked
+cargo expand --lib my_module
+</code></pre>
+<p>Use this during audits of macros such as <code>serde</code> derives, async runtime entry-point attributes, or custom proc-macros from less familiar dependencies. Read the expanded output like ordinary Rust: look for hidden allocations, unchecked unwraps, surprising trait impls, and network or filesystem access in generated helpers.</p>
+<h3 id="1544-cargo-machete---trim-unused-dependencies"><a class="header" href="#1544-cargo-machete---trim-unused-dependencies">15.4.4 <code>cargo-machete</code> - Trim Unused Dependencies</a></h3>
+<p>Every unnecessary dependency is extra review surface. <code>cargo-machete</code> finds crates listed in <code>Cargo.toml</code> that are no longer referenced by the code:</p>
+<pre><code class="language-bash">cargo install cargo-machete --locked
+cargo machete
+</code></pre>
+<p>Treat the output as an audit queue, not as blind auto-removal. Feature-gated code, build scripts, tests, and proc-macro expansion can all make a dependency appear unused when it still matters, but the tool is excellent at surfacing “why is this even here?” questions.</p>
+<h3 id="1545-research-oriented-analyzers"><a class="header" href="#1545-research-oriented-analyzers">15.4.5 Research-Oriented Analyzers</a></h3>
+<p>Tools such as RUDRA and MIRAI are worth knowing when you audit unsafe or high-assurance Rust. RUDRA focuses on panic-safety and <code>Send</code>/<code>Sync</code> unsoundness patterns; MIRAI uses abstract interpretation to reason about contracts and invariants. Both are best treated as specialist review aids rather than default CI gates, but they can uncover issues ordinary linting misses.</p>
 <h2 id="155-manual-code-audit-checklist-for-rust"><a class="header" href="#155-manual-code-audit-checklist-for-rust">15.5 Manual Code Audit Checklist for Rust</a></h2>
 <h3 id="1551-unsafe-code-audit"><a class="header" href="#1551-unsafe-code-audit">15.5.1 Unsafe Code Audit</a></h3>
 <p>For each <code>unsafe</code> block:</p>
@@ -6963,6 +7061,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li>Use <code>cargo vet</code> or <code>cargo crev</code> for supply chain auditing.</li>
 <li>Use <code>cargo-careful</code> on nightly for broader runtime checking of unsafe-heavy code and integration tests.</li>
 <li>Use <code>cargo semver-checks</code> to detect accidental breaking API changes that could compromise downstream security.</li>
+<li>Use <code>cargo-expand</code> to inspect proc-macro output and <code>cargo-machete</code> to remove dead dependency surface.</li>
 <li>Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.</li>
 <li>Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.</li>
 </ul>
@@ -7133,13 +7232,13 @@ allow-git = ["https://github.com/your-org/your-private-crate"]
 [bans.build]
 # Start strict, then allow only reviewed compile-time crates that genuinely
 # need build scripts or proc-macro-adjacent tooling.
-allow-build-scripts = []
+allow-build-scripts = ["ring", "aws-lc-sys"]
 executables = "deny"
 interpreted = "warn"
 enable-builtin-globs = true
 include-dependencies = true
 </code></pre>
-<p>This does <strong>not</strong> sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk.</p>
+<p>This does <strong>not</strong> sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk. An empty allow-list is a good audit starting point when you want the build to fail closed and show you every compile-time dependency, but it is not a realistic copy-paste baseline for most working Rust workspaces.</p>
 <h3 id="1644-cargo-supply-chain-for-publisher-visibility"><a class="header" href="#1644-cargo-supply-chain-for-publisher-visibility">16.4.4 <code>cargo-supply-chain</code> for Publisher Visibility</a></h3>
 <p><code>cargo-deny</code> tells you whether a dependency violates policy. <code>cargo-supply-chain</code> answers a different question: <em>who</em> are you implicitly trusting across the full dependency graph?</p>
 <pre><code class="language-bash">cargo install cargo-supply-chain --locked
@@ -7172,6 +7271,7 @@ SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 </code></pre>
 <p>Absolute paths in debug info, non-deterministic linkers, and <code>build.rs</code> scripts are common causes of Rust build drift. <code>SOURCE_DATE_EPOCH</code> can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.</p>
 <p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
+<p>For crash forensics, keep a separate profile or symbol artifact with debug info intact. A release artifact cannot be both aggressively stripped for distribution and rich in local symbols for post-mortem analysis at the same time.</p>
 <h3 id="1652-binary-verification"><a class="header" href="#1652-binary-verification">16.5.2 Binary Verification</a></h3>
 <pre><code class="language-bash"># Compare builds
 sha256sum target/release/my-binary
@@ -7956,10 +8056,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     }
 }</code></pre>
 <p>⚠️ <strong>Security note</strong>: <code>0.0.0.0</code> is intentional here because this example represents the externally reachable production service. For local development bind <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer path you actually intend to expose.</p>
+<p>If the production service must accept both IPv4 and IPv6, do not assume this listener is enough. An explicit IPv4 bind keeps the example simple and portable, but real deployments often need either a second IPv6 listener or a deliberate <code>[::]:8443</code> socket after verifying the target platform’s <code>IPV6_V6ONLY</code> behavior.</p>
 <p>Admission control happens before <code>tls_acceptor.accept()</code>, so connection floods consume a bounded number of slots and cannot trigger unlimited concurrent handshakes. A separate per-request limiter runs once enough bytes are buffered to classify a frame, so malformed requests also consume the same request budget and one long-lived TLS session cannot bypass brute-force throttling.</p>
 <blockquote>
 <p><strong>Note</strong>: The handler already accepts any <code>AsyncRead + AsyncWrite + Unpin</code> stream, so the same code works with <code>TcpStream</code>, <code>tokio_rustls::server::TlsStream&lt;TcpStream&gt;</code>, and test doubles.</p>
 </blockquote>
+<p>Production shutdown is part of hardening too. The usual pattern is: listen for <code>SIGTERM</code> (or Ctrl+C during development), stop accepting new sockets, wait a bounded amount of time for in-flight connections to finish, then abort anything still running and exit cleanly. That avoids half-written responses, leaked permits, and the operational habit of using <code>SIGKILL</code> for routine restarts.</p>
 <h2 id="178-tests"><a class="header" href="#178-tests">17.8 Tests</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -8197,6 +8299,8 @@ impl TlvTag {
     }
 
     fn is_reserved_extension_value(byte: u8) -&gt; bool {
+        // `from_byte` maps 0x00..=0x0A to named variants, so this guard mainly
+        // defends manual construction such as `TlvTag::Extension(0x01)`.
         matches!(byte, 0x00..=0x0A)
     }
 }
@@ -8273,6 +8377,7 @@ impl TlvMessage {
         }
         
         let mut records: Vec&lt;TlvRecord&gt; = Vec::new();
+        let mut seen_tags = [false; 256];
         let mut offset = 0usize;
         
         while offset &lt; data.len() {
@@ -8315,9 +8420,11 @@ impl TlvMessage {
             offset = end;
             
             if !matches!(tag, TlvTag::Padding) {
-                if records.iter().any(|record| record.tag == tag) {
+                let tag_byte = tag.as_byte() as usize;
+                if seen_tags[tag_byte] {
                     return Err(ParseError::DuplicateTag { tag });
                 }
+                seen_tags[tag_byte] = true;
                 records.push(TlvRecord::new(tag, value)?);
             }
         }
@@ -8660,7 +8767,7 @@ rustflags = [
     # "-C", "target-feature=+ibt",  # Indirect Branch Tracking on toolchains that expose it
 ]
 </code></pre>
-<p>Treat CET as advanced hardening, not a copy-paste default. Verify support with <code>rustc --print target-features --target x86_64-unknown-linux-gnu</code>, then confirm the resulting binary actually carries the properties you expect.</p>
+<p>Treat CET as advanced hardening, not a copy-paste default. Verify support with <code>rustc --print target-features --target x86_64-unknown-linux-gnu</code>, then confirm the resulting binary actually carries the properties you expect. Make CI fail closed here: if the requested target feature is unavailable or the final binary does not show the expected hardening property, stop the release rather than assuming the flag “probably worked.”</p>
 <h3 id="1913-windows-specific-hardening"><a class="header" href="#1913-windows-specific-hardening">19.1.3 Windows-Specific Hardening</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Windows)
 [build]
@@ -8779,7 +8886,7 @@ services:
 <p>Only add <code>seccomp:seccomp-profile.json</code> after you have produced a profile that is strictly tighter than the runtime default for the exact image you deploy.</p>
 <p>No capability is added here because the sample server binds to port 8443, which is not a privileged port on Linux. Only add <code>NET_BIND_SERVICE</code> if you must bind below 1024.</p>
 <p>If you do need privileged startup behavior, prefer <strong>privilege separation</strong> over granting those powers to the long-lived worker. Common patterns include systemd socket activation, a tiny privileged parent that opens sockets or files and passes file descriptors to the Rust service, or a short bootstrap phase that drops to an unprivileged UID/GID before parsing untrusted input. Keep the component that touches attacker-controlled data as the least-privileged process in the design.</p>
-<p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting.</p>
+<p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting. Backtraces leak internal module names, file-system paths, and library layout details that help attackers profile the target and sometimes reveal more than the external error contract intended (CWE-209).</p>
 <h3 id="1923-seccomp-profile"><a class="header" href="#1923-seccomp-profile">19.2.3 Seccomp Profile</a></h3>
 <p>The safest default is to keep Docker or Podman’s built-in seccomp profile. Do <strong>not</strong> replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.</p>
 <p>When you do need a custom profile, derive it from the runtime default profile for the exact engine version you deploy, trace the syscalls your service actually needs, and then tighten from there. The example below is an <strong>illustrative excerpt</strong>, not a complete profile:</p>

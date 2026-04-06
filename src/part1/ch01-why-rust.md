@@ -23,6 +23,8 @@ The common vulnerability classes in C/C++ systems code include:
 | CWE-362 | Concurrent Race Condition | Unsynchronized shared-state access between threads |
 | CWE-367 | TOCTOU Race Condition | Time-of-check/time-of-use mismatch between validation and use |
 
+`CWE-367` is a more specific child of the broader `CWE-362` race-condition family. We list it separately because TOCTOU deserves its own design discussion in secure systems code.
+
 These are not theoretical risks. They are the most exploited vulnerability classes in real-world attacks, enabling remote code execution, privilege escalation, and data theft.
 
 ## 1.2 What Makes Rust Different
@@ -156,6 +158,7 @@ Rust is increasingly adopted in security-critical domains:
 - **Cryptography**: The `ring` crate, TLS implementations
 - **Embedded**: TrustZone TAs, secure bootloaders
 - **Tooling**: Password managers, VPN clients, endpoint security agents
+- **High assurance**: Formal-verification tools such as Kani and Prusti for bounded proofs and contracts (see Chapter 15)
 
 ## 1.5 Comparison with Other "Safe" Languages
 

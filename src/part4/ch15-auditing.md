@@ -161,7 +161,7 @@ For CI integration and dashboards, use machine-readable output:
 cargo audit --json > audit.json
 ```
 
-Parse the JSON in your pipeline if you need to gate on specific severities, emit SARIF-like annotations, or archive reviewed exceptions with the rest of the build artifacts.
+Parse the JSON in your pipeline if you need to gate on specific severities, archive reviewed exceptions with the rest of the build artifacts, or convert findings into SARIF for GitHub Code Scanning and similar dashboards.
 
 ### 15.3.2 `cargo geiger` — Counting Unsafe Code
 
@@ -313,6 +313,32 @@ Failed in:
     cargo semver-checks
 ```
 
+### 15.4.3 `cargo-expand` - Audit Generated Macro Code
+
+Procedural macros are a compile-time trust boundary. Before you sign off on a crate that leans heavily on derives or attribute macros, inspect the generated Rust:
+
+```bash
+cargo install cargo-expand --locked
+cargo expand --lib my_module
+```
+
+Use this during audits of macros such as `serde` derives, async runtime entry-point attributes, or custom proc-macros from less familiar dependencies. Read the expanded output like ordinary Rust: look for hidden allocations, unchecked unwraps, surprising trait impls, and network or filesystem access in generated helpers.
+
+### 15.4.4 `cargo-machete` - Trim Unused Dependencies
+
+Every unnecessary dependency is extra review surface. `cargo-machete` finds crates listed in `Cargo.toml` that are no longer referenced by the code:
+
+```bash
+cargo install cargo-machete --locked
+cargo machete
+```
+
+Treat the output as an audit queue, not as blind auto-removal. Feature-gated code, build scripts, tests, and proc-macro expansion can all make a dependency appear unused when it still matters, but the tool is excellent at surfacing "why is this even here?" questions.
+
+### 15.4.5 Research-Oriented Analyzers
+
+Tools such as RUDRA and MIRAI are worth knowing when you audit unsafe or high-assurance Rust. RUDRA focuses on panic-safety and `Send`/`Sync` unsoundness patterns; MIRAI uses abstract interpretation to reason about contracts and invariants. Both are best treated as specialist review aids rather than default CI gates, but they can uncover issues ordinary linting misses.
+
 ## 15.5 Manual Code Audit Checklist for Rust
 
 ### 15.5.1 Unsafe Code Audit
@@ -413,6 +439,7 @@ Creusot is another option in this space when you want Rust-oriented deductive ve
 - Use `cargo vet` or `cargo crev` for supply chain auditing.
 - Use `cargo-careful` on nightly for broader runtime checking of unsafe-heavy code and integration tests.
 - Use `cargo semver-checks` to detect accidental breaking API changes that could compromise downstream security.
+- Use `cargo-expand` to inspect proc-macro output and `cargo-machete` to remove dead dependency surface.
 - Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.
 - Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.
 

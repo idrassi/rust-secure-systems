@@ -116,7 +116,7 @@ fn bind(port: BindPort) {
 
 🔒 **Security pattern**: "Parse, don't validate." Borrowing Alexis King's phrasing, create types that can only be constructed with valid data. Once you have a `Hostname`, you never need to validate it again. The type itself is proof of validity.
 
-⚠️ **Unicode note**: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.
+⚠️ **Unicode note**: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. NFKC is more aggressive: it folds compatibility characters such as full-width forms, which is often desirable for login identifiers and usernames but too destructive for free-form content. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.
 
 ### Layer 2: Parse, Don't Validate
 
@@ -222,6 +222,7 @@ Sanitization is context-specific:
 
 - **SQL**: Use parameterized queries or your ORM's bind API (`sqlx`, Diesel, etc.). Do not build SQL by concatenating attacker-controlled strings.
 - **HTML / XSS**: Output-encode for the exact sink (HTML text, attribute, URL, JavaScript string). Input validation helps reduce garbage data, but it is not an XSS defense on its own.
+- **HTTP headers**: Never splice attacker-controlled strings directly into header lines. Reject `\r`/`\n`, let a real HTTP library serialize the header map, and treat response splitting as an injection sink just like SQL or shell construction.
 
 For example, with `sqlx`:
 

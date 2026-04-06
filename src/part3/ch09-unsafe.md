@@ -506,7 +506,7 @@ Prusti is a verification tool that uses the [Viper](https://viper.ethz.ch/) infr
 // }
 ```
 
-Prusti is still research-grade but is maturing rapidly. For security-critical components, it can provide mathematical guarantees that go beyond what testing can achieve.
+Prusti is still research-grade and best suited to small, focused proofs rather than "turn it on for the whole crate" CI. For security-critical components, it can provide mathematical guarantees that go beyond what testing can achieve, but treat it as a high-assurance specialist tool, not a drop-in replacement for normal review and testing.
 
 ## 9.6 Summary
 

@@ -247,7 +247,7 @@ cargo +nightly fuzz run parse_message fuzz/artifacts/parse_message/crash-<hash>
 
 ### 14.2.4 Fuzzing Best Practices
 
-`cargo-fuzz` is the default choice for libFuzzer-based coverage-guided fuzzing in Rust, but it is not the only engine. AFL.rs is also worth knowing when you want AFL/AFL++ style workflows or need to compare engines on the same parser.
+`cargo-fuzz` is the default choice for libFuzzer-based coverage-guided fuzzing in Rust, but it is not the only engine. AFL.rs is also worth knowing when you want AFL/AFL++ style workflows or need to compare engines on the same parser. `honggfuzz-rs` is another practical option when you want a mature multi-process engine with good multicore support.
 
 🔒 **Fuzzing strategy for security-critical code**:
 
@@ -299,6 +299,28 @@ jobs:
 ```
 
 6. **Probe algorithmic complexity, not just crashes**: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard `regex` crate avoids classic catastrophic backtracking for its supported syntax, but backtracking engines such as `fancy-regex` and custom parsers can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.
+
+### 14.2.5 Differential Fuzzing
+
+When you have two implementations of the same format or algorithm, fuzz them against each other. This is especially valuable during rewrites, parser hardening, or "safe Rust replacement for legacy C" projects:
+
+```rust,no_run
+# extern crate libfuzzer_sys;
+# fn legacy_c_parser(_data: &[u8]) -> Result<Vec<u8>, ()> { Ok(Vec::new()) }
+# fn rust_parser(_data: &[u8]) -> Result<Vec<u8>, ()> { Ok(Vec::new()) }
+libfuzzer_sys::fuzz_target!(|data: &[u8]| {
+    let reference = legacy_c_parser(data);
+    let candidate = rust_parser(data);
+
+    assert_eq!(candidate.is_ok(), reference.is_ok());
+
+    if let (Ok(left), Ok(right)) = (candidate, reference) {
+        assert_eq!(left, right);
+    }
+});
+```
+
+Differential fuzzing catches a different class of bug than ordinary crash fuzzing: semantic disagreement. One parser accepting inputs the other rejects, or two implementations normalizing fields differently, can be just as security-relevant as a panic.
 
 ## 14.3 Guided Fuzzing for Security
 
@@ -444,6 +466,7 @@ libfuzzer_sys::fuzz_target!(|actions: Vec<FuzzAction>| {
 
 - **Property-based testing** (`proptest`, `quickcheck`): Generates random inputs to test invariants. Good for mathematical properties and roundtrip tests.
 - **Fuzzing** (`cargo-fuzz`): Coverage-guided input generation. Best for parsers, decoders, and protocol handlers.
+- Differential fuzzing is useful when you have a reference implementation, older parser, or wire-compatible rewrite to compare against.
 - Fuzz **every** input-processing function—especially network parsers.
 - Use structured fuzzing (`arbitrary`) for complex input types.
 - Run fuzzing continuously in CI and maintain a seed corpus.

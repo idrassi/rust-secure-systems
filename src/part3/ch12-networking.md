@@ -152,6 +152,8 @@ fn build_frame(payload: &[u8]) -> Vec<u8> {
 
 ⚠️ **Security note**: Binding to `0.0.0.0` exposes the service on **every** interface. Use it only when that exposure is intentional. For development prefer `127.0.0.1`; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.
 
+If the service must accept both IPv4 and IPv6, make that choice explicit. `0.0.0.0` is IPv4-only, while `[::]` is IPv6 and may or may not accept IPv4-mapped connections depending on the target OS and the `IPV6_V6ONLY` setting. Test the exact dual-stack behavior you intend to ship instead of assuming one listener covers both families everywhere.
+
 This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.
 
 On Unix, broken-pipe `SIGPIPE` delivery is a classic networking footgun. For Rust socket code, `std::net` and Tokio already suppress `SIGPIPE` on TCP sockets (`MSG_NOSIGNAL` / `SO_NOSIGPIPE` style handling), so a dead peer normally becomes an `io::Error`, not process termination. Revisit `SIGPIPE` only when you drop to raw `libc` writes, interact with pipes or child stdio, or deliberately change the process signal disposition.

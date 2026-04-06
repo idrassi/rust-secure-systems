@@ -105,6 +105,24 @@ The `move` here moves the `&mut u64` borrow into each closure, not the integer i
 
 This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.
 
+On constrained systems, pair this with `std::thread::Builder` when you need explicit thread names or stack-size control:
+
+```rust,no_run
+use std::thread;
+
+let worker = thread::Builder::new()
+    .name("frame-parser".into())
+    .stack_size(256 * 1024)
+    .spawn(|| {
+        // Worker logic
+    })?;
+
+worker.join().unwrap();
+# Ok::<(), std::io::Error>(())
+```
+
+Set custom stack sizes only when you understand the recursion depth and per-thread buffer usage. Too-small stacks turn parsing bugs into hard crashes.
+
 ## 6.2 Synchronization Primitives
 
 ### 6.2.1 `Mutex<T>` — Mutual Exclusion
@@ -230,6 +248,8 @@ fn trust_anchors() -> &'static [&'static str] {
 ### 6.2.5 `Condvar` - Wait for State Changes Without Spinning
 
 Use a condition variable when threads must sleep until a predicate becomes true:
+
+> **Note**: As in the surrounding examples, `.unwrap()` is used here for brevity. In production code, handle poisoned mutexes explicitly instead of panicking.
 
 ```rust
 use std::collections::VecDeque;
@@ -601,6 +621,10 @@ impl FramedReader {
         debug_assert!(
             self.read_pos >= 4,
             "advance() requires a previously buffered frame header"
+        );
+        debug_assert!(
+            self.read_pos >= 4 + self.current_message_len(),
+            "advance() requires a complete buffered frame"
         );
         let message_end = 4 + self.current_message_len();
         let remaining = self.read_pos - message_end;

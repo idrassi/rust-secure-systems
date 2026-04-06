@@ -17,6 +17,8 @@ Cryptography is the backbone of secure systems—authentication, encryption, int
 - HMAC
 - Constant-time comparisons
 
+Its surface area is intentionally narrower than the full Rust crypto ecosystem. Reach for other reviewed crates when you need features outside that core, such as Argon2 password hashing, misuse-resistant AEADs like AES-GCM-SIV, extended-nonce AEADs like XChaCha20-Poly1305, or newer experimental primitives.
+
 ```toml
 # Cargo.toml
 [dependencies]
@@ -282,6 +284,8 @@ fn verify_password(password: &str, hash: &str) -> bool {
 - **Parallelism**: 1 degree of parallelism minimum
 - Adjust upward based on your hardware and acceptable verification latency
 
+⚠️ **Legacy migration note**: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.
+
 ## 8.4 Digital Signatures
 
 ### Ed25519 Signatures
@@ -545,6 +549,8 @@ fn tags_match(provided: &[u8; 32], expected: &[u8; 32]) -> Choice {
 `Choice` is intentionally not a normal `bool`; it nudges you toward constant-time APIs instead of accidentally branching on secret material. Use ordinary `if`/`match` only on public values that are already safe to reveal.
 
 ⚠️ **Verification note**: Treat constant-time behavior as a property of the compiled code on the targets you actually ship. Source-level review is necessary but not sufficient. Tools such as `dudect` (statistical timing tests) and `ctgrind` (secret-dependent control-flow and memory-access checks) help validate whether a "constant-time" path still behaves that way after optimization on a specific platform.
+
+When benchmarking these paths with `criterion` or ad hoc timing loops, pass both the secret inputs and the observed outputs through `std::hint::black_box`. Otherwise LLVM may fold away work that is present in production and give you a false sense of constant-time behavior.
 
 ### 8.6.5 Hardware-Backed and OS-Managed Key Storage
 

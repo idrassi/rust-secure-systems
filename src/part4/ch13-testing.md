@@ -224,7 +224,11 @@ mod negative_tests {
 #[cfg(test)]
 mod invariant_tests {
     use super::*;
-    
+
+    // Assume the surrounding module provides concrete `encrypt`, `decrypt`,
+    // `generate_random_key`, `generate_random_bytes`, and `generate_nonce`
+    // helpers. Replace them with your real primitives in a concrete codebase.
+
     /// Property: encryption followed by decryption always returns the original plaintext
     #[test]
     fn encrypt_decrypt_roundtrip() {

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -318,7 +318,7 @@ Solution: upgrade to a reviewed fixed release
 <p>For CI integration and dashboards, use machine-readable output:</p>
 <pre><code class="language-bash">cargo audit --json &gt; audit.json
 </code></pre>
-<p>Parse the JSON in your pipeline if you need to gate on specific severities, emit SARIF-like annotations, or archive reviewed exceptions with the rest of the build artifacts.</p>
+<p>Parse the JSON in your pipeline if you need to gate on specific severities, archive reviewed exceptions with the rest of the build artifacts, or convert findings into SARIF for GitHub Code Scanning and similar dashboards.</p>
 <h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
 <pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
 cargo geiger --all-features
@@ -438,6 +438,20 @@ Failed in:
     cargo install cargo-semver-checks --version 0.47.0 --locked
     cargo semver-checks
 </code></pre>
+<h3 id="1543-cargo-expand---audit-generated-macro-code"><a class="header" href="#1543-cargo-expand---audit-generated-macro-code">15.4.3 <code>cargo-expand</code> - Audit Generated Macro Code</a></h3>
+<p>Procedural macros are a compile-time trust boundary. Before you sign off on a crate that leans heavily on derives or attribute macros, inspect the generated Rust:</p>
+<pre><code class="language-bash">cargo install cargo-expand --locked
+cargo expand --lib my_module
+</code></pre>
+<p>Use this during audits of macros such as <code>serde</code> derives, async runtime entry-point attributes, or custom proc-macros from less familiar dependencies. Read the expanded output like ordinary Rust: look for hidden allocations, unchecked unwraps, surprising trait impls, and network or filesystem access in generated helpers.</p>
+<h3 id="1544-cargo-machete---trim-unused-dependencies"><a class="header" href="#1544-cargo-machete---trim-unused-dependencies">15.4.4 <code>cargo-machete</code> - Trim Unused Dependencies</a></h3>
+<p>Every unnecessary dependency is extra review surface. <code>cargo-machete</code> finds crates listed in <code>Cargo.toml</code> that are no longer referenced by the code:</p>
+<pre><code class="language-bash">cargo install cargo-machete --locked
+cargo machete
+</code></pre>
+<p>Treat the output as an audit queue, not as blind auto-removal. Feature-gated code, build scripts, tests, and proc-macro expansion can all make a dependency appear unused when it still matters, but the tool is excellent at surfacing “why is this even here?” questions.</p>
+<h3 id="1545-research-oriented-analyzers"><a class="header" href="#1545-research-oriented-analyzers">15.4.5 Research-Oriented Analyzers</a></h3>
+<p>Tools such as RUDRA and MIRAI are worth knowing when you audit unsafe or high-assurance Rust. RUDRA focuses on panic-safety and <code>Send</code>/<code>Sync</code> unsoundness patterns; MIRAI uses abstract interpretation to reason about contracts and invariants. Both are best treated as specialist review aids rather than default CI gates, but they can uncover issues ordinary linting misses.</p>
 <h2 id="155-manual-code-audit-checklist-for-rust"><a class="header" href="#155-manual-code-audit-checklist-for-rust">15.5 Manual Code Audit Checklist for Rust</a></h2>
 <h3 id="1551-unsafe-code-audit"><a class="header" href="#1551-unsafe-code-audit">15.5.1 Unsafe Code Audit</a></h3>
 <p>For each <code>unsafe</code> block:</p>
@@ -521,6 +535,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li>Use <code>cargo vet</code> or <code>cargo crev</code> for supply chain auditing.</li>
 <li>Use <code>cargo-careful</code> on nightly for broader runtime checking of unsafe-heavy code and integration tests.</li>
 <li>Use <code>cargo semver-checks</code> to detect accidental breaking API changes that could compromise downstream security.</li>
+<li>Use <code>cargo-expand</code> to inspect proc-macro output and <code>cargo-machete</code> to remove dead dependency surface.</li>
 <li>Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.</li>
 <li>Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.</li>
 </ul>

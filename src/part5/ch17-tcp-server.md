@@ -645,9 +645,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ⚠️ **Security note**: `0.0.0.0` is intentional here because this example represents the externally reachable production service. For local development bind `127.0.0.1`; in production prefer the specific interface, socket-activation unit, or load-balancer path you actually intend to expose.
 
+If the production service must accept both IPv4 and IPv6, do not assume this listener is enough. An explicit IPv4 bind keeps the example simple and portable, but real deployments often need either a second IPv6 listener or a deliberate `[::]:8443` socket after verifying the target platform's `IPV6_V6ONLY` behavior.
+
 Admission control happens before `tls_acceptor.accept()`, so connection floods consume a bounded number of slots and cannot trigger unlimited concurrent handshakes. A separate per-request limiter runs once enough bytes are buffered to classify a frame, so malformed requests also consume the same request budget and one long-lived TLS session cannot bypass brute-force throttling.
 
 > **Note**: The handler already accepts any `AsyncRead + AsyncWrite + Unpin` stream, so the same code works with `TcpStream`, `tokio_rustls::server::TlsStream<TcpStream>`, and test doubles.
+
+Production shutdown is part of hardening too. The usual pattern is: listen for `SIGTERM` (or Ctrl+C during development), stop accepting new sockets, wait a bounded amount of time for in-flight connections to finish, then abort anything still running and exit cleanly. That avoids half-written responses, leaked permits, and the operational habit of using `SIGKILL` for routine restarts.
 
 ## 17.8 Tests
 

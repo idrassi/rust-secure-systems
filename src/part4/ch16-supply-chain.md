@@ -172,14 +172,14 @@ allow-git = ["https://github.com/your-org/your-private-crate"]
 [bans.build]
 # Start strict, then allow only reviewed compile-time crates that genuinely
 # need build scripts or proc-macro-adjacent tooling.
-allow-build-scripts = []
+allow-build-scripts = ["ring", "aws-lc-sys"]
 executables = "deny"
 interpreted = "warn"
 enable-builtin-globs = true
 include-dependencies = true
 ```
 
-This does **not** sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk.
+This does **not** sandbox malicious Rust code in a reviewed build script. What it does give you is visibility and policy enforcement around compile-time crates and script-like artifacts, which is still useful when you are inventorying build-time risk. An empty allow-list is a good audit starting point when you want the build to fail closed and show you every compile-time dependency, but it is not a realistic copy-paste baseline for most working Rust workspaces.
 
 ### 16.4.4 `cargo-supply-chain` for Publisher Visibility
 
@@ -228,6 +228,8 @@ SOURCE_DATE_EPOCH = "1700000000"  # Helps external tools that honor it
 Absolute paths in debug info, non-deterministic linkers, and `build.rs` scripts are common causes of Rust build drift. `SOURCE_DATE_EPOCH` can help surrounding tools, but reproducible Rust builds primarily depend on path remapping, fixed toolchains, deterministic build scripts, and a committed lockfile.
 
 Be precise about `strip`: `strip = true` means `debuginfo`, not full symbol stripping. Use `strip = "symbols"` when you intentionally want the more aggressive setting shown here.
+
+For crash forensics, keep a separate profile or symbol artifact with debug info intact. A release artifact cannot be both aggressively stripped for distribution and rich in local symbols for post-mortem analysis at the same time.
 
 ### 16.5.2 Binary Verification
 

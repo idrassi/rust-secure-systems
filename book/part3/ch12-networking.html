@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-03771ea9.js";
+            window.path_to_searchindex_js = "../searchindex-2e94a7f6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -327,6 +327,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
     frame
 }</code></pre>
 <p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
+<p>If the service must accept both IPv4 and IPv6, make that choice explicit. <code>0.0.0.0</code> is IPv4-only, while <code>[::]</code> is IPv6 and may or may not accept IPv4-mapped connections depending on the target OS and the <code>IPV6_V6ONLY</code> setting. Test the exact dual-stack behavior you intend to ship instead of assuming one listener covers both families everywhere.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>
 <p>On Unix, broken-pipe <code>SIGPIPE</code> delivery is a classic networking footgun. For Rust socket code, <code>std::net</code> and Tokio already suppress <code>SIGPIPE</code> on TCP sockets (<code>MSG_NOSIGNAL</code> / <code>SO_NOSIGPIPE</code> style handling), so a dead peer normally becomes an <code>io::Error</code>, not process termination. Revisit <code>SIGPIPE</code> only when you drop to raw <code>libc</code> writes, interact with pipes or child stdio, or deliberately change the process signal disposition.</p>
 <p>🔒 <strong>Security measures in this server</strong>:</p>
