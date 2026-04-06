@@ -110,6 +110,9 @@ pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
 /// Rate limit: max requests per minute per IP
 pub const RATE_LIMIT: usize = 60;
 
+/// Bound tracked client state between cleanup cycles
+pub const MAX_TRACKED_CLIENTS: usize = 8192;
+
 /// A validated message with a non-empty payload and guaranteed bounds
 #[derive(Debug)]
 pub struct Message(Vec<u8>);
@@ -209,6 +212,7 @@ pub struct RateLimiter {
     clients: Mutex<HashMap<IpAddr, ClientRecord>>,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -217,17 +221,33 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    pub fn new(max_requests: usize, window: Duration) -> Self {
+    pub fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -> Self {
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
     
     pub fn check(&self, addr: IpAddr) -> bool {
         let mut clients = self.lock_clients();
         let now = Instant::now();
+
+        if !clients.contains_key(&addr) {
+            let double_window = self.window * 2;
+            clients.retain(|_, record| {
+                now.duration_since(record.window_start) <= double_window
+            });
+            if clients.len() >= self.max_tracked_clients {
+                log::warn!(
+                    "Rate limiter state full ({} tracked clients); rejecting {}",
+                    self.max_tracked_clients,
+                    addr
+                );
+                return false;
+            }
+        }
         
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -271,6 +291,8 @@ impl RateLimiter {
 }
 ```
 
+Bounding the map prevents untrusted clients from turning rate-limit state into an unbounded memory sink. It is still a baseline policy: in IPv6-heavy environments, exact-address limits are often paired with `/64` aggregation, authenticated quotas, or an upstream proxy that can shed abusive sources earlier.
+
 ## 17.5 TLS Configuration
 
 ```rust,no_run
@@ -303,6 +325,8 @@ pub fn create_server_config(
     Ok(Arc::new(config))
 }
 ```
+
+**Operational note**: This server configuration loads certificates and private keys, but revocation policy is separate. If your deployment requires CRL or OCSP enforcement, configure it explicitly in your verifier or enforce it at a proxy or service mesh; otherwise prefer short-lived certificates and deliberate rotation.
 
 ## 17.6 Connection Handler
 
@@ -537,10 +561,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admission_limiter = Arc::new(RateLimiter::new(
         types::CONNECTION_ATTEMPT_RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     let request_limiter = Arc::new(RateLimiter::new(
         types::RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     
     let handler = Arc::new(ConnectionHandler::new(

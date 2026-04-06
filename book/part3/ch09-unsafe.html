@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -309,7 +309,7 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
     
     pub fn with_capacity(capacity: usize) -&gt; Self {
         let mut rv = Self::new();
-        if capacity &gt; 0 {
+        if capacity &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() != 0 {
             rv.grow(capacity);
         }
         rv

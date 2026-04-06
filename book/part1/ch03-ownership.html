@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -398,6 +398,7 @@ struct SecureBuffer {
 <span class="boring">}</span></code></pre>
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
+<p>Deserialization has the same lifecycle cost: every <code>serde::Deserialize</code> call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.</p>
 <h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

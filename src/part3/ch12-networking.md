@@ -177,6 +177,7 @@ struct RateLimiter {
     clients: Mutex<HashMap<std::net::IpAddr, ClientRecord>>,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -185,17 +186,27 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    fn new(max_requests: usize, window: Duration) -> Self {
+    fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -> Self {
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
     
     fn check(&self, addr: std::net::IpAddr) -> bool {
         let mut clients = self.clients.lock().unwrap();
         let now = Instant::now();
+
+        if !clients.contains_key(&addr) {
+            clients.retain(|_, record| {
+                now.duration_since(record.window_start) <= self.window * 2
+            });
+            if clients.len() >= self.max_tracked_clients {
+                return false;
+            }
+        }
         
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -223,6 +234,8 @@ impl RateLimiter {
 ```
 
 🔒 **Security impact**: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.
+
+Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example `/64`) or authenticated/user-based limits in front of the service.
 
 If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:
 
@@ -349,6 +362,8 @@ loop {
 - ✅ Use strong certificates (ECDSA P-256 or Ed25519)
 - ✅ Implement certificate pinning for internal services
 
+The basic `rustls` builders shown here cover chain validation, hostname checks, and certificate expiry, but they do not establish a revocation policy by themselves. If your deployment depends on CRLs or OCSP, configure the verifier accordingly or enforce revocation at an upstream proxy or service mesh; short-lived certificates are often simpler to operate.
+
 ### 12.2.2 Mutual TLS for Service-to-Service Traffic
 
 `with_no_client_auth()` is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.
@@ -356,6 +371,8 @@ loop {
 Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.
 
 In zero-trust terms, the network path is not the trust boundary. mTLS gives you a cryptographic identity for each peer, but you still need per-service authorization, narrow trust domains, and audit trails for which identity invoked which action.
+
+Apply the same revocation thinking to client certificates. Internal PKI designs often rely more on short-lived certs than on online revocation checks, but that should be an explicit policy decision rather than an unstated default.
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;

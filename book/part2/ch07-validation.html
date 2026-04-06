@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -314,20 +314,32 @@ impl std::str::FromStr for NetworkAddress {
     type Err = ParseError;
     
     fn from_str(s: &amp;str) -&gt; Result&lt;Self, Self::Err&gt; {
-        let parts: Vec&lt;&amp;str&gt; = s.rsplitn(2, ':').collect();
-        if parts.len() != 2 {
-            return Err(ParseError::InvalidFormat);
-        }
-        let port: u16 = parts[0].parse()
+        let (ip_text, port_text) = if let Some(stripped) = s.strip_prefix('[') {
+            let (host, rest) = stripped
+                .split_once(']')
+                .ok_or(ParseError::InvalidFormat)?;
+            if host.contains('[') || !rest.starts_with(':') || rest[1..].contains(']') {
+                return Err(ParseError::InvalidFormat);
+            }
+            (host, &amp;rest[1..])
+        } else {
+            let (host, port) = s.rsplit_once(':')
+                .ok_or(ParseError::InvalidFormat)?;
+            if host.contains(':') {
+                return Err(ParseError::InvalidFormat);
+            }
+            (host, port)
+        };
+
+        let port: u16 = port_text.parse()
             .map_err(|_| ParseError::InvalidPort)?;
-        let ip: IpAddr = parts[1].trim_start_matches('[')
-            .trim_end_matches(']')
-            .parse()
+        let ip: IpAddr = ip_text.parse()
             .map_err(|_| ParseError::InvalidIp)?;
         Ok(NetworkAddress { ip, port })
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Use bracketed <code>[IPv6]:port</code> syntax for IPv6 literals. Rejecting bare IPv6 addresses here is intentional: the final colon is ambiguous between “part of the address” and “port separator.”</p>
 <h3 id="layer-3-sanitization"><a class="header" href="#layer-3-sanitization">Layer 3: Sanitization</a></h3>
 <p>For data that must be embedded in a different context (HTML, SQL, shell commands, file paths):</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -525,6 +537,14 @@ fn is_public_ip(ip: IpAddr) -&gt; bool {
 <span class="boring">}</span></code></pre>
 <p>Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a “valid” hostname into access to internal services.</p>
 <p>This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.</p>
+<h3 id="726-regular-expressions-and-redos"><a class="header" href="#726-regular-expressions-and-redos">7.2.6 Regular Expressions and ReDoS</a></h3>
+<p>Regular expressions are useful for token-level validation, but they are still an input-processing engine and therefore part of your denial-of-service surface.</p>
+<ul>
+<li>The <code>regex</code> crate deliberately omits backreferences and look-around, so it avoids the catastrophic backtracking behavior that makes many classic ReDoS attacks possible.</li>
+<li>That guarantee does not extend to backtracking engines such as <code>fancy-regex</code>, PCRE bindings, or ad hoc recursive parsers wrapped around regex captures.</li>
+<li>Bound both pattern complexity and input size. For security-critical formats, prefer small token regexes or an explicit parser over one giant expression that mixes validation and parsing.</li>
+</ul>
+<p>When you fuzz validators, include long “almost matching” inputs. Those cases are often more valuable than obviously invalid garbage because they expose superlinear behavior, excessive backtracking, and accidental quadratic parsing paths.</p>
 <h2 id="73-validation-for-protocol-parsing"><a class="header" href="#73-validation-for-protocol-parsing">7.3 Validation for Protocol Parsing</a></h2>
 <p>When implementing network protocols, validation is critical at every layer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -681,6 +701,9 @@ where
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Security note</strong>: The example above relies on <code>serde_json</code>’s built-in recursion limit and adds an explicit input-size cap before deserialization. Only call <code>disable_recursion_limit()</code> if you replace it with another stack-safety mechanism such as <code>serde_stacker</code> or an explicit depth-tracked visitor.</p>
+<ol start="4">
+<li><strong>Secret types</strong>: Deserializing into a secret-bearing struct creates another live in-memory copy. If the target type derives <code>ZeroizeOnDrop</code> or wraps fields in <code>secrecy</code>, keep deserialization boundaries narrow and ensure transient copies are dropped promptly.</li>
+</ol>
 <h2 id="75-summary"><a class="header" href="#75-summary">7.5 Summary</a></h2>
 <ul>
 <li>Use the <strong>validation pyramid</strong>: type-level (strongest) → parse-don’t-validate → sanitization.</li>

@@ -13,10 +13,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admission_limiter = Arc::new(RateLimiter::new(
         types::CONNECTION_ATTEMPT_RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     let request_limiter = Arc::new(RateLimiter::new(
         types::RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     let handler = Arc::new(ConnectionHandler::new(
         Arc::clone(&admission_limiter),

@@ -54,6 +54,7 @@ Before adding a dependency, evaluate:
 - [ ] How much `unsafe` code does it contain? (`cargo geiger`)
 - [ ] Does it use FFI to C libraries? (Adds C attack surface)
 - [ ] Does it use build scripts (`build.rs`)? (Can execute arbitrary code at build time)
+- [ ] Does it ship procedural macros? (Also executes code at compile time)
 
 ### 16.2.2 Prefer the Standard Library and Core Ecosystem
 
@@ -282,6 +283,12 @@ fn main() {
 ```bash
 cargo build --frozen
 ```
+
+### 16.7.1 Procedural Macro Security
+
+Procedural macros are the other major compile-time trust boundary. A proc-macro crate is compiled and then executed by `rustc` during macro expansion, so it can read environment variables, inspect the filesystem, and perform network I/O just like a hostile `build.rs`.
+
+Common derive crates such as `serde`, `thiserror`, and `tokio-macros` are widely trusted, but they are still code execution on the build host. Audit proc-macro crates alongside `build.rs`, minimize them in high-assurance workspaces, and keep CI/build environments sandboxed so compile-time code cannot reach long-lived credentials or unrelated source trees.
 
 ## 16.8 CI/CD Pipeline Security
 

@@ -7,7 +7,14 @@ pub mod types;
 mod tests {
     use crate::handler::ConnectionHandler;
     use crate::rate_limiter::RateLimiter;
-    use crate::types::{MAX_MESSAGE_SIZE, Message, ProtocolError, RATE_LIMIT, echo_response};
+    use crate::types::{
+        MAX_MESSAGE_SIZE,
+        MAX_TRACKED_CLIENTS,
+        Message,
+        ProtocolError,
+        RATE_LIMIT,
+        echo_response,
+    };
     use proptest::prelude::*;
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
     use std::sync::Arc;
@@ -19,8 +26,16 @@ mod tests {
         request_limit: usize,
         window: Duration,
     ) -> Arc<ConnectionHandler> {
-        let admission_limiter = Arc::new(RateLimiter::new(admission_limit, window));
-        let request_limiter = Arc::new(RateLimiter::new(request_limit, window));
+        let admission_limiter = Arc::new(RateLimiter::new(
+            admission_limit,
+            window,
+            MAX_TRACKED_CLIENTS,
+        ));
+        let request_limiter = Arc::new(RateLimiter::new(
+            request_limit,
+            window,
+            MAX_TRACKED_CLIENTS,
+        ));
         Arc::new(ConnectionHandler::new(admission_limiter, request_limiter))
     }
 
@@ -79,8 +94,8 @@ mod tests {
 
     #[test]
     fn connection_permit_releases_slot_on_drop() {
-        let admission_limiter = Arc::new(RateLimiter::new(10, Duration::from_secs(60)));
-        let request_limiter = Arc::new(RateLimiter::new(10, Duration::from_secs(60)));
+        let admission_limiter = Arc::new(RateLimiter::new(10, Duration::from_secs(60), 16));
+        let request_limiter = Arc::new(RateLimiter::new(10, Duration::from_secs(60), 16));
         let handler = ConnectionHandler::new(admission_limiter, request_limiter);
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8443);
 

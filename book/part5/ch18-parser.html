@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -306,6 +306,10 @@ impl TlvTag {
             TlvTag::Extension(b) =&gt; *b,
         }
     }
+
+    fn is_reserved_extension_value(byte: u8) -&gt; bool {
+        matches!(byte, 0x00..=0x0A)
+    }
 }
 
 /// A parsed TLV record with validated bounds
@@ -331,6 +335,11 @@ impl TlvRecord {
                 size: value.len(),
                 max: MAX_VALUE_SIZE,
             });
+        }
+        if let TlvTag::Extension(byte) = tag {
+            if TlvTag::is_reserved_extension_value(byte) {
+                return Err(ParseError::ReservedExtensionTag { byte });
+            }
         }
         Ok(TlvRecord { tag, value })
     }
@@ -444,6 +453,7 @@ pub enum ParseError {
     ValueTooLarge { size: usize, max: usize },
     IncompleteValue { expected: usize, available: usize },
     DuplicateTag { tag: TlvTag },
+    ReservedExtensionTag { byte: u8 },
     IntegerOverflow,
 }
 
@@ -464,6 +474,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::DuplicateTag { tag } =&gt; {
                 write!(f, "duplicate tag not allowed: {tag:?}")
+            }
+            ParseError::ReservedExtensionTag { byte } =&gt; {
+                write!(f, "extension tag byte collides with a named tag: 0x{byte:02X}")
             }
             ParseError::IntegerOverflow =&gt; f.write_str("integer overflow in length calculation"),
         }

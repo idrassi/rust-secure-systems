@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -262,6 +262,7 @@ fn main() {
 
     assert_eq!(counters, [1, 1, 1, 1]);
 }</code></pre>
+<p>The <code>move</code> here moves the <code>&amp;mut u64</code> borrow into each closure, not the integer itself. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
 <p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
 <h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
 <h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
@@ -743,6 +744,7 @@ impl Decoder for LengthPrefixedCodec {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Always use a framed codec (<code>tokio_util::codec</code>) or equivalent buffering layer for production async network code. It ensures cancellation safety, enforces message size limits, and prevents partial-read desynchronization.</p>
+<p>Cancellation also matters for secret handling. If a future owns a <code>ZeroizeOnDrop</code> secret and is cancelled via <code>tokio::select!</code> or <code>JoinHandle::abort()</code>, dropping the future still runs <code>Drop</code> for those fields. That is a useful safety property, but it does not repair partially-applied protocol side effects, and it does not help on paths that skip destructors entirely.</p>
 <h3 id="653-other-async-pitfalls"><a class="header" href="#653-other-async-pitfalls">6.5.3 Other Async Pitfalls</a></h3>
 <div class="table-wrapper">
 <table>
@@ -753,7 +755,7 @@ impl Decoder for LengthPrefixedCodec {
 <tr><td><strong>Task starvation</strong></td><td>A busy task never yields, starving others</td><td>Use <code>tokio::task::yield_now()</code> in tight loops; use cooperative budgeting</td></tr>
 <tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to limit concurrent tasks</td></tr>
 <tr><td><strong>Blocking in async</strong></td><td>Calling <code>std::thread::sleep</code> or CPU-heavy work blocks the executor</td><td>Use <code>tokio::task::spawn_blocking</code> for blocking operations</td></tr>
-<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; resources may leak</td><td>Use <code>Drop</code> guards for cleanup, or structured concurrency patterns</td></tr>
+<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; <code>Drop</code> guards still run, but partially-completed side effects may remain inconsistent</td><td>Use <code>Drop</code> guards for secrets and locks, plus explicit rollback or structured concurrency for external side effects</td></tr>
 </tbody>
 </table>
 </div>

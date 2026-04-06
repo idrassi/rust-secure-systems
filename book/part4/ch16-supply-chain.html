@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -240,6 +240,7 @@
 <li><input disabled="" type="checkbox"> How much <code>unsafe</code> code does it contain? (<code>cargo geiger</code>)</li>
 <li><input disabled="" type="checkbox"> Does it use FFI to C libraries? (Adds C attack surface)</li>
 <li><input disabled="" type="checkbox"> Does it use build scripts (<code>build.rs</code>)? (Can execute arbitrary code at build time)</li>
+<li><input disabled="" type="checkbox"> Does it ship procedural macros? (Also executes code at compile time)</li>
 </ul>
 <h3 id="1622-prefer-the-standard-library-and-core-ecosystem"><a class="header" href="#1622-prefer-the-standard-library-and-core-ecosystem">16.2.2 Prefer the Standard Library and Core Ecosystem</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -411,6 +412,9 @@ fn main() {
 </ol>
 <pre><code class="language-bash">cargo build --frozen
 </code></pre>
+<h3 id="1671-procedural-macro-security"><a class="header" href="#1671-procedural-macro-security">16.7.1 Procedural Macro Security</a></h3>
+<p>Procedural macros are the other major compile-time trust boundary. A proc-macro crate is compiled and then executed by <code>rustc</code> during macro expansion, so it can read environment variables, inspect the filesystem, and perform network I/O just like a hostile <code>build.rs</code>.</p>
+<p>Common derive crates such as <code>serde</code>, <code>thiserror</code>, and <code>tokio-macros</code> are widely trusted, but they are still code execution on the build host. Audit proc-macro crates alongside <code>build.rs</code>, minimize them in high-assurance workspaces, and keep CI/build environments sandboxed so compile-time code cannot reach long-lived credentials or unrelated source trees.</p>
 <h2 id="168-cicd-pipeline-security"><a class="header" href="#168-cicd-pipeline-security">16.8 CI/CD Pipeline Security</a></h2>
 <pre><code class="language-yaml"># .github/workflows/build.yml
 name: Secure Build

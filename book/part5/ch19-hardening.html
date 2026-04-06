@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -1092,12 +1092,16 @@ aa-genprof /usr/local/bin/secure-server
 <tr><th>Crate</th><th>Purpose</th><th>Trust Level</th></tr>
 </thead>
 <tbody>
+<tr><td><code>argon2</code></td><td>Password hashing (Argon2id)</td><td>High (PHC winner, widely reviewed)</td></tr>
 <tr><td><code>ring</code></td><td>Cryptography</td><td>High (BoringSSL-derived, audited)</td></tr>
 <tr><td><code>rustls</code></td><td>TLS</td><td>High (memory-safe, audited)</td></tr>
+<tr><td><code>ed25519-dalek</code></td><td>Ed25519 signatures</td><td>High (widely reviewed)</td></tr>
+<tr><td><code>x25519-dalek</code></td><td>X25519 key agreement</td><td>High (widely reviewed)</td></tr>
 <tr><td><code>serde</code></td><td>Serialization</td><td>High (serde-rs project, widely used)</td></tr>
 <tr><td><code>zeroize</code></td><td>Memory wiping</td><td>High (widely audited)</td></tr>
 <tr><td><code>subtle</code></td><td>Constant-time selection and comparison helpers</td><td>High (Dalek ecosystem)</td></tr>
 <tr><td><code>secrecy</code></td><td>Secret encapsulation</td><td>High</td></tr>
+<tr><td><code>anyhow</code></td><td>Application-level error context</td><td>High</td></tr>
 <tr><td><code>thiserror</code></td><td>Error types</td><td>High</td></tr>
 <tr><td><code>proptest</code></td><td>Property testing</td><td>High</td></tr>
 <tr><td><code>tokio</code></td><td>Async runtime</td><td>High</td></tr>

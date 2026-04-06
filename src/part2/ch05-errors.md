@@ -214,10 +214,12 @@ use anyhow::{Context, Result};
 
 fn load_key(path: &str) -> Result<Vec<u8>> {
     let key = std::fs::read(path)
-        .with_context(|| format!("failed to read key file at {path}"))?;
+        .context("failed to read configured key file")?;
     Ok(key)
 }
 ```
+
+If the path itself is sensitive, do not include it in user-facing error context. Log the path on a trusted internal channel if you need it for debugging, and return a generic external error instead of exposing filesystem layout.
 
 ## 5.5 Panic vs. Result
 

@@ -142,20 +142,33 @@ impl std::str::FromStr for NetworkAddress {
     type Err = ParseError;
     
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parts: Vec<&str> = s.rsplitn(2, ':').collect();
-        if parts.len() != 2 {
-            return Err(ParseError::InvalidFormat);
-        }
-        let port: u16 = parts[0].parse()
+        let (ip_text, port_text) = if let Some(stripped) = s.strip_prefix('[') {
+            let (host, rest) = stripped
+                .split_once(']')
+                .ok_or(ParseError::InvalidFormat)?;
+            if host.contains('[') || !rest.starts_with(':') || rest[1..].contains(']') {
+                return Err(ParseError::InvalidFormat);
+            }
+            (host, &rest[1..])
+        } else {
+            let (host, port) = s.rsplit_once(':')
+                .ok_or(ParseError::InvalidFormat)?;
+            if host.contains(':') {
+                return Err(ParseError::InvalidFormat);
+            }
+            (host, port)
+        };
+
+        let port: u16 = port_text.parse()
             .map_err(|_| ParseError::InvalidPort)?;
-        let ip: IpAddr = parts[1].trim_start_matches('[')
-            .trim_end_matches(']')
-            .parse()
+        let ip: IpAddr = ip_text.parse()
             .map_err(|_| ParseError::InvalidIp)?;
         Ok(NetworkAddress { ip, port })
     }
 }
 ```
+
+Use bracketed `[IPv6]:port` syntax for IPv6 literals. Rejecting bare IPv6 addresses here is intentional: the final colon is ambiguous between "part of the address" and "port separator."
 
 ### Layer 3: Sanitization
 
@@ -375,6 +388,16 @@ Resolve the hostname immediately before connecting, reject loopback/private/link
 
 This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.
 
+### 7.2.6 Regular Expressions and ReDoS
+
+Regular expressions are useful for token-level validation, but they are still an input-processing engine and therefore part of your denial-of-service surface.
+
+- The `regex` crate deliberately omits backreferences and look-around, so it avoids the catastrophic backtracking behavior that makes many classic ReDoS attacks possible.
+- That guarantee does not extend to backtracking engines such as `fancy-regex`, PCRE bindings, or ad hoc recursive parsers wrapped around regex captures.
+- Bound both pattern complexity and input size. For security-critical formats, prefer small token regexes or an explicit parser over one giant expression that mixes validation and parsing.
+
+When you fuzz validators, include long "almost matching" inputs. Those cases are often more valuable than obviously invalid garbage because they expose superlinear behavior, excessive backtracking, and accidental quadratic parsing paths.
+
 ## 7.3 Validation for Protocol Parsing
 
 When implementing network protocols, validation is critical at every layer:
@@ -531,6 +554,8 @@ fn deserialize_with_limit(data: &[u8]) -> Result<UserInput, Box<dyn std::error::
 ```
 
 ⚠️ **Security note**: The example above relies on `serde_json`'s built-in recursion limit and adds an explicit input-size cap before deserialization. Only call `disable_recursion_limit()` if you replace it with another stack-safety mechanism such as `serde_stacker` or an explicit depth-tracked visitor.
+
+4. **Secret types**: Deserializing into a secret-bearing struct creates another live in-memory copy. If the target type derives `ZeroizeOnDrop` or wraps fields in `secrecy`, keep deserialization boundaries narrow and ensure transient copies are dropped promptly.
 
 ## 7.5 Summary
 

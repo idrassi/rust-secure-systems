@@ -280,6 +280,8 @@ Neither `Drop` nor `zeroize` is a complete secret-lifecycle guarantee. They do n
 
 ⚠️ **Clone caveat**: If a secret-bearing type implements `Clone`, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.
 
+Deserialization has the same lifecycle cost: every `serde::Deserialize` call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.
+
 ### 3.4.2 Interior Mutability — `RefCell<T>` and `Cell<T>`
 
 Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:

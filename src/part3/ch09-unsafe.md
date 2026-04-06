@@ -141,7 +141,7 @@ impl<T> RawVec<T> {
     
     pub fn with_capacity(capacity: usize) -> Self {
         let mut rv = Self::new();
-        if capacity > 0 {
+        if capacity > 0 && std::mem::size_of::<T>() != 0 {
             rv.grow(capacity);
         }
         rv

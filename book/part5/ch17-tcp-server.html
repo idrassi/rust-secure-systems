@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -286,6 +286,9 @@ pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
 /// Rate limit: max requests per minute per IP
 pub const RATE_LIMIT: usize = 60;
 
+/// Bound tracked client state between cleanup cycles
+pub const MAX_TRACKED_CLIENTS: usize = 8192;
+
 /// A validated message with a non-empty payload and guaranteed bounds
 #[derive(Debug)]
 pub struct Message(Vec&lt;u8&gt;);
@@ -382,6 +385,7 @@ pub struct RateLimiter {
     clients: Mutex&lt;HashMap&lt;IpAddr, ClientRecord&gt;&gt;,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -390,17 +394,33 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    pub fn new(max_requests: usize, window: Duration) -&gt; Self {
+    pub fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -&gt; Self {
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
     
     pub fn check(&amp;self, addr: IpAddr) -&gt; bool {
         let mut clients = self.lock_clients();
         let now = Instant::now();
+
+        if !clients.contains_key(&amp;addr) {
+            let double_window = self.window * 2;
+            clients.retain(|_, record| {
+                now.duration_since(record.window_start) &lt;= double_window
+            });
+            if clients.len() &gt;= self.max_tracked_clients {
+                log::warn!(
+                    "Rate limiter state full ({} tracked clients); rejecting {}",
+                    self.max_tracked_clients,
+                    addr
+                );
+                return false;
+            }
+        }
         
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -443,6 +463,7 @@ impl RateLimiter {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Bounding the map prevents untrusted clients from turning rate-limit state into an unbounded memory sink. It is still a baseline policy: in IPv6-heavy environments, exact-address limits are often paired with <code>/64</code> aggregation, authenticated quotas, or an upstream proxy that can shed abusive sources earlier.</p>
 <h2 id="175-tls-configuration"><a class="header" href="#175-tls-configuration">17.5 TLS Configuration</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -475,6 +496,7 @@ pub fn create_server_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p><strong>Operational note</strong>: This server configuration loads certificates and private keys, but revocation policy is separate. If your deployment requires CRL or OCSP enforcement, configure it explicitly in your verifier or enforce it at a proxy or service mesh; otherwise prefer short-lived certificates and deliberate rotation.</p>
 <h2 id="176-connection-handler"><a class="header" href="#176-connection-handler">17.6 Connection Handler</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -705,10 +727,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let admission_limiter = Arc::new(RateLimiter::new(
         types::CONNECTION_ATTEMPT_RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     let request_limiter = Arc::new(RateLimiter::new(
         types::RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     
     let handler = Arc::new(ConnectionHandler::new(

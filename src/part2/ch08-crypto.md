@@ -225,6 +225,18 @@ fn verify_password(password: &str, salt: &[u8], expected: &[u8; 32]) -> bool {
 - Use a unique 16+ byte random salt per password.
 - Store the algorithm parameters with the password verifier so you can raise the cost over time.
 
+For PBKDF2, keep the parameters and verifier together instead of storing loose fields:
+
+```rust
+struct StoredPbkdf2Hash {
+    iterations: u32,
+    salt: Vec<u8>,
+    hash: [u8; 32],
+}
+```
+
+For new password storage, prefer the Argon2 PHC string format shown below because it bundles the algorithm, parameters, salt, and hash into one verifier string.
+
 ### Argon2id (Recommended for Password Hashing)
 
 Argon2 is the winner of the 2015 Password Hashing Competition and is recommended by OWASP over PBKDF2 because it is resistant to GPU/ASIC attacks:
@@ -442,6 +454,10 @@ fn use_key() {
 
 ⚠️ **Clone caveat**: If a secret type also implements `Clone`, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.
 
+⚠️ **Deserialize caveat**: If a secret-bearing type also implements `serde::Deserialize`, every successful parse creates another live secret instance. Treat deserialization boundaries the same way you treat `Clone`: minimize copies and ensure each instance is dropped on its own lifecycle.
+
+Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so `ZeroizeOnDrop` fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as `mem::forget`, or reference cycles that prevent `Drop` from ever running.
+
 ### 8.6.2 The `secrecy` Crate — Encapsulating Secrets
 
 ```toml
@@ -586,6 +602,8 @@ fn create_tls_client_config() -> ClientConfig {
         .with_no_client_auth()
 }
 ```
+
+**Revocation note**: `with_root_certificates(...)` loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default.
 
 ### 8.8.1 Certificate Pinning for Internal Services
 

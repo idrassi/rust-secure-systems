@@ -126,6 +126,10 @@ impl TlvTag {
             TlvTag::Extension(b) => *b,
         }
     }
+
+    fn is_reserved_extension_value(byte: u8) -> bool {
+        matches!(byte, 0x00..=0x0A)
+    }
 }
 
 /// A parsed TLV record with validated bounds
@@ -151,6 +155,11 @@ impl TlvRecord {
                 size: value.len(),
                 max: MAX_VALUE_SIZE,
             });
+        }
+        if let TlvTag::Extension(byte) = tag {
+            if TlvTag::is_reserved_extension_value(byte) {
+                return Err(ParseError::ReservedExtensionTag { byte });
+            }
         }
         Ok(TlvRecord { tag, value })
     }
@@ -264,6 +273,7 @@ pub enum ParseError {
     ValueTooLarge { size: usize, max: usize },
     IncompleteValue { expected: usize, available: usize },
     DuplicateTag { tag: TlvTag },
+    ReservedExtensionTag { byte: u8 },
     IntegerOverflow,
 }
 
@@ -284,6 +294,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::DuplicateTag { tag } => {
                 write!(f, "duplicate tag not allowed: {tag:?}")
+            }
+            ParseError::ReservedExtensionTag { byte } => {
+                write!(f, "extension tag byte collides with a named tag: 0x{byte:02X}")
             }
             ParseError::IntegerOverflow => f.write_str("integer overflow in length calculation"),
         }

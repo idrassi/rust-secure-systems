@@ -101,6 +101,8 @@ fn main() {
 }
 ```
 
+The `move` here moves the `&mut u64` borrow into each closure, not the integer itself. That is safe because `thread::scope` guarantees every spawned thread exits before `counters` goes out of scope.
+
 This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.
 
 ## 6.2 Synchronization Primitives
@@ -630,6 +632,8 @@ impl Decoder for LengthPrefixedCodec {
 
 🔒 **Security practice**: Always use a framed codec (`tokio_util::codec`) or equivalent buffering layer for production async network code. It ensures cancellation safety, enforces message size limits, and prevents partial-read desynchronization.
 
+Cancellation also matters for secret handling. If a future owns a `ZeroizeOnDrop` secret and is cancelled via `tokio::select!` or `JoinHandle::abort()`, dropping the future still runs `Drop` for those fields. That is a useful safety property, but it does not repair partially-applied protocol side effects, and it does not help on paths that skip destructors entirely.
+
 ### 6.5.3 Other Async Pitfalls
 
 | Pitfall | Description | Mitigation |
@@ -637,7 +641,7 @@ impl Decoder for LengthPrefixedCodec {
 | **Task starvation** | A busy task never yields, starving others | Use `tokio::task::yield_now()` in tight loops; use cooperative budgeting |
 | **Unbounded spawning** | `tokio::spawn` without limits → OOM | Use a `Semaphore` to limit concurrent tasks |
 | **Blocking in async** | Calling `std::thread::sleep` or CPU-heavy work blocks the executor | Use `tokio::task::spawn_blocking` for blocking operations |
-| **Aborted task cleanup** | `JoinHandle::abort()` drops the future; resources may leak | Use `Drop` guards for cleanup, or structured concurrency patterns |
+| **Aborted task cleanup** | `JoinHandle::abort()` drops the future; `Drop` guards still run, but partially-completed side effects may remain inconsistent | Use `Drop` guards for secrets and locks, plus explicit rollback or structured concurrency for external side effects |
 
 ## 6.6 Common Concurrency Pitfalls (and How Rust Prevents Them)
 

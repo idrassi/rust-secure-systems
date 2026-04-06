@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -959,6 +959,7 @@ struct SecureBuffer {
 <span class="boring">}</span></code></pre>
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
+<p>Deserialization has the same lifecycle cost: every <code>serde::Deserialize</code> call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.</p>
 <h3 id="342-interior-mutability--refcellt-and-cellt"><a class="header" href="#342-interior-mutability--refcellt-and-cellt">3.4.2 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -1645,10 +1646,11 @@ use anyhow::{Context, Result};
 
 fn load_key(path: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
     let key = std::fs::read(path)
-        .with_context(|| format!("failed to read key file at {path}"))?;
+        .context("failed to read configured key file")?;
     Ok(key)
 }
 <span class="boring">}</span></code></pre>
+<p>If the path itself is sensitive, do not include it in user-facing error context. Log the path on a trusted internal channel if you need it for debugging, and return a generic external error instead of exposing filesystem layout.</p>
 <h2 id="55-panic-vs-result"><a class="header" href="#55-panic-vs-result">5.5 Panic vs. Result</a></h2>
 <p>Rust has two error categories:</p>
 <div class="table-wrapper">
@@ -2010,6 +2012,7 @@ fn main() {
 
     assert_eq!(counters, [1, 1, 1, 1]);
 }</code></pre>
+<p>The <code>move</code> here moves the <code>&amp;mut u64</code> borrow into each closure, not the integer itself. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
 <p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
 <h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
 <h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
@@ -2491,6 +2494,7 @@ impl Decoder for LengthPrefixedCodec {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Always use a framed codec (<code>tokio_util::codec</code>) or equivalent buffering layer for production async network code. It ensures cancellation safety, enforces message size limits, and prevents partial-read desynchronization.</p>
+<p>Cancellation also matters for secret handling. If a future owns a <code>ZeroizeOnDrop</code> secret and is cancelled via <code>tokio::select!</code> or <code>JoinHandle::abort()</code>, dropping the future still runs <code>Drop</code> for those fields. That is a useful safety property, but it does not repair partially-applied protocol side effects, and it does not help on paths that skip destructors entirely.</p>
 <h3 id="653-other-async-pitfalls"><a class="header" href="#653-other-async-pitfalls">6.5.3 Other Async Pitfalls</a></h3>
 <div class="table-wrapper">
 <table>
@@ -2501,7 +2505,7 @@ impl Decoder for LengthPrefixedCodec {
 <tr><td><strong>Task starvation</strong></td><td>A busy task never yields, starving others</td><td>Use <code>tokio::task::yield_now()</code> in tight loops; use cooperative budgeting</td></tr>
 <tr><td><strong>Unbounded spawning</strong></td><td><code>tokio::spawn</code> without limits → OOM</td><td>Use a <code>Semaphore</code> to limit concurrent tasks</td></tr>
 <tr><td><strong>Blocking in async</strong></td><td>Calling <code>std::thread::sleep</code> or CPU-heavy work blocks the executor</td><td>Use <code>tokio::task::spawn_blocking</code> for blocking operations</td></tr>
-<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; resources may leak</td><td>Use <code>Drop</code> guards for cleanup, or structured concurrency patterns</td></tr>
+<tr><td><strong>Aborted task cleanup</strong></td><td><code>JoinHandle::abort()</code> drops the future; <code>Drop</code> guards still run, but partially-completed side effects may remain inconsistent</td><td>Use <code>Drop</code> guards for secrets and locks, plus explicit rollback or structured concurrency for external side effects</td></tr>
 </tbody>
 </table>
 </div>
@@ -2723,20 +2727,32 @@ impl std::str::FromStr for NetworkAddress {
     type Err = ParseError;
     
     fn from_str(s: &amp;str) -&gt; Result&lt;Self, Self::Err&gt; {
-        let parts: Vec&lt;&amp;str&gt; = s.rsplitn(2, ':').collect();
-        if parts.len() != 2 {
-            return Err(ParseError::InvalidFormat);
-        }
-        let port: u16 = parts[0].parse()
+        let (ip_text, port_text) = if let Some(stripped) = s.strip_prefix('[') {
+            let (host, rest) = stripped
+                .split_once(']')
+                .ok_or(ParseError::InvalidFormat)?;
+            if host.contains('[') || !rest.starts_with(':') || rest[1..].contains(']') {
+                return Err(ParseError::InvalidFormat);
+            }
+            (host, &amp;rest[1..])
+        } else {
+            let (host, port) = s.rsplit_once(':')
+                .ok_or(ParseError::InvalidFormat)?;
+            if host.contains(':') {
+                return Err(ParseError::InvalidFormat);
+            }
+            (host, port)
+        };
+
+        let port: u16 = port_text.parse()
             .map_err(|_| ParseError::InvalidPort)?;
-        let ip: IpAddr = parts[1].trim_start_matches('[')
-            .trim_end_matches(']')
-            .parse()
+        let ip: IpAddr = ip_text.parse()
             .map_err(|_| ParseError::InvalidIp)?;
         Ok(NetworkAddress { ip, port })
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Use bracketed <code>[IPv6]:port</code> syntax for IPv6 literals. Rejecting bare IPv6 addresses here is intentional: the final colon is ambiguous between “part of the address” and “port separator.”</p>
 <h3 id="layer-3-sanitization"><a class="header" href="#layer-3-sanitization">Layer 3: Sanitization</a></h3>
 <p>For data that must be embedded in a different context (HTML, SQL, shell commands, file paths):</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2934,6 +2950,14 @@ fn is_public_ip(ip: IpAddr) -&gt; bool {
 <span class="boring">}</span></code></pre>
 <p>Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a “valid” hostname into access to internal services.</p>
 <p>This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.</p>
+<h3 id="726-regular-expressions-and-redos"><a class="header" href="#726-regular-expressions-and-redos">7.2.6 Regular Expressions and ReDoS</a></h3>
+<p>Regular expressions are useful for token-level validation, but they are still an input-processing engine and therefore part of your denial-of-service surface.</p>
+<ul>
+<li>The <code>regex</code> crate deliberately omits backreferences and look-around, so it avoids the catastrophic backtracking behavior that makes many classic ReDoS attacks possible.</li>
+<li>That guarantee does not extend to backtracking engines such as <code>fancy-regex</code>, PCRE bindings, or ad hoc recursive parsers wrapped around regex captures.</li>
+<li>Bound both pattern complexity and input size. For security-critical formats, prefer small token regexes or an explicit parser over one giant expression that mixes validation and parsing.</li>
+</ul>
+<p>When you fuzz validators, include long “almost matching” inputs. Those cases are often more valuable than obviously invalid garbage because they expose superlinear behavior, excessive backtracking, and accidental quadratic parsing paths.</p>
 <h2 id="73-validation-for-protocol-parsing"><a class="header" href="#73-validation-for-protocol-parsing">7.3 Validation for Protocol Parsing</a></h2>
 <p>When implementing network protocols, validation is critical at every layer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3090,6 +3114,9 @@ where
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Security note</strong>: The example above relies on <code>serde_json</code>’s built-in recursion limit and adds an explicit input-size cap before deserialization. Only call <code>disable_recursion_limit()</code> if you replace it with another stack-safety mechanism such as <code>serde_stacker</code> or an explicit depth-tracked visitor.</p>
+<ol start="4">
+<li><strong>Secret types</strong>: Deserializing into a secret-bearing struct creates another live in-memory copy. If the target type derives <code>ZeroizeOnDrop</code> or wraps fields in <code>secrecy</code>, keep deserialization boundaries narrow and ensure transient copies are dropped promptly.</li>
+</ol>
 <h2 id="75-summary"><a class="header" href="#75-summary">7.5 Summary</a></h2>
 <ul>
 <li>Use the <strong>validation pyramid</strong>: type-level (strongest) → parse-don’t-validate → sanitization.</li>
@@ -3325,6 +3352,16 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <li>Use a unique 16+ byte random salt per password.</li>
 <li>Store the algorithm parameters with the password verifier so you can raise the cost over time.</li>
 </ul>
+<p>For PBKDF2, keep the parameters and verifier together instead of storing loose fields:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>struct StoredPbkdf2Hash {
+    iterations: u32,
+    salt: Vec&lt;u8&gt;,
+    hash: [u8; 32],
+}
+<span class="boring">}</span></code></pre>
+<p>For new password storage, prefer the Argon2 PHC string format shown below because it bundles the algorithm, parameters, salt, and hash into one verifier string.</p>
 <h3 id="argon2id-recommended-for-password-hashing"><a class="header" href="#argon2id-recommended-for-password-hashing">Argon2id (Recommended for Password Hashing)</a></h3>
 <p>Argon2 is the winner of the 2015 Password Hashing Competition and is recommended by OWASP over PBKDF2 because it is resistant to GPU/ASIC attacks:</p>
 <pre><code class="language-toml">[dependencies]
@@ -3518,6 +3555,8 @@ fn use_key() {
 <p>🔒 <strong>Critical pattern</strong>: Use <code>#[derive(Zeroize, ZeroizeOnDrop)]</code> for types containing secrets. This ensures memory is wiped on ordinary drop paths even if the function exits early (for example via <code>?</code>).</p>
 <p>⚠️ <strong>Panic strategy caveat</strong>: With <code>panic = "abort"</code> from Chapter 2 §2.4, <code>Drop</code>-based zeroization still runs on normal returns but does <strong>not</strong> run on panic paths.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret type also implements <code>Clone</code>, each clone is an independent secret copy with its own lifecycle. Avoid cloning secrets unless you are deliberately zeroizing every copy.</p>
+<p>⚠️ <strong>Deserialize caveat</strong>: If a secret-bearing type also implements <code>serde::Deserialize</code>, every successful parse creates another live secret instance. Treat deserialization boundaries the same way you treat <code>Clone</code>: minimize copies and ensure each instance is dropped on its own lifecycle.</p>
+<p>Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so <code>ZeroizeOnDrop</code> fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as <code>mem::forget</code>, or reference cycles that prevent <code>Drop</code> from ever running.</p>
 <h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
@@ -3642,6 +3681,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
         .with_no_client_auth()
 }
 <span class="boring">}</span></code></pre>
+<p><strong>Revocation note</strong>: <code>with_root_certificates(...)</code> loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default.</p>
 <h3 id="881-certificate-pinning-for-internal-services"><a class="header" href="#881-certificate-pinning-for-internal-services">8.8.1 Certificate Pinning for Internal Services</a></h3>
 <p>For private APIs, control planes, and service-to-service calls, CA validation alone may be too broad. Certificate pinning adds an application-controlled trust decision on top of normal PKI validation:</p>
 <ul>
@@ -3857,7 +3897,7 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
     
     pub fn with_capacity(capacity: usize) -&gt; Self {
         let mut rv = Self::new();
-        if capacity &gt; 0 {
+        if capacity &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() != 0 {
             rv.grow(capacity);
         }
         rv
@@ -5179,6 +5219,7 @@ struct RateLimiter {
     clients: Mutex&lt;HashMap&lt;std::net::IpAddr, ClientRecord&gt;&gt;,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -5187,17 +5228,27 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    fn new(max_requests: usize, window: Duration) -&gt; Self {
+    fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -&gt; Self {
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
     
     fn check(&amp;self, addr: std::net::IpAddr) -&gt; bool {
         let mut clients = self.clients.lock().unwrap();
         let now = Instant::now();
+
+        if !clients.contains_key(&amp;addr) {
+            clients.retain(|_, record| {
+                now.duration_since(record.window_start) &lt;= self.window * 2
+            });
+            if clients.len() &gt;= self.max_tracked_clients {
+                return false;
+            }
+        }
         
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -5224,6 +5275,7 @@ impl RateLimiter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
+<p>Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example <code>/64</code>) or authenticated/user-based limits in front of the service.</p>
 <p>If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -5341,10 +5393,12 @@ loop {
 <li>✅ Use strong certificates (ECDSA P-256 or Ed25519)</li>
 <li>✅ Implement certificate pinning for internal services</li>
 </ul>
+<p>The basic <code>rustls</code> builders shown here cover chain validation, hostname checks, and certificate expiry, but they do not establish a revocation policy by themselves. If your deployment depends on CRLs or OCSP, configure the verifier accordingly or enforce revocation at an upstream proxy or service mesh; short-lived certificates are often simpler to operate.</p>
 <h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
 <p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
 <p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
 <p>In zero-trust terms, the network path is not the trust boundary. mTLS gives you a cryptographic identity for each peer, but you still need per-service authorization, narrow trust domains, and audit trails for which identity invoked which action.</p>
+<p>Apply the same revocation thinking to client certificates. Internal PKI designs often rely more on short-lived certs than on online revocation checks, but that should be an explicit policy decision rather than an unstated default.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
@@ -6335,6 +6389,9 @@ jobs:
       - name: Fuzz parse_packet (10 minutes)
         run: cargo +nightly fuzz run parse_packet -- -max_total_time=600
 </code></pre>
+<ol start="6">
+<li><strong>Probe algorithmic complexity, not just crashes</strong>: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard <code>regex</code> crate avoids classic catastrophic backtracking for its supported syntax, but backtracking engines such as <code>fancy-regex</code> and custom parsers can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.</li>
+</ol>
 <h2 id="143-guided-fuzzing-for-security"><a class="header" href="#143-guided-fuzzing-for-security">14.3 Guided Fuzzing for Security</a></h2>
 <h3 id="1431-fuzzing-for-memory-safety-miri--fuzzing"><a class="header" href="#1431-fuzzing-for-memory-safety-miri--fuzzing">14.3.1 Fuzzing for Memory Safety (Miri + Fuzzing)</a></h3>
 <p>Combine Miri with fuzzing to detect undefined behavior. You need a test harness that reads corpus files and passes them to the parser:</p>
@@ -6897,6 +6954,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li><input disabled="" type="checkbox"> How much <code>unsafe</code> code does it contain? (<code>cargo geiger</code>)</li>
 <li><input disabled="" type="checkbox"> Does it use FFI to C libraries? (Adds C attack surface)</li>
 <li><input disabled="" type="checkbox"> Does it use build scripts (<code>build.rs</code>)? (Can execute arbitrary code at build time)</li>
+<li><input disabled="" type="checkbox"> Does it ship procedural macros? (Also executes code at compile time)</li>
 </ul>
 <h3 id="1622-prefer-the-standard-library-and-core-ecosystem"><a class="header" href="#1622-prefer-the-standard-library-and-core-ecosystem">16.2.2 Prefer the Standard Library and Core Ecosystem</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -7068,6 +7126,9 @@ fn main() {
 </ol>
 <pre><code class="language-bash">cargo build --frozen
 </code></pre>
+<h3 id="1671-procedural-macro-security"><a class="header" href="#1671-procedural-macro-security">16.7.1 Procedural Macro Security</a></h3>
+<p>Procedural macros are the other major compile-time trust boundary. A proc-macro crate is compiled and then executed by <code>rustc</code> during macro expansion, so it can read environment variables, inspect the filesystem, and perform network I/O just like a hostile <code>build.rs</code>.</p>
+<p>Common derive crates such as <code>serde</code>, <code>thiserror</code>, and <code>tokio-macros</code> are widely trusted, but they are still code execution on the build host. Audit proc-macro crates alongside <code>build.rs</code>, minimize them in high-assurance workspaces, and keep CI/build environments sandboxed so compile-time code cannot reach long-lived credentials or unrelated source trees.</p>
 <h2 id="168-cicd-pipeline-security"><a class="header" href="#168-cicd-pipeline-security">16.8 CI/CD Pipeline Security</a></h2>
 <pre><code class="language-yaml"># .github/workflows/build.yml
 name: Secure Build
@@ -7276,6 +7337,9 @@ pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
 /// Rate limit: max requests per minute per IP
 pub const RATE_LIMIT: usize = 60;
 
+/// Bound tracked client state between cleanup cycles
+pub const MAX_TRACKED_CLIENTS: usize = 8192;
+
 /// A validated message with a non-empty payload and guaranteed bounds
 #[derive(Debug)]
 pub struct Message(Vec&lt;u8&gt;);
@@ -7372,6 +7436,7 @@ pub struct RateLimiter {
     clients: Mutex&lt;HashMap&lt;IpAddr, ClientRecord&gt;&gt;,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -7380,17 +7445,33 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    pub fn new(max_requests: usize, window: Duration) -&gt; Self {
+    pub fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -&gt; Self {
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
     
     pub fn check(&amp;self, addr: IpAddr) -&gt; bool {
         let mut clients = self.lock_clients();
         let now = Instant::now();
+
+        if !clients.contains_key(&amp;addr) {
+            let double_window = self.window * 2;
+            clients.retain(|_, record| {
+                now.duration_since(record.window_start) &lt;= double_window
+            });
+            if clients.len() &gt;= self.max_tracked_clients {
+                log::warn!(
+                    "Rate limiter state full ({} tracked clients); rejecting {}",
+                    self.max_tracked_clients,
+                    addr
+                );
+                return false;
+            }
+        }
         
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -7433,6 +7514,7 @@ impl RateLimiter {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Bounding the map prevents untrusted clients from turning rate-limit state into an unbounded memory sink. It is still a baseline policy: in IPv6-heavy environments, exact-address limits are often paired with <code>/64</code> aggregation, authenticated quotas, or an upstream proxy that can shed abusive sources earlier.</p>
 <h2 id="175-tls-configuration"><a class="header" href="#175-tls-configuration">17.5 TLS Configuration</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -7465,6 +7547,7 @@ pub fn create_server_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p><strong>Operational note</strong>: This server configuration loads certificates and private keys, but revocation policy is separate. If your deployment requires CRL or OCSP enforcement, configure it explicitly in your verifier or enforce it at a proxy or service mesh; otherwise prefer short-lived certificates and deliberate rotation.</p>
 <h2 id="176-connection-handler"><a class="header" href="#176-connection-handler">17.6 Connection Handler</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -7695,10 +7778,12 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let admission_limiter = Arc::new(RateLimiter::new(
         types::CONNECTION_ATTEMPT_RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     let request_limiter = Arc::new(RateLimiter::new(
         types::RATE_LIMIT,
         std::time::Duration::from_secs(60),
+        types::MAX_TRACKED_CLIENTS,
     ));
     
     let handler = Arc::new(ConnectionHandler::new(
@@ -8009,6 +8094,10 @@ impl TlvTag {
             TlvTag::Extension(b) =&gt; *b,
         }
     }
+
+    fn is_reserved_extension_value(byte: u8) -&gt; bool {
+        matches!(byte, 0x00..=0x0A)
+    }
 }
 
 /// A parsed TLV record with validated bounds
@@ -8034,6 +8123,11 @@ impl TlvRecord {
                 size: value.len(),
                 max: MAX_VALUE_SIZE,
             });
+        }
+        if let TlvTag::Extension(byte) = tag {
+            if TlvTag::is_reserved_extension_value(byte) {
+                return Err(ParseError::ReservedExtensionTag { byte });
+            }
         }
         Ok(TlvRecord { tag, value })
     }
@@ -8147,6 +8241,7 @@ pub enum ParseError {
     ValueTooLarge { size: usize, max: usize },
     IncompleteValue { expected: usize, available: usize },
     DuplicateTag { tag: TlvTag },
+    ReservedExtensionTag { byte: u8 },
     IntegerOverflow,
 }
 
@@ -8167,6 +8262,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::DuplicateTag { tag } =&gt; {
                 write!(f, "duplicate tag not allowed: {tag:?}")
+            }
+            ParseError::ReservedExtensionTag { byte } =&gt; {
+                write!(f, "extension tag byte collides with a named tag: 0x{byte:02X}")
             }
             ParseError::IntegerOverflow =&gt; f.write_str("integer overflow in length calculation"),
         }
@@ -9315,12 +9413,16 @@ aa-genprof /usr/local/bin/secure-server
 <tr><th>Crate</th><th>Purpose</th><th>Trust Level</th></tr>
 </thead>
 <tbody>
+<tr><td><code>argon2</code></td><td>Password hashing (Argon2id)</td><td>High (PHC winner, widely reviewed)</td></tr>
 <tr><td><code>ring</code></td><td>Cryptography</td><td>High (BoringSSL-derived, audited)</td></tr>
 <tr><td><code>rustls</code></td><td>TLS</td><td>High (memory-safe, audited)</td></tr>
+<tr><td><code>ed25519-dalek</code></td><td>Ed25519 signatures</td><td>High (widely reviewed)</td></tr>
+<tr><td><code>x25519-dalek</code></td><td>X25519 key agreement</td><td>High (widely reviewed)</td></tr>
 <tr><td><code>serde</code></td><td>Serialization</td><td>High (serde-rs project, widely used)</td></tr>
 <tr><td><code>zeroize</code></td><td>Memory wiping</td><td>High (widely audited)</td></tr>
 <tr><td><code>subtle</code></td><td>Constant-time selection and comparison helpers</td><td>High (Dalek ecosystem)</td></tr>
 <tr><td><code>secrecy</code></td><td>Secret encapsulation</td><td>High</td></tr>
+<tr><td><code>anyhow</code></td><td>Application-level error context</td><td>High</td></tr>
 <tr><td><code>thiserror</code></td><td>Error types</td><td>High</td></tr>
 <tr><td><code>proptest</code></td><td>Property testing</td><td>High</td></tr>
 <tr><td><code>tokio</code></td><td>Async runtime</td><td>High</td></tr>

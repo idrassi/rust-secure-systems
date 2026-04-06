@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
+            window.path_to_searchindex_js = "../searchindex-3a7071da.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -353,6 +353,7 @@ struct RateLimiter {
     clients: Mutex&lt;HashMap&lt;std::net::IpAddr, ClientRecord&gt;&gt;,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -361,17 +362,27 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    fn new(max_requests: usize, window: Duration) -&gt; Self {
+    fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -&gt; Self {
         RateLimiter {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
     
     fn check(&amp;self, addr: std::net::IpAddr) -&gt; bool {
         let mut clients = self.clients.lock().unwrap();
         let now = Instant::now();
+
+        if !clients.contains_key(&amp;addr) {
+            clients.retain(|_, record| {
+                now.duration_since(record.window_start) &lt;= self.window * 2
+            });
+            if clients.len() &gt;= self.max_tracked_clients {
+                return false;
+            }
+        }
         
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -398,6 +409,7 @@ impl RateLimiter {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
+<p>Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example <code>/64</code>) or authenticated/user-based limits in front of the service.</p>
 <p>If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -515,10 +527,12 @@ loop {
 <li>✅ Use strong certificates (ECDSA P-256 or Ed25519)</li>
 <li>✅ Implement certificate pinning for internal services</li>
 </ul>
+<p>The basic <code>rustls</code> builders shown here cover chain validation, hostname checks, and certificate expiry, but they do not establish a revocation policy by themselves. If your deployment depends on CRLs or OCSP, configure the verifier accordingly or enforce revocation at an upstream proxy or service mesh; short-lived certificates are often simpler to operate.</p>
 <h3 id="1222-mutual-tls-for-service-to-service-traffic"><a class="header" href="#1222-mutual-tls-for-service-to-service-traffic">12.2.2 Mutual TLS for Service-to-Service Traffic</a></h3>
 <p><code>with_no_client_auth()</code> is appropriate for public-facing services where clients authenticate at the application layer. For internal RPC, admin APIs, and other service-to-service traffic, prefer mutual TLS: configure a client-certificate verifier from your internal CA roots, require every client to present a certificate, and map the validated subject or SAN to an expected service identity.</p>
 <p>Treat mTLS as authentication input, not just encryption. Reject missing or expired client certificates, rotate your client CA set deliberately, and still authorize each peer for the specific operations it is allowed to perform.</p>
 <p>In zero-trust terms, the network path is not the trust boundary. mTLS gives you a cryptographic identity for each peer, but you still need per-service authorization, narrow trust domains, and audit trails for which identity invoked which action.</p>
+<p>Apply the same revocation thinking to client certificates. Internal PKI designs often rely more on short-lived certs than on online revocation checks, but that should be an explicit policy decision rather than an unstated default.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;

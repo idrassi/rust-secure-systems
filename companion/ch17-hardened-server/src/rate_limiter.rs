@@ -7,6 +7,7 @@ pub struct RateLimiter {
     clients: Mutex<HashMap<IpAddr, ClientRecord>>,
     max_requests: usize,
     window: Duration,
+    max_tracked_clients: usize,
 }
 
 struct ClientRecord {
@@ -15,17 +16,31 @@ struct ClientRecord {
 }
 
 impl RateLimiter {
-    pub fn new(max_requests: usize, window: Duration) -> Self {
+    pub fn new(max_requests: usize, window: Duration, max_tracked_clients: usize) -> Self {
         Self {
             clients: Mutex::new(HashMap::new()),
             max_requests,
             window,
+            max_tracked_clients,
         }
     }
 
     pub fn check(&self, addr: IpAddr) -> bool {
         let mut clients = self.lock_clients();
         let now = Instant::now();
+
+        if !clients.contains_key(&addr) {
+            let double_window = self.window * 2;
+            clients.retain(|_, record| now.duration_since(record.window_start) <= double_window);
+            if clients.len() >= self.max_tracked_clients {
+                log::warn!(
+                    "Rate limiter state full ({} tracked clients); rejecting {}",
+                    self.max_tracked_clients,
+                    addr
+                );
+                return false;
+            }
+        }
 
         let record = clients.entry(addr).or_insert_with(|| ClientRecord {
             count: 0,
@@ -75,7 +90,7 @@ mod tests {
 
     #[test]
     fn poisoned_mutex_is_recovered_without_panicking() {
-        let limiter = RateLimiter::new(10, Duration::from_secs(60));
+        let limiter = RateLimiter::new(10, Duration::from_secs(60), 16);
 
         let _ = panic::catch_unwind(AssertUnwindSafe(|| {
             let _guard = limiter.clients.lock().expect("lock");
@@ -83,5 +98,14 @@ mod tests {
         }));
 
         assert!(limiter.check(IpAddr::from_str("127.0.0.1").expect("ip")));
+    }
+
+    #[test]
+    fn rejects_new_clients_once_state_is_full() {
+        let limiter = RateLimiter::new(10, Duration::from_secs(60), 2);
+
+        assert!(limiter.check(IpAddr::from_str("127.0.0.1").expect("ip1")));
+        assert!(limiter.check(IpAddr::from_str("127.0.0.2").expect("ip2")));
+        assert!(!limiter.check(IpAddr::from_str("127.0.0.3").expect("ip3")));
     }
 }

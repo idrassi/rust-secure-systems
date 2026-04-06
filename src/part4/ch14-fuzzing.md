@@ -298,6 +298,8 @@ jobs:
         run: cargo +nightly fuzz run parse_packet -- -max_total_time=600
 ```
 
+6. **Probe algorithmic complexity, not just crashes**: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard `regex` crate avoids classic catastrophic backtracking for its supported syntax, but backtracking engines such as `fancy-regex` and custom parsers can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.
+
 ## 14.3 Guided Fuzzing for Security
 
 ### 14.3.1 Fuzzing for Memory Safety (Miri + Fuzzing)

@@ -986,12 +986,16 @@ This concludes the book. You now have the knowledge and practical skills to writ
 
 | Crate | Purpose | Trust Level |
 |-------|---------|-------------|
+| `argon2` | Password hashing (Argon2id) | High (PHC winner, widely reviewed) |
 | `ring` | Cryptography | High (BoringSSL-derived, audited) |
 | `rustls` | TLS | High (memory-safe, audited) |
+| `ed25519-dalek` | Ed25519 signatures | High (widely reviewed) |
+| `x25519-dalek` | X25519 key agreement | High (widely reviewed) |
 | `serde` | Serialization | High (serde-rs project, widely used) |
 | `zeroize` | Memory wiping | High (widely audited) |
 | `subtle` | Constant-time selection and comparison helpers | High (Dalek ecosystem) |
 | `secrecy` | Secret encapsulation | High |
+| `anyhow` | Application-level error context | High |
 | `thiserror` | Error types | High |
 | `proptest` | Property testing | High |
 | `tokio` | Async runtime | High |
