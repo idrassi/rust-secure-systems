@@ -154,6 +154,8 @@ fn build_frame(payload: &[u8]) -> Vec<u8> {
 
 This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.
 
+On Unix, broken-pipe `SIGPIPE` delivery is a classic networking footgun. For Rust socket code, `std::net` and Tokio already suppress `SIGPIPE` on TCP sockets (`MSG_NOSIGNAL` / `SO_NOSIGPIPE` style handling), so a dead peer normally becomes an `io::Error`, not process termination. Revisit `SIGPIPE` only when you drop to raw `libc` writes, interact with pipes or child stdio, or deliberately change the process signal disposition.
+
 🔒 **Security measures in this server**:
 1. **Connection limiting**: Prevents resource exhaustion (CWE-400)
 2. **Read timeouts**: Prevents slowloris attacks (CWE-400)

@@ -76,6 +76,7 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+opt-level = "z"
 ```
 
 ## 17.3 Secure Types
@@ -178,6 +179,20 @@ pub enum ProtocolError {
     IncompleteMessage { expected: usize, actual: usize },
 }
 ```
+
+Size caps are necessary but not sufficient for robustness under memory pressure. Rust's default allocation path still calls `handle_alloc_error`; with `panic = "abort"`, that usually terminates the process. For request paths that allocate from attacker-influenced lengths, prefer fallible reservation APIs so overload becomes an ordinary error:
+
+```rust,no_run
+fn copy_frame_fallible(frame: &[u8]) -> std::io::Result<Vec<u8>> {
+    let mut out = Vec::new();
+    out.try_reserve_exact(frame.len())
+        .map_err(|_| std::io::Error::other("out of memory while buffering frame"))?;
+    out.extend_from_slice(frame);
+    Ok(out)
+}
+```
+
+This server already keeps a fixed read buffer to reduce per-read allocation, but the same review rule still applies to copies you make after validation.
 
 ## 17.4 Rate Limiter
 
@@ -337,13 +352,19 @@ impl ConnectionHandler {
         self.connection_count.load(Ordering::SeqCst)
     }
     pub fn try_admit(&self, addr: SocketAddr) -> Option<ConnectionPermit> {
-        // Reserve capacity before the expensive TLS handshake begins.
-        let current = self.connection_count.fetch_add(1, Ordering::SeqCst);
-        if current >= MAX_CONNECTIONS {
-            self.connection_count.fetch_sub(1, Ordering::SeqCst);
-            log::warn!("Rejecting connection from {}: limit reached", addr);
-            return None;
-        }
+        // Reserve capacity before the expensive TLS handshake begins without
+        // ever letting the counter exceed MAX_CONNECTIONS.
+        let current = match self.connection_count.fetch_update(
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+            |current| (current < MAX_CONNECTIONS).then_some(current + 1),
+        ) {
+            Ok(previous) => previous,
+            Err(_) => {
+                log::warn!("Rejecting connection from {}: limit reached", addr);
+                return None;
+            }
+        };
 
         if !self.admission_limiter.check(addr.ip()) {
             self.connection_count.fetch_sub(1, Ordering::SeqCst);

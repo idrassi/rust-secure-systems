@@ -8,7 +8,7 @@ A secure development workflow starts with a well-configured environment. In this
 
 The recommended installation method is `rustup`, which manages Rust toolchains and allows easy switching between stable, beta, and nightly compilers.
 
-For third-party Cargo tools, this book pins concrete versions that were reviewed for this edition on **April 2, 2026**. Treat those pins as an auditable starting point rather than eternal truth: refresh them deliberately during your own dependency review cycle.
+For third-party Cargo tools, this book pins concrete versions that were reviewed for this edition on **April 6, 2026**. Treat those pins as an auditable starting point rather than eternal truth: refresh them deliberately during your own dependency review cycle.
 
 ### Linux and macOS
 
@@ -276,8 +276,10 @@ strip = false                # Keep symbols while debugging locally
 lto = true                   # Link-time optimization (removes dead code)
 codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
-opt-level = "s"              # Optimize for size (smaller binaries, not a substitute for removing features)
+opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
 ```
+
+This matches the hardened release profile used later in Chapter 19. `opt-level = "z"` is more aggressive about shrinking code than `"s"`; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.
 
 🔒 **Critical setting**: `overflow-checks = true` in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.
 

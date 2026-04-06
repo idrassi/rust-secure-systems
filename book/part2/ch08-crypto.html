@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -420,6 +420,7 @@ fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
     Argon2::default().verify_password(password.as_bytes(), &amp;parsed).is_ok()
 }
 <span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Authentication timing pitfall</strong>: Constant-time byte comparison is not enough if your surrounding control flow still leaks information. If a login path returns immediately for “user not found” but runs Argon2 for “wrong password”, an attacker can distinguish the two cases from latency. For username/password authentication, always run the password check against either the real stored hash or a fixed dummy Argon2 hash, then return the same external error in both cases.</p>
 <p>🔒 <strong>Argon2 parameters</strong> (per OWASP recommendations):</p>
 <ul>
 <li><strong>Memory</strong>: 19 MiB (19,456 KiB) minimum</li>

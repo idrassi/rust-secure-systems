@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -203,6 +203,7 @@ fn c_string_length(s: &amp;std::ffi::CStr) -&gt; usize {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>If you already have a Rust <code>&amp;CStr</code>, prefer <code>s.to_bytes().len()</code> in real code. The <code>strlen</code> call here is purely to demonstrate declaring and calling a C function from Rust.</p>
 <p>In Edition 2024, <code>extern</code> blocks are explicitly <code>unsafe</code> because Rust cannot verify that the foreign signatures are correct.</p>
 <p>🔒 <strong>Security rules for calling C</strong>:</p>
 <ol>

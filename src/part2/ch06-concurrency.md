@@ -441,7 +441,7 @@ async fn read_one_message_exact(stream: &mut TcpStream) -> std::io::Result<()> {
     // If we are cancelled after reading the first message header
     // but before reading its body, the stream is now in an inconsistent
     // state. The first message's bytes have been consumed, but we have
-    // not processed them. Data is silently lost.
+    // not processed them. Those bytes are irrecoverably lost to the caller.
     let mut header = [0u8; 4];
     stream.read_exact(&mut header).await?;  // May succeed
     let len = u32::from_be_bytes(header) as usize;

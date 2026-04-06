@@ -352,6 +352,22 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
 });
 ```
 
+### 14.3.3 ThreadSanitizer and MemorySanitizer
+
+AddressSanitizer is not the only sanitizer worth running. For concurrent or low-level code, add standalone sanitizer jobs alongside fuzzing:
+
+```bash
+# Data races in real threaded code
+RUSTFLAGS="-Zsanitizer=thread" cargo +nightly test
+
+# Uninitialized-memory reads
+RUSTFLAGS="-Zsanitizer=memory" cargo +nightly test
+```
+
+- **ThreadSanitizer (TSan)** catches data races in executed code paths, including cases involving real threads, FFI, and I/O that Miri cannot run directly.
+- **MemorySanitizer (MSan)** catches uses of uninitialized memory, but it requires the whole stack to be instrumented. If you call into C/C++ code, those dependencies generally need MSan-enabled builds too.
+- Sanitizer availability is target-dependent and still best treated as a nightly audit job. Keep the commands in CI or a dedicated review script rather than assuming every developer machine supports them.
+
 ## 14.4 QuickCheck Alternative
 
 `quickcheck` is another property-based testing framework:
@@ -429,7 +445,7 @@ libfuzzer_sys::fuzz_target!(|actions: Vec<FuzzAction>| {
 - Fuzz **every** input-processing function—especially network parsers.
 - Use structured fuzzing (`arbitrary`) for complex input types.
 - Run fuzzing continuously in CI and maintain a seed corpus.
-- Use sanitizers (AddressSanitizer, Miri) alongside fuzzing to detect memory safety issues.
+- Use sanitizers (AddressSanitizer, ThreadSanitizer, MemorySanitizer) and Miri alongside fuzzing to detect memory safety and concurrency issues.
 - Save and commit regression test cases for all discovered bugs.
 
 In the next chapter, we cover static analysis and code auditing—tools and techniques for finding security issues without executing code.

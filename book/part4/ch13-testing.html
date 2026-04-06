@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -624,19 +624,19 @@ jobs:
 <li>Process-level isolation between tests</li>
 <li>Easier sharding across CI workers</li>
 </ul>
-<pre><code class="language-bash">cargo install cargo-nextest --locked
+<pre><code class="language-bash">cargo install cargo-nextest --version 0.9.132 --locked
 cargo nextest run --workspace --all-features
 </code></pre>
 <p>For parser, auth, and protocol suites, this isolation helps catch hidden cross-test coupling and makes flaky failures easier to diagnose.</p>
 <h3 id="1362-coverage-reporting-with-cargo-llvm-cov"><a class="header" href="#1362-coverage-reporting-with-cargo-llvm-cov">13.6.2 Coverage Reporting with <code>cargo-llvm-cov</code></a></h3>
 <p>Coverage does not prove security, but it quickly shows which validation branches, parser error paths, and unsafe wrappers are still untested:</p>
-<pre><code class="language-bash">cargo install cargo-llvm-cov --locked
+<pre><code class="language-bash">cargo install cargo-llvm-cov --version 0.8.5 --locked
 cargo llvm-cov --workspace --all-features --html
 </code></pre>
 <p>Prioritize coverage review on authentication, parsing, deserialization, unsafe wrappers, and failure paths rather than chasing a global percentage.</p>
 <h3 id="1363-mutation-testing-with-cargo-mutants"><a class="header" href="#1363-mutation-testing-with-cargo-mutants">13.6.3 Mutation Testing with <code>cargo-mutants</code></a></h3>
 <p>Coverage tells you what executed; mutation testing tells you whether the tests would fail if the security logic were wrong. <code>cargo-mutants</code> flips conditionals, comparison operators, and other small pieces of code, then reruns your tests to see whether the suite notices:</p>
-<pre><code class="language-bash">cargo install cargo-mutants --locked
+<pre><code class="language-bash">cargo install cargo-mutants --version 27.0.0 --locked
 cargo mutants --workspace --all-features
 </code></pre>
 <p>This is especially valuable for authentication checks, parser bounds checks, rate limiting, and unsafe wrappers. A surviving mutant around <code>&gt;=</code> vs <code>&gt;</code>, allow/deny logic, or an omitted validation branch is a strong signal that the tests are not actually enforcing the intended security property.</p>

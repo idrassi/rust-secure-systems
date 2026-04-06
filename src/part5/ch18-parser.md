@@ -36,6 +36,22 @@ From a security perspective, three `nom` design choices matter:
 
 Use `nom` when it improves clarity; use a hand-written parser when explicit state transitions and bounds checks are easier to review. For security-critical formats, "shorter code" is only a win if the rejection behavior stays obvious.
 
+### 18.2.2 Allocation Failure and Parser Depth
+
+Size limits prevent obvious OOM bugs, but they do not guarantee allocation succeeds under pressure. Rust's default `Vec` growth path still calls `handle_alloc_error`; with `panic = "abort"` elsewhere in your deployment, that can become process termination. When you must buffer attacker-controlled lengths, reserve fallibly and turn memory pressure into a normal parse error:
+
+```rust,no_run
+fn copy_value_fallible(data: &[u8]) -> Result<Vec<u8>, &'static str> {
+    let mut out = Vec::new();
+    out.try_reserve_exact(data.len())
+        .map_err(|_| "allocation failed while buffering parser input")?;
+    out.extend_from_slice(data);
+    Ok(out)
+}
+```
+
+Also distinguish **byte-size limits** from **stack-depth limits**. The TLV parser in this chapter is iterative, so deeply nested input cannot blow the stack. If you write a recursive parser for nested formats, carry an explicit depth counter and reject excessive nesting; otherwise, "valid but deep" input can still crash the process. Helpers such as `stacker` or `serde_stacker` are worth evaluating when recursion is unavoidable.
+
 ## 18.3 Example: A Secure TLV (Type-Length-Value) Parser
 
 ### 18.3.1 Type Definitions
@@ -495,6 +511,7 @@ This parser demonstrates key security principles:
 6. **Fuzzing**: The parser is designed to be fuzzable with no panics on any input.
 7. **Canonical encoding**: Duplicate non-padding tags are rejected so higher layers never guess which value "wins".
 8. **Roundtrip property**: Serialization followed by parsing produces equivalent results for canonical messages.
+9. **Iterative structure**: The parser avoids attacker-controlled recursion depth and the stack-overflow risk that comes with it.
 
 In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.
 

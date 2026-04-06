@@ -57,9 +57,14 @@ rustflags = [
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
-    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support (some LLVM/targets use +ibt,+shstk instead)
+    # CET feature names are target- and toolchain-specific.
+    # There is no universal `+cet` umbrella flag in rustc/LLVM.
+    "-C", "target-feature=+shstk",  # Shadow stack when exposed by your toolchain
+    # "-C", "target-feature=+ibt",  # Indirect Branch Tracking on toolchains that expose it
 ]
 ```
+
+Treat CET as advanced hardening, not a copy-paste default. Verify support with `rustc --print target-features --target x86_64-unknown-linux-gnu`, then confirm the resulting binary actually carries the properties you expect.
 
 ### 19.1.3 Windows-Specific Hardening
 
@@ -184,6 +189,8 @@ services:
 Only add `seccomp:seccomp-profile.json` after you have produced a profile that is strictly tighter than the runtime default for the exact image you deploy.
 
 No capability is added here because the sample server binds to port 8443, which is not a privileged port on Linux. Only add `NET_BIND_SERVICE` if you must bind below 1024.
+
+If you do need privileged startup behavior, prefer **privilege separation** over granting those powers to the long-lived worker. Common patterns include systemd socket activation, a tiny privileged parent that opens sockets or files and passes file descriptors to the Rust service, or a short bootstrap phase that drops to an unprivileged UID/GID before parsing untrusted input. Keep the component that touches attacker-controlled data as the least-privileged process in the design.
 
 Enable `RUST_BACKTRACE=1` only during controlled debugging sessions, not as a standing production setting.
 
@@ -542,6 +549,10 @@ async fn handle_connection(
 2. **Machine-readable**: JSON output integrates with SIEM systems (Splunk, ELK, Datadog) for automated alerting.
 3. **Contextual spans**: A security event in a handler automatically includes the full request context—no manual threading of parameters.
 4. **Audit trail**: Structured logs serve as an audit trail for compliance (SOC 2, PCI-DSS).
+
+Do not treat all structured logs as security audit logs. Operational logs optimize for debugging and throughput; they may be sampled, redacted differently, or dropped under load. Audit logs need a stricter schema, a separate or append-only sink, restricted writers, synchronized clocks, and tamper-evident retention. On Linux, `tracing-journald` or a syslog/auditd sink is a common way to route security events separately from high-volume application logs.
+
+If host compromise is in scope, forward security events off the box quickly or add signing / append-only guarantees in your logging pipeline. Local flat files alone are not trustworthy forensic evidence after an attacker gains write access to the machine.
 
 ⚠️ **Critical rule**: Never log secrets. Add fields to the deny list:
 

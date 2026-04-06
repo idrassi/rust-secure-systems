@@ -221,6 +221,8 @@ unsafe impl GlobalAlloc for SecureAllocator {
 static GLOBAL: SecureAllocator = SecureAllocator;
 ```
 
+Because the zeroing loop already uses `write_volatile`, the `compiler_fence` here is a compiler barrier, not a hardware synchronization primitive. It stops the optimizer from moving or eliding the wipe without implying any cross-core memory-ordering requirement.
+
 ⚠️ **Note**: This is a simplified example. A production secure allocator should also:
 - Lock pages containing keys (prevent swapping to disk)
 - Use `mlock`/`VirtualLock` to prevent paging
@@ -268,13 +270,12 @@ struct SecureBuffer {
 
 🔒 **Security practice**: Use `zeroize` (with the `derive` feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before `Drop` (see Chapter 2 §2.4 on `panic = "abort"`).
 
-### 11.4.3 Safe Pointer Access with `addr_of!` and `addr_of_mut!`
+### 11.4.3 Safe Pointer Access with `&raw` (and `addr_of!`)
 
-When working with structs that contain fields you cannot safely create (e.g., a `MaybeUninit` field), use `addr_of!` and `addr_of_mut!` to obtain pointers without creating intermediate references:
+When working with structs that contain fields you cannot safely create (e.g., a `MaybeUninit` field), Edition 2024 prefers `&raw const expr` and `&raw mut expr`. They are the direct syntax behind the older `addr_of!` and `addr_of_mut!` macros and let you obtain raw pointers without creating intermediate references:
 
 ```rust
 use std::mem::MaybeUninit;
-use std::ptr::{addr_of, addr_of_mut};
 
 #[repr(C)]
 struct PacketBuffer {
@@ -291,7 +292,7 @@ impl PacketBuffer {
     }
     
     fn write_payload(&mut self, data: &[u8]) {
-        let payload_ptr = addr_of_mut!(self.payload);
+        let payload_ptr = &raw mut self.payload;
         unsafe {
             let raw = (*payload_ptr).as_mut_ptr() as *mut u8;
             raw.copy_from_nonoverlapping(data.as_ptr(), data.len().min(1024));
@@ -299,15 +300,17 @@ impl PacketBuffer {
     }
     
     fn read_header(&self) -> &[u8; 4] {
-        // addr_of! creates a pointer without creating a reference,
+        // `&raw const` creates a pointer without creating a reference,
         // which is safe even if the struct has uninitialized fields
-        let header_ptr = addr_of!(self.header);
+        let header_ptr = &raw const self.header;
         unsafe { &*header_ptr }
     }
 }
 ```
 
-🔒 **Security practice**: Prefer `addr_of!`/`addr_of_mut!` over `&self.field` or `&mut self.field` when the struct may contain uninitialized data. Creating a reference to uninitialized memory is instant UB, even if you never read through it.
+The older macros still work and are useful in older code or macro-heavy contexts, but `&raw const` / `&raw mut` is the modern direct form.
+
+🔒 **Security practice**: Prefer `&raw const` / `&raw mut` (or `addr_of!` / `addr_of_mut!` in older code) over `&self.field` or `&mut self.field` when the struct may contain uninitialized data. Creating a reference to uninitialized memory is instant UB, even if you never read through it.
 
 ### 11.4.4 Memory Locking (Prevent Swapping)
 

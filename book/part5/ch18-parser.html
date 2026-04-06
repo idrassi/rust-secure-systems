@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -220,6 +220,19 @@
 <li>Keep parsers inspectable. Favor small named combinators and explicit error mapping over deeply nested expressions that hide which branch consumed input.</li>
 </ul>
 <p>Use <code>nom</code> when it improves clarity; use a hand-written parser when explicit state transitions and bounds checks are easier to review. For security-critical formats, “shorter code” is only a win if the rejection behavior stays obvious.</p>
+<h3 id="1822-allocation-failure-and-parser-depth"><a class="header" href="#1822-allocation-failure-and-parser-depth">18.2.2 Allocation Failure and Parser Depth</a></h3>
+<p>Size limits prevent obvious OOM bugs, but they do not guarantee allocation succeeds under pressure. Rust’s default <code>Vec</code> growth path still calls <code>handle_alloc_error</code>; with <code>panic = "abort"</code> elsewhere in your deployment, that can become process termination. When you must buffer attacker-controlled lengths, reserve fallibly and turn memory pressure into a normal parse error:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn copy_value_fallible(data: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, &amp;'static str&gt; {
+    let mut out = Vec::new();
+    out.try_reserve_exact(data.len())
+        .map_err(|_| "allocation failed while buffering parser input")?;
+    out.extend_from_slice(data);
+    Ok(out)
+}
+<span class="boring">}</span></code></pre>
+<p>Also distinguish <strong>byte-size limits</strong> from <strong>stack-depth limits</strong>. The TLV parser in this chapter is iterative, so deeply nested input cannot blow the stack. If you write a recursive parser for nested formats, carry an explicit depth counter and reject excessive nesting; otherwise, “valid but deep” input can still crash the process. Helpers such as <code>stacker</code> or <code>serde_stacker</code> are worth evaluating when recursion is unavoidable.</p>
 <h2 id="183-example-a-secure-tlv-type-length-value-parser"><a class="header" href="#183-example-a-secure-tlv-type-length-value-parser">18.3 Example: A Secure TLV (Type-Length-Value) Parser</a></h2>
 <h3 id="1831-type-definitions"><a class="header" href="#1831-type-definitions">18.3.1 Type Definitions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -672,6 +685,7 @@ proptest! {
 <li><strong>Fuzzing</strong>: The parser is designed to be fuzzable with no panics on any input.</li>
 <li><strong>Canonical encoding</strong>: Duplicate non-padding tags are rejected so higher layers never guess which value “wins”.</li>
 <li><strong>Roundtrip property</strong>: Serialization followed by parsing produces equivalent results for canonical messages.</li>
+<li><strong>Iterative structure</strong>: The parser avoids attacker-controlled recursion depth and the stack-overflow risk that comes with it.</li>
 </ol>
 <p>In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.</p>
 <h2 id="188-exercises"><a class="header" href="#188-exercises">18.8 Exercises</a></h2>

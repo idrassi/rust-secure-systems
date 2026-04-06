@@ -262,6 +262,8 @@ fn verify_password(password: &str, hash: &str) -> bool {
 }
 ```
 
+⚠️ **Authentication timing pitfall**: Constant-time byte comparison is not enough if your surrounding control flow still leaks information. If a login path returns immediately for "user not found" but runs Argon2 for "wrong password", an attacker can distinguish the two cases from latency. For username/password authentication, always run the password check against either the real stored hash or a fixed dummy Argon2 hash, then return the same external error in both cases.
+
 🔒 **Argon2 parameters** (per OWASP recommendations):
 - **Memory**: 19 MiB (19,456 KiB) minimum
 - **Iterations**: 2 time cost (passes) minimum

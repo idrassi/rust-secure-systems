@@ -485,7 +485,7 @@ jobs:
 - Easier sharding across CI workers
 
 ```bash
-cargo install cargo-nextest --locked
+cargo install cargo-nextest --version 0.9.132 --locked
 cargo nextest run --workspace --all-features
 ```
 
@@ -496,7 +496,7 @@ For parser, auth, and protocol suites, this isolation helps catch hidden cross-t
 Coverage does not prove security, but it quickly shows which validation branches, parser error paths, and unsafe wrappers are still untested:
 
 ```bash
-cargo install cargo-llvm-cov --locked
+cargo install cargo-llvm-cov --version 0.8.5 --locked
 cargo llvm-cov --workspace --all-features --html
 ```
 
@@ -507,7 +507,7 @@ Prioritize coverage review on authentication, parsing, deserialization, unsafe w
 Coverage tells you what executed; mutation testing tells you whether the tests would fail if the security logic were wrong. `cargo-mutants` flips conditionals, comparison operators, and other small pieces of code, then reruns your tests to see whether the suite notices:
 
 ```bash
-cargo install cargo-mutants --locked
+cargo install cargo-mutants --version 27.0.0 --locked
 cargo mutants --workspace --all-features
 ```
 

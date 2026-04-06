@@ -43,12 +43,17 @@ impl ConnectionHandler {
     }
 
     pub fn try_admit(&self, addr: SocketAddr) -> Option<ConnectionPermit> {
-        let current = self.connection_count.fetch_add(1, Ordering::SeqCst);
-        if current >= MAX_CONNECTIONS {
-            self.connection_count.fetch_sub(1, Ordering::SeqCst);
-            log::warn!("Rejecting connection from {}: limit reached", addr);
-            return None;
-        }
+        let current = match self.connection_count.fetch_update(
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+            |current| (current < MAX_CONNECTIONS).then_some(current + 1),
+        ) {
+            Ok(previous) => previous,
+            Err(_) => {
+                log::warn!("Rejecting connection from {}: limit reached", addr);
+                return None;
+            }
+        };
 
         if !self.admission_limiter.check(addr.ip()) {
             self.connection_count.fetch_sub(1, Ordering::SeqCst);

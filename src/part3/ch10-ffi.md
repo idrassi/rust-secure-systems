@@ -23,6 +23,8 @@ fn c_string_length(s: &std::ffi::CStr) -> usize {
 }
 ```
 
+If you already have a Rust `&CStr`, prefer `s.to_bytes().len()` in real code. The `strlen` call here is purely to demonstrate declaring and calling a C function from Rust.
+
 In Edition 2024, `extern` blocks are explicitly `unsafe` because Rust cannot verify that the foreign signatures are correct.
 
 🔒 **Security rules for calling C**:

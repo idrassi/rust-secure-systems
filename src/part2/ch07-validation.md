@@ -174,7 +174,8 @@ pub fn sanitize_posix_shell_arg(input: &str) -> Result<String, ValidationError> 
     if input.contains('\0') {
         return Err(ValidationError::NullByte);
     }
-    // Reject obviously dangerous characters
+    // Reject metacharacters this tiny helper does not try to quote.
+    // Internal single quotes are handled below by escaping them.
     let dangerous = ['|', ';', '&', '$', '`', '(', ')', '<', '>', '\n', '\r'];
     if input.chars().any(|c| dangerous.contains(&c)) {
         return Err(ValidationError::DangerousCharacter);
@@ -431,6 +432,10 @@ impl TlsRecord {
             0x0303 => TlsRecordVersion::LegacyTls12,
             v => return Err(ParseError::InvalidVersion(v)),
         };
+
+        // TLS 1.0/1.1 are parsed here only for record-layer archaeology.
+        // Real TLS policy should reject them during handshake negotiation
+        // per RFC 8996.
         
         let length = u16::from_be_bytes([data[3], data[4]]);
         

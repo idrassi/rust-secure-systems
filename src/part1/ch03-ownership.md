@@ -243,8 +243,8 @@ impl Drop for SecureBuffer {
         for byte in self.data.iter_mut() {
             unsafe { std::ptr::write_volatile(byte, 0); }
         }
-        // Memory barrier to ensure the writes are not reordered
-        std::sync::atomic::fence(std::sync::atomic::Ordering::SeqCst);
+        // Compiler barrier to keep the optimizer from reordering the volatile writes.
+        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // Vec will be freed after this
     }
 }
@@ -261,7 +261,9 @@ fn main() {
 
 ⚠️ **Panic behavior matters**: `Drop` runs on normal return and during unwinding, but it does not run if the process aborts. If you set `panic = "abort"` for FFI or hardening reasons, do not assume `Drop`-based wiping protects panic paths.
 
-⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. We show the `write_volatile` + fence pattern first so you can see the optimization hazard that motivates `zeroize`; in practice you should prefer the crate:
+⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. We show the `write_volatile` + compiler-fence pattern first so you can see the optimization hazard that motivates `zeroize`; in practice you should prefer the crate:
+
+The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware `fence` is not required for this example.
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;

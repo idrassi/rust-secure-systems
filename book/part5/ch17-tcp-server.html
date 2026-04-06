@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -253,6 +253,7 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+opt-level = "z"
 </code></pre>
 <h2 id="173-secure-types"><a class="header" href="#173-secure-types">17.3 Secure Types</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -354,6 +355,18 @@ pub enum ProtocolError {
     IncompleteMessage { expected: usize, actual: usize },
 }
 <span class="boring">}</span></code></pre>
+<p>Size caps are necessary but not sufficient for robustness under memory pressure. Rust’s default allocation path still calls <code>handle_alloc_error</code>; with <code>panic = "abort"</code>, that usually terminates the process. For request paths that allocate from attacker-influenced lengths, prefer fallible reservation APIs so overload becomes an ordinary error:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>fn copy_frame_fallible(frame: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut out = Vec::new();
+    out.try_reserve_exact(frame.len())
+        .map_err(|_| std::io::Error::other("out of memory while buffering frame"))?;
+    out.extend_from_slice(frame);
+    Ok(out)
+}
+<span class="boring">}</span></code></pre>
+<p>This server already keeps a fixed read buffer to reduce per-read allocation, but the same review rule still applies to copies you make after validation.</p>
 <h2 id="174-rate-limiter"><a class="header" href="#174-rate-limiter">17.4 Rate Limiter</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -510,13 +523,19 @@ impl ConnectionHandler {
         self.connection_count.load(Ordering::SeqCst)
     }
     pub fn try_admit(&amp;self, addr: SocketAddr) -&gt; Option&lt;ConnectionPermit&gt; {
-        // Reserve capacity before the expensive TLS handshake begins.
-        let current = self.connection_count.fetch_add(1, Ordering::SeqCst);
-        if current &gt;= MAX_CONNECTIONS {
-            self.connection_count.fetch_sub(1, Ordering::SeqCst);
-            log::warn!("Rejecting connection from {}: limit reached", addr);
-            return None;
-        }
+        // Reserve capacity before the expensive TLS handshake begins without
+        // ever letting the counter exceed MAX_CONNECTIONS.
+        let current = match self.connection_count.fetch_update(
+            Ordering::SeqCst,
+            Ordering::SeqCst,
+            |current| (current &lt; MAX_CONNECTIONS).then_some(current + 1),
+        ) {
+            Ok(previous) =&gt; previous,
+            Err(_) =&gt; {
+                log::warn!("Rejecting connection from {}: limit reached", addr);
+                return None;
+            }
+        };
 
         if !self.admission_limiter.check(addr.ip()) {
             self.connection_count.fetch_sub(1, Ordering::SeqCst);

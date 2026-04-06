@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -231,9 +231,13 @@ rustflags = [
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
-    "-C", "target-feature=+cet",  # Advanced, target-specific hardware support (some LLVM/targets use +ibt,+shstk instead)
+    # CET feature names are target- and toolchain-specific.
+    # There is no universal `+cet` umbrella flag in rustc/LLVM.
+    "-C", "target-feature=+shstk",  # Shadow stack when exposed by your toolchain
+    # "-C", "target-feature=+ibt",  # Indirect Branch Tracking on toolchains that expose it
 ]
 </code></pre>
+<p>Treat CET as advanced hardening, not a copy-paste default. Verify support with <code>rustc --print target-features --target x86_64-unknown-linux-gnu</code>, then confirm the resulting binary actually carries the properties you expect.</p>
 <h3 id="1913-windows-specific-hardening"><a class="header" href="#1913-windows-specific-hardening">19.1.3 Windows-Specific Hardening</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Windows)
 [build]
@@ -351,6 +355,7 @@ services:
 </code></pre>
 <p>Only add <code>seccomp:seccomp-profile.json</code> after you have produced a profile that is strictly tighter than the runtime default for the exact image you deploy.</p>
 <p>No capability is added here because the sample server binds to port 8443, which is not a privileged port on Linux. Only add <code>NET_BIND_SERVICE</code> if you must bind below 1024.</p>
+<p>If you do need privileged startup behavior, prefer <strong>privilege separation</strong> over granting those powers to the long-lived worker. Common patterns include systemd socket activation, a tiny privileged parent that opens sockets or files and passes file descriptors to the Rust service, or a short bootstrap phase that drops to an unprivileged UID/GID before parsing untrusted input. Keep the component that touches attacker-controlled data as the least-privileged process in the design.</p>
 <p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting.</p>
 <h3 id="1923-seccomp-profile"><a class="header" href="#1923-seccomp-profile">19.2.3 Seccomp Profile</a></h3>
 <p>The safest default is to keep Docker or Podman’s built-in seccomp profile. Do <strong>not</strong> replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.</p>
@@ -680,6 +685,8 @@ async fn handle_connection(
 <li><strong>Contextual spans</strong>: A security event in a handler automatically includes the full request context—no manual threading of parameters.</li>
 <li><strong>Audit trail</strong>: Structured logs serve as an audit trail for compliance (SOC 2, PCI-DSS).</li>
 </ol>
+<p>Do not treat all structured logs as security audit logs. Operational logs optimize for debugging and throughput; they may be sampled, redacted differently, or dropped under load. Audit logs need a stricter schema, a separate or append-only sink, restricted writers, synchronized clocks, and tamper-evident retention. On Linux, <code>tracing-journald</code> or a syslog/auditd sink is a common way to route security events separately from high-volume application logs.</p>
+<p>If host compromise is in scope, forward security events off the box quickly or add signing / append-only guarantees in your logging pipeline. Local flat files alone are not trustworthy forensic evidence after an attacker gains write access to the machine.</p>
 <p>⚠️ <strong>Critical rule</strong>: Never log secrets. Add fields to the deny list:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

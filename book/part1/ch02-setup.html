@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -188,7 +188,7 @@
 <p>A secure development workflow starts with a well-configured environment. In this chapter, we set up Rust with the tooling needed for security-focused development: compiler lints, formatters, dependency auditors, and IDE integration.</p>
 <h2 id="21-installing-rust"><a class="header" href="#21-installing-rust">2.1 Installing Rust</a></h2>
 <p>The recommended installation method is <code>rustup</code>, which manages Rust toolchains and allows easy switching between stable, beta, and nightly compilers.</p>
-<p>For third-party Cargo tools, this book pins concrete versions that were reviewed for this edition on <strong>April 2, 2026</strong>. Treat those pins as an auditable starting point rather than eternal truth: refresh them deliberately during your own dependency review cycle.</p>
+<p>For third-party Cargo tools, this book pins concrete versions that were reviewed for this edition on <strong>April 6, 2026</strong>. Treat those pins as an auditable starting point rather than eternal truth: refresh them deliberately during your own dependency review cycle.</p>
 <h3 id="linux-and-macos"><a class="header" href="#linux-and-macos">Linux and macOS</a></h3>
 <pre><code class="language-bash">curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 </code></pre>
@@ -383,8 +383,9 @@ strip = false                # Keep symbols while debugging locally
 lto = true                   # Link-time optimization (removes dead code)
 codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
-opt-level = "s"              # Optimize for size (smaller binaries, not a substitute for removing features)
+opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
 </code></pre>
+<p>This matches the hardened release profile used later in Chapter 19. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
 <p>🔒 <strong>Critical setting</strong>: <code>overflow-checks = true</code> in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.</p>
 <p>⚠️ <strong>Trade-off</strong>: <code>panic = "abort"</code> skips <code>Drop</code> during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use <code>Result</code> for attacker-controlled failures and reserve <code>panic = "abort"</code> for codebases where that trade-off is explicit.</p>
 <h2 id="25-ide-setup"><a class="header" href="#25-ide-setup">2.5 IDE Setup</a></h2>

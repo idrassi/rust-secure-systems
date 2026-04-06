@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -499,6 +499,19 @@ fn miri_corpus_entry() {
     );
 });
 <span class="boring">}</span></code></pre>
+<h3 id="1433-threadsanitizer-and-memorysanitizer"><a class="header" href="#1433-threadsanitizer-and-memorysanitizer">14.3.3 ThreadSanitizer and MemorySanitizer</a></h3>
+<p>AddressSanitizer is not the only sanitizer worth running. For concurrent or low-level code, add standalone sanitizer jobs alongside fuzzing:</p>
+<pre><code class="language-bash"># Data races in real threaded code
+RUSTFLAGS="-Zsanitizer=thread" cargo +nightly test
+
+# Uninitialized-memory reads
+RUSTFLAGS="-Zsanitizer=memory" cargo +nightly test
+</code></pre>
+<ul>
+<li><strong>ThreadSanitizer (TSan)</strong> catches data races in executed code paths, including cases involving real threads, FFI, and I/O that Miri cannot run directly.</li>
+<li><strong>MemorySanitizer (MSan)</strong> catches uses of uninitialized memory, but it requires the whole stack to be instrumented. If you call into C/C++ code, those dependencies generally need MSan-enabled builds too.</li>
+<li>Sanitizer availability is target-dependent and still best treated as a nightly audit job. Keep the commands in CI or a dedicated review script rather than assuming every developer machine supports them.</li>
+</ul>
 <h2 id="144-quickcheck-alternative"><a class="header" href="#144-quickcheck-alternative">14.4 QuickCheck Alternative</a></h2>
 <p><code>quickcheck</code> is another property-based testing framework:</p>
 <pre><code class="language-toml">[dev-dependencies]
@@ -569,7 +582,7 @@ libfuzzer_sys::fuzz_target!(|actions: Vec&lt;FuzzAction&gt;| {
 <li>Fuzz <strong>every</strong> input-processing function—especially network parsers.</li>
 <li>Use structured fuzzing (<code>arbitrary</code>) for complex input types.</li>
 <li>Run fuzzing continuously in CI and maintain a seed corpus.</li>
-<li>Use sanitizers (AddressSanitizer, Miri) alongside fuzzing to detect memory safety issues.</li>
+<li>Use sanitizers (AddressSanitizer, ThreadSanitizer, MemorySanitizer) and Miri alongside fuzzing to detect memory safety and concurrency issues.</li>
 <li>Save and commit regression test cases for all discovered bugs.</li>
 </ul>
 <p>In the next chapter, we cover static analysis and code auditing—tools and techniques for finding security issues without executing code.</p>

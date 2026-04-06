@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -287,9 +287,15 @@ too-many-lines-threshold = 100
 
 # Disallowed crate features
 disallowed-types = [
-    { path = "std::sync::Once", reason = "Prefer OnceLock&lt;T&gt; for one-time value initialization; it stores the value directly and avoids the call-once-after-poison pitfall." },
+    { path = "std::sync::Once", reason = "Prefer OnceLock&lt;T&gt; when you need to store an initialized value. Keep Once for genuine 'run this side effect exactly once' cases." },
 ]
 </code></pre>
+<h3 id="1523-mechanical-fixes-with-cargo-fix-and-cargo-clippy---fix"><a class="header" href="#1523-mechanical-fixes-with-cargo-fix-and-cargo-clippy---fix">15.2.3 Mechanical Fixes with <code>cargo fix</code> and <code>cargo clippy --fix</code></a></h3>
+<p>Use auto-fix tooling for low-risk mechanical cleanup before the human audit begins:</p>
+<pre><code class="language-bash">cargo fix --all-targets --all-features
+cargo clippy --fix --all-targets --all-features
+</code></pre>
+<p>This is useful for routine compiler suggestions, edition migrations, and straightforward lint cleanups. It is <strong>not</strong> a substitute for manual review of authentication logic, parser boundaries, error handling, or <code>unsafe</code> code. Review every generated diff before merging; “the tool changed it” is not a security argument.</p>
 <h2 id="153-dependency-auditing"><a class="header" href="#153-dependency-auditing">15.3 Dependency Auditing</a></h2>
 <h3 id="1531-cargo-audit"><a class="header" href="#1531-cargo-audit">15.3.1 <code>cargo audit</code></a></h3>
 <pre><code class="language-bash">cargo install cargo-audit --version 0.22.1 --locked
@@ -309,6 +315,10 @@ Severity: high
 Solution: upgrade to a reviewed fixed release
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Run <code>cargo audit</code> in CI and block merging on high-severity findings.</p>
+<p>For CI integration and dashboards, use machine-readable output:</p>
+<pre><code class="language-bash">cargo audit --json &gt; audit.json
+</code></pre>
+<p>Parse the JSON in your pipeline if you need to gate on specific severities, emit SARIF-like annotations, or archive reviewed exceptions with the rest of the build artifacts.</p>
 <h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
 <pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
 cargo geiger --all-features
@@ -359,7 +369,7 @@ notes = "Reviewed for memory safety, no unsafe code, constant-time operations ve
 <h2 id="154-additional-audit-tooling"><a class="header" href="#154-additional-audit-tooling">15.4 Additional Audit Tooling</a></h2>
 <h3 id="1541-cargo-careful--extra-runtime-checking"><a class="header" href="#1541-cargo-careful--extra-runtime-checking">15.4.1 <code>cargo-careful</code> — Extra Runtime Checking</a></h3>
 <p><code>cargo-careful</code> complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.</p>
-<pre><code class="language-bash">cargo install cargo-careful
+<pre><code class="language-bash">cargo install cargo-careful --version 0.4.10 --locked
 cargo +nightly careful test
 </code></pre>
 <p>What it is good for:</p>
@@ -470,7 +480,7 @@ Failed in:
 <h3 id="1561-kani-for-bounded-model-checking"><a class="header" href="#1561-kani-for-bounded-model-checking">15.6.1 Kani for Bounded Model Checking</a></h3>
 <p>Kani is especially useful for parser arithmetic, bounds checks, and state-machine invariants because it exhaustively explores bounded inputs instead of relying on random testing:</p>
 <pre><code class="language-bash"># Install Kani
-cargo install kani-verifier --locked
+cargo install kani-verifier --version 0.67.0 --locked
 
 # Run proofs in the current crate
 cargo kani
@@ -505,6 +515,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <ul>
 <li>Treat compiler warnings as security findings; enable <code>-D warnings</code>.</li>
 <li>Use Clippy with security-focused lints (<code>unwrap_used</code>, <code>indexing_slicing</code>, <code>arithmetic_side_effects</code>).</li>
+<li>Use <code>cargo fix</code> and <code>cargo clippy --fix</code> for mechanical cleanup, then review the generated diffs manually.</li>
 <li>Run <code>cargo audit</code> in CI to catch known dependency vulnerabilities.</li>
 <li>Use <code>cargo geiger</code> to quantify unsafe code in dependencies.</li>
 <li>Use <code>cargo vet</code> or <code>cargo crev</code> for supply chain auditing.</li>

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-447f5f1b.js";
+            window.path_to_searchindex_js = "../searchindex-99189ef3.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -563,7 +563,7 @@ async fn read_one_message_exact(stream: &amp;mut TcpStream) -&gt; std::io::Resul
     // If we are cancelled after reading the first message header
     // but before reading its body, the stream is now in an inconsistent
     // state. The first message's bytes have been consumed, but we have
-    // not processed them. Data is silently lost.
+    // not processed them. Those bytes are irrecoverably lost to the caller.
     let mut header = [0u8; 4];
     stream.read_exact(&amp;mut header).await?;  // May succeed
     let len = u32::from_be_bytes(header) as usize;

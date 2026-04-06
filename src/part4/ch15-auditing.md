@@ -113,9 +113,20 @@ too-many-lines-threshold = 100
 
 # Disallowed crate features
 disallowed-types = [
-    { path = "std::sync::Once", reason = "Prefer OnceLock<T> for one-time value initialization; it stores the value directly and avoids the call-once-after-poison pitfall." },
+    { path = "std::sync::Once", reason = "Prefer OnceLock<T> when you need to store an initialized value. Keep Once for genuine 'run this side effect exactly once' cases." },
 ]
 ```
+
+### 15.2.3 Mechanical Fixes with `cargo fix` and `cargo clippy --fix`
+
+Use auto-fix tooling for low-risk mechanical cleanup before the human audit begins:
+
+```bash
+cargo fix --all-targets --all-features
+cargo clippy --fix --all-targets --all-features
+```
+
+This is useful for routine compiler suggestions, edition migrations, and straightforward lint cleanups. It is **not** a substitute for manual review of authentication logic, parser boundaries, error handling, or `unsafe` code. Review every generated diff before merging; "the tool changed it" is not a security argument.
 
 ## 15.3 Dependency Auditing
 
@@ -143,6 +154,14 @@ Solution: upgrade to a reviewed fixed release
 ```
 
 🔒 **Security practice**: Run `cargo audit` in CI and block merging on high-severity findings.
+
+For CI integration and dashboards, use machine-readable output:
+
+```bash
+cargo audit --json > audit.json
+```
+
+Parse the JSON in your pipeline if you need to gate on specific severities, emit SARIF-like annotations, or archive reviewed exceptions with the rest of the build artifacts.
 
 ### 15.3.2 `cargo geiger` — Counting Unsafe Code
 
@@ -211,7 +230,7 @@ notes = "Reviewed for memory safety, no unsafe code, constant-time operations ve
 `cargo-careful` complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.
 
 ```bash
-cargo install cargo-careful
+cargo install cargo-careful --version 0.4.10 --locked
 cargo +nightly careful test
 ```
 
@@ -342,7 +361,7 @@ Kani is especially useful for parser arithmetic, bounds checks, and state-machin
 
 ```bash
 # Install Kani
-cargo install kani-verifier --locked
+cargo install kani-verifier --version 0.67.0 --locked
 
 # Run proofs in the current crate
 cargo kani
@@ -388,6 +407,7 @@ Creusot is another option in this space when you want Rust-oriented deductive ve
 
 - Treat compiler warnings as security findings; enable `-D warnings`.
 - Use Clippy with security-focused lints (`unwrap_used`, `indexing_slicing`, `arithmetic_side_effects`).
+- Use `cargo fix` and `cargo clippy --fix` for mechanical cleanup, then review the generated diffs manually.
 - Run `cargo audit` in CI to catch known dependency vulnerabilities.
 - Use `cargo geiger` to quantify unsafe code in dependencies.
 - Use `cargo vet` or `cargo crev` for supply chain auditing.
