@@ -200,9 +200,27 @@ No capability is added here because the sample server binds to port 8443, which 
 
 If you do need privileged startup behavior, prefer **privilege separation** over granting those powers to the long-lived worker. Common patterns include systemd socket activation, a tiny privileged parent that opens sockets or files and passes file descriptors to the Rust service, or a short bootstrap phase that drops to an unprivileged UID/GID before parsing untrusted input. Keep the component that touches attacker-controlled data as the least-privileged process in the design.
 
+### 19.2.3 Dropping Privileges After Startup
+
+On Unix-like systems, the order matters: drop supplementary groups first, then the primary GID, then the UID. If you change UID too early, later group changes can fail and you may keep authority you no longer intended to keep.
+
+```rust,ignore
+use nix::unistd::{setgid, setgroups, setuid, Gid, Uid};
+
+fn drop_privileges(uid: u32, gid: u32) -> nix::Result<()> {
+    // Drop supplementary groups first, then GID, then UID.
+    setgroups(&[])?;
+    setgid(Gid::from_raw(gid))?;
+    setuid(Uid::from_raw(uid))?;
+    Ok(())
+}
+```
+
+Call this only after binding privileged ports, opening key files, or receiving file descriptors from a privileged parent, and before accepting any untrusted input. If privilege dropping fails, abort startup rather than continuing in a half-privileged state.
+
 Enable `RUST_BACKTRACE=1` only during controlled debugging sessions, not as a standing production setting. Backtraces leak internal module names, file-system paths, and library layout details that help attackers profile the target and sometimes reveal more than the external error contract intended (CWE-209).
 
-### 19.2.3 Seccomp Profile
+### 19.2.4 Seccomp Profile
 
 The safest default is to keep Docker or Podman's built-in seccomp profile. Do **not** replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.
 
@@ -234,7 +252,7 @@ Treat this as process guidance, not a copy-paste policy. A production seccomp al
 
 🔒 **Security impact**: Seccomp restricts the system calls available to the process. Even if an attacker achieves arbitrary code execution, they are limited to the syscalls you leave available, dramatically reducing what they can do.
 
-### 19.2.4 WebAssembly (Wasm) for Application Sandboxing
+### 19.2.5 WebAssembly (Wasm) for Application Sandboxing
 
 Containers and seccomp harden an entire service. Wasm sandboxing is useful when you need to isolate *one component inside that service* such as an untrusted plugin, policy bundle, parser, or customer-supplied transformation.
 
@@ -412,6 +430,10 @@ use tracing_subscriber::{fmt, EnvFilter};
 
 static LOGGING_INIT: OnceLock<()> = OnceLock::new();
 
+fn sanitize_log_field(value: &str) -> String {
+    value.chars().flat_map(|ch| ch.escape_default()).collect()
+}
+
 /// Initialize structured JSON logging for production
 pub fn init_logging() {
     let _ = LOGGING_INIT.get_or_init(|| {
@@ -439,13 +461,15 @@ pub fn log_security_event(
     user_id: Option<u64>,
     details: &str,
 ) {
+    let details = sanitize_log_field(details);
+
     match severity {
         SecurityEventSeverity::Info => {
             info!(
                 event_type,
                 source_ip = ?source_ip,
                 user_id = ?user_id,
-                details,
+                details = %details,
                 "Security event"
             );
         }
@@ -454,7 +478,7 @@ pub fn log_security_event(
                 event_type,
                 source_ip = ?source_ip,
                 user_id = ?user_id,
-                details,
+                details = %details,
                 "Security event"
             );
         }
@@ -463,7 +487,7 @@ pub fn log_security_event(
                 event_type,
                 source_ip = ?source_ip,
                 user_id = ?user_id,
-                details,
+                details = %details,
                 "Security event"
             );
         }
@@ -478,7 +502,7 @@ pub enum SecurityEventSeverity {
 }
 ```
 
-Initialize the subscriber once during startup. Do not call logging initialization from request paths, and do not assume repeated `.init()` calls are harmless in tests or embedded runtimes.
+Initialize the subscriber once during startup. Do not call logging initialization from request paths, and do not assume repeated `.init()` calls are harmless in tests or embedded runtimes. Keep `event_type` on a controlled internal taxonomy, and sanitize control characters in any attacker-controlled `details` string before it reaches the sink. JSON output helps, but only if the serializer escapes field values correctly.
 
 ### 19.4.2 Request Tracing with Spans
 

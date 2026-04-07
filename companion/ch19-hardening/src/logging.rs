@@ -33,6 +33,10 @@ pub fn init_logging() {
     });
 }
 
+pub(crate) fn sanitize_log_field(value: &str) -> String {
+    value.chars().flat_map(|ch| ch.escape_default()).collect()
+}
+
 pub fn log_security_event(
     event_type: &str,
     severity: SecurityEventSeverity,
@@ -40,13 +44,15 @@ pub fn log_security_event(
     user_id: Option<u64>,
     details: &str,
 ) {
+    let details = sanitize_log_field(details);
+
     match severity {
         SecurityEventSeverity::Info => {
             info!(
                 event_type,
                 source_ip = ?source_ip,
                 user_id = ?user_id,
-                details,
+                details = %details,
                 "Security event"
             );
         }
@@ -55,7 +61,7 @@ pub fn log_security_event(
                 event_type,
                 source_ip = ?source_ip,
                 user_id = ?user_id,
-                details,
+                details = %details,
                 "Security event"
             );
         }
@@ -64,7 +70,7 @@ pub fn log_security_event(
                 event_type,
                 source_ip = ?source_ip,
                 user_id = ?user_id,
-                details,
+                details = %details,
                 "Security event"
             );
         }

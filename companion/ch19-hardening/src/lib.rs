@@ -1,11 +1,13 @@
 pub mod logging;
 pub mod metrics;
+#[cfg(unix)]
+pub mod privileges;
 pub mod secrets;
 pub mod security_events;
 
 #[cfg(test)]
 mod tests {
-    use crate::logging::{handle_connection, init_logging, mask_token};
+    use crate::logging::{handle_connection, init_logging, mask_token, sanitize_log_field};
     use crate::metrics::ServerMetrics;
     use crate::secrets::{decode_secret_value, load_secret_from_file};
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -16,6 +18,14 @@ mod tests {
         assert_eq!(mask_token("abcd1234wxyz"), "abcd****wxyz");
         assert_eq!(mask_token("åßçđ1234wxyz"), "åßçđ****wxyz");
         assert_eq!(mask_token("short"), "****");
+    }
+
+    #[test]
+    fn sanitize_log_field_escapes_control_characters() {
+        let sanitized = sanitize_log_field("alice\nAuthentication success\r\t");
+        assert_eq!(sanitized, "alice\\nAuthentication success\\r\\t");
+        assert!(!sanitized.contains('\n'));
+        assert!(!sanitized.contains('\r'));
     }
 
     #[test]

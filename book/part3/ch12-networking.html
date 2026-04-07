@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-15e3f9e1.js";
+            window.path_to_searchindex_js = "../searchindex-39b9ec4d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -715,6 +715,7 @@ async fn handle_with_deadlines(
 <li><strong>Resource exhaustion</strong>: Long-running connections consuming memory and file descriptors</li>
 </ul>
 <h2 id="124-logging-and-monitoring"><a class="header" href="#124-logging-and-monitoring">12.4 Logging and Monitoring</a></h2>
+<p>The examples here use the <code>log</code> crate for clarity; for production async services see §19.4.1 for the <code>tracing</code>-based approach with structured fields and request spans.</p>
 <h3 id="security-relevant-logging"><a class="header" href="#security-relevant-logging">Security-Relevant Logging</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -730,9 +731,14 @@ async fn handle_with_deadlines(
 </span><span class="boring">    TlsError { addr: SocketAddr, error: String },
 </span><span class="boring">}
 </span>
+fn sanitize_log_field(value: &amp;str) -&gt; String {
+    value.chars().flat_map(|ch| ch.escape_default()).collect()
+}
+
 fn log_security_event(event: &amp;SecurityEvent) {
     match event {
         SecurityEvent::AuthenticationFailure { addr, username } =&gt; {
+            let username = sanitize_log_field(username);
             warn!(
                 "Authentication failure: addr={}, username={}",
                 addr, username
@@ -742,9 +748,11 @@ fn log_security_event(event: &amp;SecurityEvent) {
             warn!("Rate limit exceeded: addr={}", addr);
         }
         SecurityEvent::InvalidInput { addr, reason } =&gt; {
+            let reason = sanitize_log_field(reason);
             warn!("Invalid input: addr={}, reason={}", addr, reason);
         }
         SecurityEvent::TlsError { addr, error } =&gt; {
+            let error = sanitize_log_field(error);
             error!("TLS error: addr={}, error={}", addr, error);
         }
     }
@@ -754,7 +762,8 @@ fn log_security_event(event: &amp;SecurityEvent) {
 <ul>
 <li>Never log passwords, tokens, or session keys.</li>
 <li>Log enough detail for incident response but not enough to aid attackers.</li>
-<li>Use structured logging for machine parsing (SIEM integration).</li>
+<li>Sanitize attacker-controlled strings before logging. Escape <code>\n</code>, <code>\r</code>, and other control characters in usernames, filenames, and validation errors to prevent log injection (CWE-117).</li>
+<li>Use structured logging for machine parsing (SIEM integration), but remember it only helps if the serializer correctly escapes field values.</li>
 </ul>
 <h2 id="125-summary"><a class="header" href="#125-summary">12.5 Summary</a></h2>
 <ul>
@@ -763,7 +772,7 @@ fn log_security_event(event: &amp;SecurityEvent) {
 <li>Use <code>rustls</code> for TLS: memory-safe by design.</li>
 <li>Validate all length fields from network data with checked arithmetic.</li>
 <li>Limit both request and response sizes to prevent amplification attacks.</li>
-<li>Log security events without exposing sensitive data.</li>
+<li>Log security events without exposing sensitive data or trusting raw attacker-controlled strings.</li>
 <li>Apply the principle of least privilege: bind to specific interfaces, use firewall rules.</li>
 </ul>
 <p>In the next chapter, we move to Part IV: testing and verification strategies for proving your code is secure.</p>

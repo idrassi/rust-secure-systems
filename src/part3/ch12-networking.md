@@ -576,6 +576,8 @@ async fn handle_with_deadlines(
 
 ## 12.4 Logging and Monitoring
 
+The examples here use the `log` crate for clarity; for production async services see §19.4.1 for the `tracing`-based approach with structured fields and request spans.
+
 ### Security-Relevant Logging
 
 ```rust,no_run
@@ -591,9 +593,14 @@ use log::{warn, error};
 #     TlsError { addr: SocketAddr, error: String },
 # }
 
+fn sanitize_log_field(value: &str) -> String {
+    value.chars().flat_map(|ch| ch.escape_default()).collect()
+}
+
 fn log_security_event(event: &SecurityEvent) {
     match event {
         SecurityEvent::AuthenticationFailure { addr, username } => {
+            let username = sanitize_log_field(username);
             warn!(
                 "Authentication failure: addr={}, username={}",
                 addr, username
@@ -603,9 +610,11 @@ fn log_security_event(event: &SecurityEvent) {
             warn!("Rate limit exceeded: addr={}", addr);
         }
         SecurityEvent::InvalidInput { addr, reason } => {
+            let reason = sanitize_log_field(reason);
             warn!("Invalid input: addr={}, reason={}", addr, reason);
         }
         SecurityEvent::TlsError { addr, error } => {
+            let error = sanitize_log_field(error);
             error!("TLS error: addr={}, error={}", addr, error);
         }
     }
@@ -615,7 +624,8 @@ fn log_security_event(event: &SecurityEvent) {
 ⚠️ **Logging security**: 
 - Never log passwords, tokens, or session keys.
 - Log enough detail for incident response but not enough to aid attackers.
-- Use structured logging for machine parsing (SIEM integration).
+- Sanitize attacker-controlled strings before logging. Escape `\n`, `\r`, and other control characters in usernames, filenames, and validation errors to prevent log injection (CWE-117).
+- Use structured logging for machine parsing (SIEM integration), but remember it only helps if the serializer correctly escapes field values.
 
 ## 12.5 Summary
 
@@ -624,7 +634,7 @@ fn log_security_event(event: &SecurityEvent) {
 - Use `rustls` for TLS: memory-safe by design.
 - Validate all length fields from network data with checked arithmetic.
 - Limit both request and response sizes to prevent amplification attacks.
-- Log security events without exposing sensitive data.
+- Log security events without exposing sensitive data or trusting raw attacker-controlled strings.
 - Apply the principle of least privilege: bind to specific interfaces, use firewall rules.
 
 In the next chapter, we move to Part IV: testing and verification strategies for proving your code is secure.
