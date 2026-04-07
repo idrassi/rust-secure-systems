@@ -1,6 +1,6 @@
 [package]
 name = "rust-secure-systems-book"
-version = "1.0.4"
+version = "1.0.5"
 edition.workspace = true
 authors = ["Mounir IDRASSI"]
 description = "Source for the book Rust for Secure Systems Programming and its tested Rust companion examples."
