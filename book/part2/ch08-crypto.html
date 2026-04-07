@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
+            window.path_to_searchindex_js = "../searchindex-e8aead48.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -358,10 +358,8 @@ fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32
 use std::num::NonZeroU32;
 
 const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
-const PBKDF2_ITERATIONS: NonZeroU32 = match NonZeroU32::new(PBKDF2_ITERATION_COUNT) {
-    Some(iterations) =&gt; iterations,
-    None =&gt; panic!("PBKDF2 iteration count constant must be non-zero"),
-};
+const PBKDF2_ITERATIONS: NonZeroU32 =
+    const { NonZeroU32::new(PBKDF2_ITERATION_COUNT).unwrap() };
 
 fn derive_key_from_password(password: &amp;str, salt: &amp;[u8]) -&gt; [u8; 32] {
     let mut key = [0u8; 32];
@@ -389,7 +387,7 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <ul>
 <li><code>ring::pbkdf2::verify</code> uses constant-time comparison internally.</li>
 <li>The <code>600_000</code> example matches OWASP’s current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.</li>
-<li>Keeping the typed <code>NonZeroU32</code> as a <code>const</code> turns an accidental zero into a compile-time failure instead of a panic on first use.</li>
+<li>Keeping the typed <code>NonZeroU32</code> as a <code>const</code> turns an accidental zero into a compile-time failure instead of a panic on first use. The <code>unwrap()</code> here executes in the <code>const</code> initializer, not at runtime.</li>
 <li>Prefer <strong>Argon2id</strong> for new systems and general password storage.</li>
 <li>Keep <strong>PBKDF2-HMAC-SHA256</strong> for FIPS-constrained environments or legacy interoperability where Argon2id is not an option.</li>
 <li>Use a unique 16+ byte random salt per password.</li>
