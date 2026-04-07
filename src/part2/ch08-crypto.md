@@ -122,7 +122,7 @@ If you are storing or transmitting the result, make the nonce part of the serial
 fn generate_nonce() -> [u8; 12] {
     let rng = SystemRandom::new();
     let mut nonce = [0u8; 12];
-    rng.fill(&mut nonce).unwrap();
+    rng.fill(&mut nonce).expect("OS CSPRNG failure");
     nonce
 }
 
@@ -153,6 +153,8 @@ fn decrypt_from_storage(
     decrypt(key, &nonce, aad, ciphertext_and_tag)
 }
 ```
+
+Here, `expect("OS CSPRNG failure")` is intentional: if the operating system cannot provide cryptographic randomness, fail closed instead of continuing with weaker entropy.
 
 Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.
 
@@ -621,19 +623,21 @@ use ring::rand::{SecureRandom, SystemRandom};
 fn generate_nonce() -> [u8; 12] {
     let rng = SystemRandom::new();
     let mut nonce = [0u8; 12];
-    rng.fill(&mut nonce).unwrap();
+    rng.fill(&mut nonce).expect("OS CSPRNG failure");
     nonce
 }
 
 fn generate_api_token() -> String {
     let rng = SystemRandom::new();
     let mut bytes = [0u8; 32];
-    rng.fill(&mut bytes).unwrap();
+    rng.fill(&mut bytes).expect("OS CSPRNG failure");
     hex::encode(bytes)
 }
 ```
 
 ⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In `rand` 0.8, `thread_rng()` is also backed by a CSPRNG, but `SystemRandom` makes the security intent clearer and keeps key generation tied directly to the operating system RNG.
+
+In small examples, panicking on `rng.fill(...)` is acceptable because the only sensible response to OS CSPRNG failure is to abort or surface the error, never to keep running with a weaker fallback.
 
 ## 8.8 TLS with rustls
 

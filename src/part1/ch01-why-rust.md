@@ -1,4 +1,4 @@
-# Chapter 1 , Why Rust for Secure Systems
+# Chapter 1 - Why Rust for Secure Systems
 
 > *"The best way to write secure code is to make insecure code impossible to write."*
 
