@@ -486,6 +486,43 @@ while let Some(result) = tasks.join_next().await {
 
 `JoinSet` fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a `Semaphore` when you also need a hard concurrency cap.
 
+### 6.4.3 `tokio::task_local!` vs `thread_local!`
+
+`thread_local!` stores one value per OS thread. That is sometimes the right tool for FFI glue or thread-affine libraries, but it is the wrong primitive for per-request async state on Tokio's multithreaded runtime. A task spawned with `tokio::spawn` may resume on a different worker thread after an `.await`, so a `thread_local!` value is not a reliable request context.
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::tokio as tokio;
+use std::cell::RefCell;
+
+thread_local! {
+    static REQUEST_ID_TLS: RefCell<Option<u64>> = const { RefCell::new(None) };
+}
+
+tokio::task_local! {
+    static REQUEST_ID: u64;
+}
+
+async fn handle_request(request_id: u64) {
+    REQUEST_ID.scope(request_id, async {
+        log_request().await;
+    }).await;
+}
+
+async fn log_request() {
+    REQUEST_ID.with(|request_id| {
+        println!("request id = {}", request_id);
+    });
+}
+```
+
+Use `tokio::task_local!` for task-scoped metadata that must survive `.await` points. Keep `thread_local!` for true thread-scoped state. A current-thread runtime or `LocalSet` only pins tasks to one thread; it does **not** make a thread-local slot private to one request, because multiple tasks on that thread still share the same TLS storage.
+
+🔒 **Security guidance**:
+- Do not store per-request auth context, audit IDs, CSRF state, or raw secrets in `thread_local!` for async services.
+- Prefer explicit function arguments over any ambient state when practical.
+- If you truly need ambient async context, `tokio::task_local!` is the correct primitive.
+
 ## 6.5 Cancellation Safety in Async Rust
 
 One of the most subtle security pitfalls in async Rust is **cancellation safety** (sometimes called "cancel safety"). When a `tokio::select!` branch is not chosen, or a `JoinHandle` is aborted, the future at the other branch is **dropped** mid-execution. If that future was in the middle of an operation with side effects, such as reading from a socket or holding a lock, those side effects may be lost or left in an inconsistent state.

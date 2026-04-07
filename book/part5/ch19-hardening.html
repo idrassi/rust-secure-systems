@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
+            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -891,7 +891,18 @@ where
     Ok(secret_string.into_bytes())
 }
 <span class="boring">}</span></code></pre>
-<h3 id="1954-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1954-hardware-backed-keys-and-platform-keystores">19.5.4 Hardware-Backed Keys and Platform Keystores</a></h3>
+<h3 id="1954-rotation-in-long-running-async-services"><a class="header" href="#1954-rotation-in-long-running-async-services">19.5.4 Rotation in Long-Running Async Services</a></h3>
+<p>Loading a secret once at startup is the easy case. Long-lived Tokio services need a reload protocol that avoids dropping live traffic or mixing partially initialized state into request handling:</p>
+<ul>
+<li><strong>Refresh before expiry, not at expiry</strong>. If the secret source gives you a lease or TTL, renew with slack and jitter while the old credential is still valid.</li>
+<li><strong>Build replacements off to the side</strong>. Parse PEM, verify certificate/key pairs, construct the new <code>rustls::ServerConfig</code>, and warm any dependent clients before publishing anything.</li>
+<li><strong>Publish atomically</strong>. Store the active credential or config behind one shared indirection and swap the whole <code>Arc&lt;T&gt;</code> only after validation succeeds.</li>
+<li><strong>Keep “decrypt old / encrypt new” semantics</strong> during rollout. New outbound sessions or ciphertexts use the newest version, but readers and verifiers must accept the previous version until the retirement window closes.</li>
+<li><strong>Separate existing and new sessions</strong>. Existing TLS connections keep using the config they were created with; only new handshakes should observe the swapped config.</li>
+<li><strong>Emit reload telemetry</strong>. Track the active key ID, reload success/failure, and time-to-expiry so an expired lease becomes a page, not a surprise outage.</li>
+</ul>
+<p>With the <code>rustls</code> pattern from Chapter 12, this means creating the <code>TlsAcceptor</code> from the current shared <code>Arc&lt;ServerConfig&gt;</code> for each new handshake instead of baking one immutable config into process startup. If a credential cannot be reloaded safely in process, prefer a controlled rolling restart over ad hoc in-place mutation of shared state.</p>
+<h3 id="1955-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1955-hardware-backed-keys-and-platform-keystores">19.5.5 Hardware-Backed Keys and Platform Keystores</a></h3>
 <p>When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.</p>
 <p>Practical options in Rust:</p>
 <ul>

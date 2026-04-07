@@ -258,13 +258,13 @@ fn main() {
 }
 ```
 
+The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware `fence` is not required for this example.
+
 🔒 **Security pattern**: Use `Drop` to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling `SecureZeroMemory` on Windows or `explicit_bzero` on POSIX before releasing the buffer.
 
 ⚠️ **Panic behavior matters**: `Drop` runs on normal return and during unwinding, but it does not run if the process aborts. If you set `panic = "abort"` for FFI or hardening reasons, do not assume `Drop`-based wiping protects panic paths.
 
 ⚠️ **Important**: A naive loop like `for byte in data.iter_mut() { *byte = 0; }` can be **optimized away** by LLVM because the `Vec` is about to be deallocated and the writes appear to have no observable effect. We show the `write_volatile` + compiler-fence pattern first so you can see the optimization hazard that motivates `zeroize`; in practice you should prefer the `zeroize` crate, as shown below:
-
-The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware `fence` is not required for this example.
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;

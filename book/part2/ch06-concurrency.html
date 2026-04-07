@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
+            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -597,6 +597,41 @@ while let Some(result) = tasks.join_next().await {
 </span><span class="boring">}
 </span><span class="boring">}</span></code></pre>
 <p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
+<h3 id="643-tokiotask_local-vs-thread_local"><a class="header" href="#643-tokiotask_local-vs-thread_local">6.4.3 <code>tokio::task_local!</code> vs <code>thread_local!</code></a></h3>
+<p><code>thread_local!</code> stores one value per OS thread. That is sometimes the right tool for FFI glue or thread-affine libraries, but it is the wrong primitive for per-request async state on Tokio’s multithreaded runtime. A task spawned with <code>tokio::spawn</code> may resume on a different worker thread after an <code>.await</code>, so a <code>thread_local!</code> value is not a reliable request context.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use std::cell::RefCell;
+
+thread_local! {
+    static REQUEST_ID_TLS: RefCell&lt;Option&lt;u64&gt;&gt; = const { RefCell::new(None) };
+}
+
+tokio::task_local! {
+    static REQUEST_ID: u64;
+}
+
+async fn handle_request(request_id: u64) {
+    REQUEST_ID.scope(request_id, async {
+        log_request().await;
+    }).await;
+}
+
+async fn log_request() {
+    REQUEST_ID.with(|request_id| {
+        println!("request id = {}", request_id);
+    });
+}
+<span class="boring">}</span></code></pre>
+<p>Use <code>tokio::task_local!</code> for task-scoped metadata that must survive <code>.await</code> points. Keep <code>thread_local!</code> for true thread-scoped state. A current-thread runtime or <code>LocalSet</code> only pins tasks to one thread; it does <strong>not</strong> make a thread-local slot private to one request, because multiple tasks on that thread still share the same TLS storage.</p>
+<p>🔒 <strong>Security guidance</strong>:</p>
+<ul>
+<li>Do not store per-request auth context, audit IDs, CSRF state, or raw secrets in <code>thread_local!</code> for async services.</li>
+<li>Prefer explicit function arguments over any ambient state when practical.</li>
+<li>If you truly need ambient async context, <code>tokio::task_local!</code> is the correct primitive.</li>
+</ul>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects, such as reading from a socket or holding a lock, those side effects may be lost or left in an inconsistent state.</p>
 <p>Cancellation here means “the future is dropped.” Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.</p>

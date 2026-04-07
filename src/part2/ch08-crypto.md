@@ -113,6 +113,47 @@ fn decrypt(
 }
 ```
 
+If you are storing or transmitting the result, make the nonce part of the serialized format instead of expecting the caller to remember it out of band. A common layout is `nonce || ciphertext || tag`:
+
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::ring as ring;
+# use ring::rand::{SecureRandom, SystemRandom};
+fn generate_nonce() -> [u8; 12] {
+    let rng = SystemRandom::new();
+    let mut nonce = [0u8; 12];
+    rng.fill(&mut nonce).unwrap();
+    nonce
+}
+
+fn encrypt_for_storage(
+    key: &[u8; 32],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> Vec<u8> {
+    let nonce = generate_nonce();
+    let ciphertext_and_tag = encrypt(key, &nonce, aad, plaintext);
+
+    let mut packed = nonce.to_vec();
+    packed.extend_from_slice(&ciphertext_and_tag);
+    packed
+}
+
+fn decrypt_from_storage(
+    key: &[u8; 32],
+    aad: &[u8],
+    packed: &[u8],
+) -> Option<Vec<u8>> {
+    if packed.len() < 12 {
+        return None;
+    }
+
+    let (nonce_bytes, ciphertext_and_tag) = packed.split_at(12);
+    let nonce: [u8; 12] = nonce_bytes.try_into().ok()?;
+    decrypt(key, &nonce, aad, ciphertext_and_tag)
+}
+```
+
 Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.
 
 ⚠️ **API note**: `LessSafeKey` is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a `BoundKey` plus a `NonceSequence` when one component owns nonce generation.
@@ -656,7 +697,7 @@ If you need JWT ecosystem interoperability, crates such as `jsonwebtoken` are co
 
 | Mistake | C/C++ Consequence | Rust Prevention |
 |---------|-------------------|-----------------|
-| Nonce reuse | Catastrophic (GCM) | Type system can enforce nonce tracking |
+| Nonce reuse | Catastrophic (GCM) | API design can make nonce ownership explicit; `BoundKey` + `NonceSequence` helps |
 | Missing auth | Padding oracle | `ring` API requires AEAD |
 | Timing leak | Side-channel | `ring::constant_time` module |
 | Key not zeroed | Memory disclosure | `zeroize` crate with `ZeroizeOnDrop` |

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
+            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -280,6 +280,46 @@ fn decrypt(
         .len();
     
     Some(in_out[..plaintext_len].to_vec())
+}
+<span class="boring">}</span></code></pre>
+<p>If you are storing or transmitting the result, make the nonce part of the serialized format instead of expecting the caller to remember it out of band. A common layout is <code>nonce || ciphertext || tag</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
+</span><span class="boring">use ring::rand::{SecureRandom, SystemRandom};
+</span>fn generate_nonce() -&gt; [u8; 12] {
+    let rng = SystemRandom::new();
+    let mut nonce = [0u8; 12];
+    rng.fill(&amp;mut nonce).unwrap();
+    nonce
+}
+
+fn encrypt_for_storage(
+    key: &amp;[u8; 32],
+    aad: &amp;[u8],
+    plaintext: &amp;[u8],
+) -&gt; Vec&lt;u8&gt; {
+    let nonce = generate_nonce();
+    let ciphertext_and_tag = encrypt(key, &amp;nonce, aad, plaintext);
+
+    let mut packed = nonce.to_vec();
+    packed.extend_from_slice(&amp;ciphertext_and_tag);
+    packed
+}
+
+fn decrypt_from_storage(
+    key: &amp;[u8; 32],
+    aad: &amp;[u8],
+    packed: &amp;[u8],
+) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
+    if packed.len() &lt; 12 {
+        return None;
+    }
+
+    let (nonce_bytes, ciphertext_and_tag) = packed.split_at(12);
+    let nonce: [u8; 12] = nonce_bytes.try_into().ok()?;
+    decrypt(key, &amp;nonce, aad, ciphertext_and_tag)
 }
 <span class="boring">}</span></code></pre>
 <p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
@@ -761,7 +801,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <tr><th>Mistake</th><th>C/C++ Consequence</th><th>Rust Prevention</th></tr>
 </thead>
 <tbody>
-<tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>Type system can enforce nonce tracking</td></tr>
+<tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>API design can make nonce ownership explicit; <code>BoundKey</code> + <code>NonceSequence</code> helps</td></tr>
 <tr><td>Missing auth</td><td>Padding oracle</td><td><code>ring</code> API requires AEAD</td></tr>
 <tr><td>Timing leak</td><td>Side-channel</td><td><code>ring::constant_time</code> module</td></tr>
 <tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>ZeroizeOnDrop</code></td></tr>

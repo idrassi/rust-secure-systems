@@ -163,7 +163,7 @@ If the service must accept both IPv4 and IPv6, make that choice explicit. `0.0.0
 
 This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.
 
-On Unix, broken-pipe `SIGPIPE` delivery is a classic networking footgun. For Rust socket code, `std::net` and Tokio already suppress `SIGPIPE` on TCP sockets (`MSG_NOSIGNAL` / `SO_NOSIGPIPE` style handling), so a dead peer normally becomes an `io::Error`, not process termination. Revisit `SIGPIPE` only when you drop to raw `libc` writes, interact with pipes or child stdio, or deliberately change the process signal disposition.
+On Unix, broken-pipe `SIGPIPE` delivery is a classic networking footgun. In ordinary Rust executables, the standard runtime ignores `SIGPIPE` process-wide during startup, and `std::net` / Tokio also handle TCP sockets so a dead peer normally becomes `BrokenPipe` / `EPIPE` instead of process termination. That broader process-wide default is helpful, but it matters when you embed Rust into a larger C program or call C libraries that expect the default `SIGPIPE` disposition. Revisit `SIGPIPE` when you drop to raw `libc` writes, interact with pipes or child stdio, deliberately change the signal disposition, or need to preserve a non-Rust host program's expectations.
 
 🔒 **Security measures in this server**:
 1. **Connection limiting**: Prevents resource exhaustion (CWE-400)

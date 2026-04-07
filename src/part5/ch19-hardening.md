@@ -778,7 +778,20 @@ where
 }
 ```
 
-### 19.5.4 Hardware-Backed Keys and Platform Keystores
+### 19.5.4 Rotation in Long-Running Async Services
+
+Loading a secret once at startup is the easy case. Long-lived Tokio services need a reload protocol that avoids dropping live traffic or mixing partially initialized state into request handling:
+
+- **Refresh before expiry, not at expiry**. If the secret source gives you a lease or TTL, renew with slack and jitter while the old credential is still valid.
+- **Build replacements off to the side**. Parse PEM, verify certificate/key pairs, construct the new `rustls::ServerConfig`, and warm any dependent clients before publishing anything.
+- **Publish atomically**. Store the active credential or config behind one shared indirection and swap the whole `Arc<T>` only after validation succeeds.
+- **Keep "decrypt old / encrypt new" semantics** during rollout. New outbound sessions or ciphertexts use the newest version, but readers and verifiers must accept the previous version until the retirement window closes.
+- **Separate existing and new sessions**. Existing TLS connections keep using the config they were created with; only new handshakes should observe the swapped config.
+- **Emit reload telemetry**. Track the active key ID, reload success/failure, and time-to-expiry so an expired lease becomes a page, not a surprise outage.
+
+With the `rustls` pattern from Chapter 12, this means creating the `TlsAcceptor` from the current shared `Arc<ServerConfig>` for each new handshake instead of baking one immutable config into process startup. If a credential cannot be reloaded safely in process, prefer a controlled rolling restart over ad hoc in-place mutation of shared state.
+
+### 19.5.5 Hardware-Backed Keys and Platform Keystores
 
 When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.
 

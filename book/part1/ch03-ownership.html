@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
+            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -382,10 +382,10 @@ fn main() {
     };
     // When `key` goes out of scope, the buffer is zeroed and freed
 }</code></pre>
+<p>The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware <code>fence</code> is not required for this example.</p>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
 <p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
 <p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + compiler-fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the <code>zeroize</code> crate, as shown below:</p>
-<p>The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware <code>fence</code> is not required for this example.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;

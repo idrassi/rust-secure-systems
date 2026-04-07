@@ -350,7 +350,7 @@ struct SharedState {
 
 🔒 **Security impact**: The `Send` and `Sync` traits prevent data races at compile time. If a type contains a non-thread-safe component (like `Rc<T>`), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.
 
-### The `From`/`Into` Traits - Safe Conversions
+### The `TryFrom` Trait - Checked Conversions
 
 ```rust
 struct Port(u16);

@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0f618b86.js";
+            window.path_to_searchindex_js = "searchindex-c19d9d0a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -962,10 +962,10 @@ fn main() {
     };
     // When `key` goes out of scope, the buffer is zeroed and freed
 }</code></pre>
+<p>The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware <code>fence</code> is not required for this example.</p>
 <p>🔒 <strong>Security pattern</strong>: Use <code>Drop</code> to hook cleanup of sensitive data (cryptographic keys, passwords, tokens) on normal destruction paths. This is the Rust equivalent of calling <code>SecureZeroMemory</code> on Windows or <code>explicit_bzero</code> on POSIX before releasing the buffer.</p>
 <p>⚠️ <strong>Panic behavior matters</strong>: <code>Drop</code> runs on normal return and during unwinding, but it does not run if the process aborts. If you set <code>panic = "abort"</code> for FFI or hardening reasons, do not assume <code>Drop</code>-based wiping protects panic paths.</p>
 <p>⚠️ <strong>Important</strong>: A naive loop like <code>for byte in data.iter_mut() { *byte = 0; }</code> can be <strong>optimized away</strong> by LLVM because the <code>Vec</code> is about to be deallocated and the writes appear to have no observable effect. We show the <code>write_volatile</code> + compiler-fence pattern first so you can see the optimization hazard that motivates <code>zeroize</code>; in practice you should prefer the <code>zeroize</code> crate, as shown below:</p>
-<p>The volatile writes are already the observable side effect here. The barrier is about compiler reordering, not inter-core synchronization, so a heavier hardware <code>fence</code> is not required for this example.</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
@@ -1383,7 +1383,7 @@ struct SharedState {
 // This type can be safely shared between threads.
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.</p>
-<h3 id="the-frominto-traits---safe-conversions"><a class="header" href="#the-frominto-traits---safe-conversions">The <code>From</code>/<code>Into</code> Traits - Safe Conversions</a></h3>
+<h3 id="the-tryfrom-trait---checked-conversions"><a class="header" href="#the-tryfrom-trait---checked-conversions">The <code>TryFrom</code> Trait - Checked Conversions</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>struct Port(u16);
@@ -2472,6 +2472,41 @@ while let Some(result) = tasks.join_next().await {
 </span><span class="boring">}
 </span><span class="boring">}</span></code></pre>
 <p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
+<h3 id="643-tokiotask_local-vs-thread_local"><a class="header" href="#643-tokiotask_local-vs-thread_local">6.4.3 <code>tokio::task_local!</code> vs <code>thread_local!</code></a></h3>
+<p><code>thread_local!</code> stores one value per OS thread. That is sometimes the right tool for FFI glue or thread-affine libraries, but it is the wrong primitive for per-request async state on Tokio’s multithreaded runtime. A task spawned with <code>tokio::spawn</code> may resume on a different worker thread after an <code>.await</code>, so a <code>thread_local!</code> value is not a reliable request context.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::tokio as tokio;
+</span>use std::cell::RefCell;
+
+thread_local! {
+    static REQUEST_ID_TLS: RefCell&lt;Option&lt;u64&gt;&gt; = const { RefCell::new(None) };
+}
+
+tokio::task_local! {
+    static REQUEST_ID: u64;
+}
+
+async fn handle_request(request_id: u64) {
+    REQUEST_ID.scope(request_id, async {
+        log_request().await;
+    }).await;
+}
+
+async fn log_request() {
+    REQUEST_ID.with(|request_id| {
+        println!("request id = {}", request_id);
+    });
+}
+<span class="boring">}</span></code></pre>
+<p>Use <code>tokio::task_local!</code> for task-scoped metadata that must survive <code>.await</code> points. Keep <code>thread_local!</code> for true thread-scoped state. A current-thread runtime or <code>LocalSet</code> only pins tasks to one thread; it does <strong>not</strong> make a thread-local slot private to one request, because multiple tasks on that thread still share the same TLS storage.</p>
+<p>🔒 <strong>Security guidance</strong>:</p>
+<ul>
+<li>Do not store per-request auth context, audit IDs, CSRF state, or raw secrets in <code>thread_local!</code> for async services.</li>
+<li>Prefer explicit function arguments over any ambient state when practical.</li>
+<li>If you truly need ambient async context, <code>tokio::task_local!</code> is the correct primitive.</li>
+</ul>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
 <p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects, such as reading from a socket or holding a lock, those side effects may be lost or left in an inconsistent state.</p>
 <p>Cancellation here means “the future is dropped.” Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.</p>
@@ -3484,6 +3519,46 @@ fn decrypt(
     Some(in_out[..plaintext_len].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>If you are storing or transmitting the result, make the nonce part of the serialized format instead of expecting the caller to remember it out of band. A common layout is <code>nonce || ciphertext || tag</code>:</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
+</span><span class="boring">use ring::rand::{SecureRandom, SystemRandom};
+</span>fn generate_nonce() -&gt; [u8; 12] {
+    let rng = SystemRandom::new();
+    let mut nonce = [0u8; 12];
+    rng.fill(&amp;mut nonce).unwrap();
+    nonce
+}
+
+fn encrypt_for_storage(
+    key: &amp;[u8; 32],
+    aad: &amp;[u8],
+    plaintext: &amp;[u8],
+) -&gt; Vec&lt;u8&gt; {
+    let nonce = generate_nonce();
+    let ciphertext_and_tag = encrypt(key, &amp;nonce, aad, plaintext);
+
+    let mut packed = nonce.to_vec();
+    packed.extend_from_slice(&amp;ciphertext_and_tag);
+    packed
+}
+
+fn decrypt_from_storage(
+    key: &amp;[u8; 32],
+    aad: &amp;[u8],
+    packed: &amp;[u8],
+) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
+    if packed.len() &lt; 12 {
+        return None;
+    }
+
+    let (nonce_bytes, ciphertext_and_tag) = packed.split_at(12);
+    let nonce: [u8; 12] = nonce_bytes.try_into().ok()?;
+    decrypt(key, &amp;nonce, aad, ciphertext_and_tag)
+}
+<span class="boring">}</span></code></pre>
 <p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
 <p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
 <p>⚠️ <strong>Nonce API caveat</strong>: <code>Nonce::assume_unique_for_key()</code> does <strong>not</strong> verify uniqueness. It is a promise by the caller to <code>ring</code>. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.</p>
@@ -3963,7 +4038,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <tr><th>Mistake</th><th>C/C++ Consequence</th><th>Rust Prevention</th></tr>
 </thead>
 <tbody>
-<tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>Type system can enforce nonce tracking</td></tr>
+<tr><td>Nonce reuse</td><td>Catastrophic (GCM)</td><td>API design can make nonce ownership explicit; <code>BoundKey</code> + <code>NonceSequence</code> helps</td></tr>
 <tr><td>Missing auth</td><td>Padding oracle</td><td><code>ring</code> API requires AEAD</td></tr>
 <tr><td>Timing leak</td><td>Side-channel</td><td><code>ring::constant_time</code> module</td></tr>
 <tr><td>Key not zeroed</td><td>Memory disclosure</td><td><code>zeroize</code> crate with <code>ZeroizeOnDrop</code></td></tr>
@@ -5477,7 +5552,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
 <p>⚠️ <strong>Security note</strong>: Binding to <code>0.0.0.0</code> exposes the service on <strong>every</strong> interface. Use it only when that exposure is intentional. For development prefer <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer attachment you actually want reachable.</p>
 <p>If the service must accept both IPv4 and IPv6, make that choice explicit. <code>0.0.0.0</code> is IPv4-only, while <code>[::]</code> is IPv6 and may or may not accept IPv4-mapped connections depending on the target OS and the <code>IPV6_V6ONLY</code> setting. Test the exact dual-stack behavior you intend to ship instead of assuming one listener covers both families everywhere.</p>
 <p>This buffering is not optional. TCP preserves byte order, not message boundaries, so a secure server must handle both partial frames and multiple frames delivered in one read.</p>
-<p>On Unix, broken-pipe <code>SIGPIPE</code> delivery is a classic networking footgun. For Rust socket code, <code>std::net</code> and Tokio already suppress <code>SIGPIPE</code> on TCP sockets (<code>MSG_NOSIGNAL</code> / <code>SO_NOSIGPIPE</code> style handling), so a dead peer normally becomes an <code>io::Error</code>, not process termination. Revisit <code>SIGPIPE</code> only when you drop to raw <code>libc</code> writes, interact with pipes or child stdio, or deliberately change the process signal disposition.</p>
+<p>On Unix, broken-pipe <code>SIGPIPE</code> delivery is a classic networking footgun. In ordinary Rust executables, the standard runtime ignores <code>SIGPIPE</code> process-wide during startup, and <code>std::net</code> / Tokio also handle TCP sockets so a dead peer normally becomes <code>BrokenPipe</code> / <code>EPIPE</code> instead of process termination. That broader process-wide default is helpful, but it matters when you embed Rust into a larger C program or call C libraries that expect the default <code>SIGPIPE</code> disposition. Revisit <code>SIGPIPE</code> when you drop to raw <code>libc</code> writes, interact with pipes or child stdio, deliberately change the signal disposition, or need to preserve a non-Rust host program’s expectations.</p>
 <p>🔒 <strong>Security measures in this server</strong>:</p>
 <ol>
 <li><strong>Connection limiting</strong>: Prevents resource exhaustion (CWE-400)</li>
@@ -9592,7 +9667,18 @@ where
     Ok(secret_string.into_bytes())
 }
 <span class="boring">}</span></code></pre>
-<h3 id="1954-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1954-hardware-backed-keys-and-platform-keystores">19.5.4 Hardware-Backed Keys and Platform Keystores</a></h3>
+<h3 id="1954-rotation-in-long-running-async-services"><a class="header" href="#1954-rotation-in-long-running-async-services">19.5.4 Rotation in Long-Running Async Services</a></h3>
+<p>Loading a secret once at startup is the easy case. Long-lived Tokio services need a reload protocol that avoids dropping live traffic or mixing partially initialized state into request handling:</p>
+<ul>
+<li><strong>Refresh before expiry, not at expiry</strong>. If the secret source gives you a lease or TTL, renew with slack and jitter while the old credential is still valid.</li>
+<li><strong>Build replacements off to the side</strong>. Parse PEM, verify certificate/key pairs, construct the new <code>rustls::ServerConfig</code>, and warm any dependent clients before publishing anything.</li>
+<li><strong>Publish atomically</strong>. Store the active credential or config behind one shared indirection and swap the whole <code>Arc&lt;T&gt;</code> only after validation succeeds.</li>
+<li><strong>Keep “decrypt old / encrypt new” semantics</strong> during rollout. New outbound sessions or ciphertexts use the newest version, but readers and verifiers must accept the previous version until the retirement window closes.</li>
+<li><strong>Separate existing and new sessions</strong>. Existing TLS connections keep using the config they were created with; only new handshakes should observe the swapped config.</li>
+<li><strong>Emit reload telemetry</strong>. Track the active key ID, reload success/failure, and time-to-expiry so an expired lease becomes a page, not a surprise outage.</li>
+</ul>
+<p>With the <code>rustls</code> pattern from Chapter 12, this means creating the <code>TlsAcceptor</code> from the current shared <code>Arc&lt;ServerConfig&gt;</code> for each new handshake instead of baking one immutable config into process startup. If a credential cannot be reloaded safely in process, prefer a controlled rolling restart over ad hoc in-place mutation of shared state.</p>
+<h3 id="1955-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1955-hardware-backed-keys-and-platform-keystores">19.5.5 Hardware-Backed Keys and Platform Keystores</a></h3>
 <p>When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.</p>
 <p>Practical options in Rust:</p>
 <ul>

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
+            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -492,7 +492,7 @@ struct SharedState {
 // This type can be safely shared between threads.
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.</p>
-<h3 id="the-frominto-traits---safe-conversions"><a class="header" href="#the-frominto-traits---safe-conversions">The <code>From</code>/<code>Into</code> Traits - Safe Conversions</a></h3>
+<h3 id="the-tryfrom-trait---checked-conversions"><a class="header" href="#the-tryfrom-trait---checked-conversions">The <code>TryFrom</code> Trait - Checked Conversions</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>struct Port(u16);
