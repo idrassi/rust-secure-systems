@@ -1,4 +1,4 @@
-# Chapter 18 — Secure Parser Construction
+# Chapter 18 - Secure Parser Construction
 
 > *"Parsers are the gateway to every system. Secure the gateway."*
 
@@ -538,11 +538,11 @@ This parser demonstrates key security principles:
 8. **Roundtrip property**: Serialization followed by parsing produces equivalent results for canonical messages.
 9. **Iterative structure**: The parser avoids attacker-controlled recursion depth and the stack-overflow risk that comes with it.
 
-In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.
+In the final chapter, we cover deployment hardening: how to build, configure, and deploy Rust applications for maximum security in production.
 
 ## 18.8 Exercises
 
-1. **Streaming Parser**: Extend the `TlvMessage` parser to support incremental (streaming) parsing — it should accept partial data, return `Incomplete` when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple `read()` calls.
+1. **Streaming Parser**: Extend the `TlvMessage` parser to support incremental (streaming) parsing: it should accept partial data, return `Incomplete` when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple `read()` calls.
 
 2. **Parser Combinators with `nom`**: Rewrite the TLV parser using the `nom` crate. Compare the code size, error quality, and performance against the hand-written parser. Discuss which approach is better for security auditing (fewer lines vs. more explicit control).
 

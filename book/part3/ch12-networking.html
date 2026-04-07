@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 12 — Secure Network Programming - Rust for Secure Systems Programming</title>
+        <title>Chapter 12 - Secure Network Programming - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,11 +181,11 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-12--secure-network-programming"><a class="header" href="#chapter-12--secure-network-programming">Chapter 12 — Secure Network Programming</a></h1>
+                        <h1 id="chapter-12---secure-network-programming"><a class="header" href="#chapter-12---secure-network-programming">Chapter 12 - Secure Network Programming</a></h1>
 <blockquote>
 <p><em>“The network is not trustworthy. Design accordingly.”</em></p>
 </blockquote>
-<p>Network services are the most exposed attack surface in any system. Every connection could be an attacker probing for vulnerabilities—buffer overflows in parsers, resource exhaustion through connection floods, injection attacks through malformed input, and timing attacks through crafted requests.</p>
+<p>Network services are the most exposed attack surface in any system. Every connection could be an attacker probing for vulnerabilities: buffer overflows in parsers, resource exhaustion through connection floods, injection attacks through malformed input, and timing attacks through crafted requests.</p>
 <p>Rust’s memory safety eliminates many traditional network vulnerabilities, but secure network programming requires more than memory safety. This chapter covers the patterns and practices for building robust, attack-resistant network services.</p>
 <h2 id="121-connection-handling"><a class="header" href="#121-connection-handling">12.1 Connection Handling</a></h2>
 <h3 id="1211-basic-tcp-server-with-tokio"><a class="header" href="#1211-basic-tcp-server-with-tokio">12.1.1 Basic TCP Server with tokio</a></h3>
@@ -346,7 +346,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
 <li><strong>Explicit framing buffer</strong>: Correctly handles fragmented and coalesced TCP reads</li>
 </ol>
 <blockquote>
-<p><strong>Note</strong>: The examples above use <code>.unwrap()</code> in a few places (e.g., on <code>lock()</code> results and <code>join</code> handles) for readability. In production code, replace these with proper error handling—especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.</p>
+<p><strong>Note</strong>: The examples above use <code>.unwrap()</code> in a few places (e.g., on <code>lock()</code> results and <code>join</code> handles) for readability. In production code, replace these with proper error handling, especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.</p>
 </blockquote>
 <h3 id="1212-rate-limiting"><a class="header" href="#1212-rate-limiting">12.1.2 Rate Limiting</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -635,7 +635,7 @@ fn create_mtls_config(
 <li>Use checked arithmetic for length calculations.</li>
 <li>Never trust a length field from the network without bounds checking.</li>
 </ol>
-<p>DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.</p>
+<p>DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks. For the post-resolution destination policy check, see Chapter 7 section 7.2.5.</p>
 <p>If you need an in-process encrypted resolver, <code>hickory-resolver</code> exposes ready-made configurations for DNS-over-TLS and DNS-over-HTTPS:</p>
 <pre><code class="language-rust ignore">use hickory_resolver::Resolver;
 use hickory_resolver::config::ResolverConfig;
@@ -760,13 +760,13 @@ fn log_security_event(event: &amp;SecurityEvent) {
 <ul>
 <li>Use connection limiting, rate limiting, and timeouts to prevent DoS attacks.</li>
 <li>Always set read/write/session timeouts on network connections.</li>
-<li>Use <code>rustls</code> for TLS—memory-safe by design.</li>
+<li>Use <code>rustls</code> for TLS: memory-safe by design.</li>
 <li>Validate all length fields from network data with checked arithmetic.</li>
 <li>Limit both request and response sizes to prevent amplification attacks.</li>
 <li>Log security events without exposing sensitive data.</li>
 <li>Apply the principle of least privilege: bind to specific interfaces, use firewall rules.</li>
 </ul>
-<p>In the next chapter, we move to Part IV—testing and verification strategies for proving your code is secure.</p>
+<p>In the next chapter, we move to Part IV: testing and verification strategies for proving your code is secure.</p>
 <h2 id="126-exercises"><a class="header" href="#126-exercises">12.6 Exercises</a></h2>
 <ol>
 <li>

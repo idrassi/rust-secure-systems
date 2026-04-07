@@ -1,4 +1,4 @@
-# Chapter 3 — Ownership, Borrowing, and Lifetimes
+# Chapter 3 - Ownership, Borrowing, and Lifetimes
 
 > *"You don't free memory in Rust. The compiler decides when to free it, and it never gets it wrong."*
 
@@ -6,7 +6,7 @@ This is the most important chapter in the book. Rust's ownership model is what m
 
 ## 3.1 Ownership Rules
 
-Every value in Rust has exactly one **owner**—a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:
+Every value in Rust has exactly one **owner**: a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:
 
 1. Each value has exactly one owner.
 2. When the owner goes out of scope, the value is dropped.
@@ -21,7 +21,7 @@ fn main() {
 }   // s2 is dropped here, memory freed
 ```
 
-This is a **move**—ownership transfers from `s1` to `s2`. The compiler prevents use-after-free by making `s1` inaccessible after the move.
+This is a **move**: ownership transfers from `s1` to `s2`. The compiler prevents use-after-free by making `s1` inaccessible after the move.
 
 🔒 **Security impact**: Eliminates CWE-416 (Use-After-Free) and double-free bugs. In C, transferring a string pointer without clear ownership conventions leads to double-free or use-after-free. Rust enforces this at compile time.
 
@@ -142,7 +142,7 @@ fn main() {
 
 ## 3.3 Lifetimes
 
-Every reference in Rust has a **lifetime**—the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.
+Every reference in Rust has a **lifetime**: the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.
 
 ### 3.3.1 The Problem Lifetimes Solve
 
@@ -227,7 +227,7 @@ This ensures the `Parser` cannot outlive the `input` string it references.
 
 ## 3.4 Common Patterns for Security Developers
 
-### 3.4.1 The `Drop` Trait — Deterministic Cleanup
+### 3.4.1 The `Drop` Trait - Deterministic Cleanup
 
 Rust's `Drop` trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:
 
@@ -283,7 +283,7 @@ Neither `Drop` nor `zeroize` is a complete secret-lifecycle guarantee. They do n
 
 Deserialization has the same lifecycle cost: every `serde::Deserialize` call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.
 
-### 3.4.2 `ManuallyDrop<T>` — Controlled Destruction Boundaries
+### 3.4.2 `ManuallyDrop<T>` - Controlled Destruction Boundaries
 
 Most code should let Rust run destructors automatically. `ManuallyDrop<T>` exists for the narrower cases where you need to suppress that automatic `Drop` temporarily, such as handing ownership across an FFI boundary or forcing one resource to outlive another during teardown:
 
@@ -307,7 +307,7 @@ fn transfer_fd_to_foreign_code(fd: OwnedFd) -> i32 {
 
 ⚠️ **Security note**: `ManuallyDrop` disables Rust's automatic cleanup, so a mistake becomes a leak or double-free bug immediately. Use it only at clearly documented ownership boundaries and keep exactly one deallocation path for the wrapped value.
 
-### 3.4.3 Interior Mutability — `RefCell<T>` and `Cell<T>`
+### 3.4.3 Interior Mutability - `RefCell<T>` and `Cell<T>`
 
 Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:
 

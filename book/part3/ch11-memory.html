@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 11 — Memory Layout and Low-Level Control - Rust for Secure Systems Programming</title>
+        <title>Chapter 11 - Memory Layout and Low-Level Control - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,7 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-11--memory-layout-and-low-level-control"><a class="header" href="#chapter-11--memory-layout-and-low-level-control">Chapter 11 — Memory Layout and Low-Level Control</a></h1>
+                        <h1 id="chapter-11---memory-layout-and-low-level-control"><a class="header" href="#chapter-11---memory-layout-and-low-level-control">Chapter 11 - Memory Layout and Low-Level Control</a></h1>
 <blockquote>
 <p><em>“Know your memory. Know your adversary.”</em></p>
 </blockquote>
@@ -201,7 +201,7 @@
 // Size: might be 12, 14, or 16 bytes depending on compiler decisions
 <span class="boring">}</span></code></pre>
 <p>This is fine for internal use but <strong>dangerous</strong> for parsing external data.</p>
-<h3 id="1112-reprc--c-compatible-layout"><a class="header" href="#1112-reprc--c-compatible-layout">11.1.2 <code>#[repr(C)]</code> — C-Compatible Layout</a></h3>
+<h3 id="1112-reprc---c-compatible-layout"><a class="header" href="#1112-reprc---c-compatible-layout">11.1.2 <code>#[repr(C)]</code> - C-Compatible Layout</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(C)]
@@ -227,7 +227,7 @@ struct CNetworkHeader {
 <li>Are shared with C code</li>
 <li>Are cast from raw byte arrays</li>
 </ul>
-<h3 id="1113-reprc-packed--no-padding"><a class="header" href="#1113-reprc-packed--no-padding">11.1.3 <code>#[repr(C, packed)]</code> — No Padding</a></h3>
+<h3 id="1113-reprc-packed---no-padding"><a class="header" href="#1113-reprc-packed---no-padding">11.1.3 <code>#[repr(C, packed)]</code> - No Padding</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(C, packed)]
@@ -263,7 +263,7 @@ struct PackedHeader {
     Some(unsafe { ptr::read_unaligned(ptr) })
 }
 <span class="boring">}</span></code></pre>
-<h3 id="1114-repru8-repri32--enum-size-control"><a class="header" href="#1114-repru8-repri32--enum-size-control">11.1.4 <code>#[repr(u8)]</code>, <code>#[repr(i32)]</code> — Enum Size Control</a></h3>
+<h3 id="1114-repru8-repri32---enum-size-control"><a class="header" href="#1114-repru8-repri32---enum-size-control">11.1.4 <code>#[repr(u8)]</code>, <code>#[repr(i32)]</code> - Enum Size Control</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(u8)]
@@ -275,7 +275,7 @@ enum PacketType {
 }
 // Guaranteed: sizeof(PacketType) == 1
 <span class="boring">}</span></code></pre>
-<h3 id="1115-reprtransparent--single-field-wrapper"><a class="header" href="#1115-reprtransparent--single-field-wrapper">11.1.5 <code>#[repr(transparent)]</code> — Single-Field Wrapper</a></h3>
+<h3 id="1115-reprtransparent---single-field-wrapper"><a class="header" href="#1115-reprtransparent---single-field-wrapper">11.1.5 <code>#[repr(transparent)]</code> - Single-Field Wrapper</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(transparent)]
@@ -338,6 +338,11 @@ struct AlignedBuffer {
 <li>Alignment can reduce performance variance and avoid unaligned-access traps on some targets</li>
 <li>Do not assume a crypto primitive requires a specific alignment unless its API or hardware manual says so</li>
 </ul>
+<p>You cannot combine <code>packed</code> and <code>align</code> on the same struct. The compiler
+rejects that combination because <code>packed</code> lowers alignment while
+<code>align(N)</code> raises it. If you need a packed wire-format view and an aligned
+working buffer, keep them as separate types and copy or parse between them
+explicitly.</p>
 <h3 id="1132-cache-line-alignment"><a class="header" href="#1132-cache-line-alignment">11.3.2 Cache-Line Alignment</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -389,7 +394,7 @@ static GLOBAL: SecureAllocator = SecureAllocator;
 <li>Use a zeroization primitive that is guaranteed not to be optimized away</li>
 <li>Guard against heap metadata corruption</li>
 </ul>
-<h3 id="1142-the-zeroize-crate--practical-memory-wiping"><a class="header" href="#1142-the-zeroize-crate--practical-memory-wiping">11.4.2 The <code>zeroize</code> Crate — Practical Memory Wiping</a></h3>
+<h3 id="1142-the-zeroize-crate---practical-memory-wiping"><a class="header" href="#1142-the-zeroize-crate---practical-memory-wiping">11.4.2 The <code>zeroize</code> Crate - Practical Memory Wiping</a></h3>
 <p>The <code>zeroize</code> crate gives you a practical way to wipe specific buffers before release, unlike naive manual loops that the compiler may optimize away:</p>
 <pre><code class="language-toml">[dependencies]
 zeroize = { version = "1", features = ["derive"] }
@@ -425,6 +430,10 @@ struct SecureBuffer {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Use <code>zeroize</code> (with the <code>derive</code> feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before <code>Drop</code> (see Chapter 2 §2.4 on <code>panic = "abort"</code>).</p>
+<p>Core dumps are another separate leak path: a crash can snapshot process memory
+before later cleanup would have happened, including live secrets that would
+normally be wiped on <code>Drop</code>. Chapter 19 section 19.6 shows how to disable core
+dumps for production services that handle sensitive material.</p>
 <h3 id="1143-safe-pointer-access-with-raw-and-addr_of"><a class="header" href="#1143-safe-pointer-access-with-raw-and-addr_of">11.4.3 Safe Pointer Access with <code>&amp;raw</code> (and <code>addr_of!</code>)</a></h3>
 <p>When working with structs that contain fields you cannot safely create (e.g., a <code>MaybeUninit</code> field), Edition 2024 prefers <code>&amp;raw const expr</code> and <code>&amp;raw mut expr</code>. They are the direct syntax behind the older <code>addr_of!</code> and <code>addr_of_mut!</code> macros and let you obtain raw pointers without creating intermediate references:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -501,7 +510,7 @@ rustflags = ["-C", "force-frame-pointers=yes"]
 </code></pre>
 <p>If you build C/C++ code via the <code>cc</code> crate, apply <code>-fstack-protector-strong</code> to those objects separately. For RELRO, NX, and PIE settings, use the linker hardening flags from Chapter 19. Frame pointers improve observability; they are not a canary mechanism.</p>
 <h3 id="1152-guard-pages"><a class="header" href="#1152-guard-pages">11.5.2 Guard Pages</a></h3>
-<p>Rust’s default allocator does <strong>not</strong> place guard pages between heap allocations — neither in debug nor release mode. Guard pages exist at stack boundaries (enforced by the OS), not between individual heap allocations. For heap-level guard page protection, use a hardened allocator like GWP-ASan or run under AddressSanitizer (ASan):</p>
+<p>Rust’s default allocator does <strong>not</strong> place guard pages between heap allocations, neither in debug nor release mode. Guard pages exist at stack boundaries (enforced by the OS), not between individual heap allocations. For heap-level guard page protection, use a hardened allocator like GWP-ASan or run under AddressSanitizer (ASan):</p>
 <pre><code class="language-bash"># Run with ASan to detect heap buffer overflows
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 </code></pre>
@@ -517,7 +526,7 @@ RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 <li>Lock memory pages containing secrets (prevent swapping).</li>
 <li>Verify release hardening (RELRO/NX/PIE) and apply stack-protector flags to any C/C++ objects you compile.</li>
 </ul>
-<p>In the next chapter, we cover secure network programming—building network services that resist common attacks.</p>
+<p>In the next chapter, we cover secure network programming: building network services that resist common attacks.</p>
 <h2 id="117-exercises"><a class="header" href="#117-exercises">11.7 Exercises</a></h2>
 <ol>
 <li>

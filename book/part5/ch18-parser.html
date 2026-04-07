@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 18 — Secure Parser Construction - Rust for Secure Systems Programming</title>
+        <title>Chapter 18 - Secure Parser Construction - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,7 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-18--secure-parser-construction"><a class="header" href="#chapter-18--secure-parser-construction">Chapter 18 — Secure Parser Construction</a></h1>
+                        <h1 id="chapter-18---secure-parser-construction"><a class="header" href="#chapter-18---secure-parser-construction">Chapter 18 - Secure Parser Construction</a></h1>
 <blockquote>
 <p><em>“Parsers are the gateway to every system. Secure the gateway.”</em></p>
 </blockquote>
@@ -712,11 +712,11 @@ proptest! {
 <li><strong>Roundtrip property</strong>: Serialization followed by parsing produces equivalent results for canonical messages.</li>
 <li><strong>Iterative structure</strong>: The parser avoids attacker-controlled recursion depth and the stack-overflow risk that comes with it.</li>
 </ol>
-<p>In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.</p>
+<p>In the final chapter, we cover deployment hardening: how to build, configure, and deploy Rust applications for maximum security in production.</p>
 <h2 id="188-exercises"><a class="header" href="#188-exercises">18.8 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Streaming Parser</strong>: Extend the <code>TlvMessage</code> parser to support incremental (streaming) parsing — it should accept partial data, return <code>Incomplete</code> when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple <code>read()</code> calls.</p>
+<p><strong>Streaming Parser</strong>: Extend the <code>TlvMessage</code> parser to support incremental (streaming) parsing: it should accept partial data, return <code>Incomplete</code> when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple <code>read()</code> calls.</p>
 </li>
 <li>
 <p><strong>Parser Combinators with <code>nom</code></strong>: Rewrite the TLV parser using the <code>nom</code> crate. Compare the code size, error quality, and performance against the hand-written parser. Discuss which approach is better for security auditing (fewer lines vs. more explicit control).</p>

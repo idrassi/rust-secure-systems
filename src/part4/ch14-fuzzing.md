@@ -1,8 +1,8 @@
-# Chapter 14 — Fuzzing and Property-Based Testing
+# Chapter 14 - Fuzzing and Property-Based Testing
 
 > *"The best test cases are the ones you didn't think to write."*
 
-Manual testing can only cover inputs you anticipate. Fuzzing and property-based testing generate inputs automatically, discovering bugs through random exploration. For security-critical code—parsers, decoders, protocol handlers—these techniques are essential because attackers will send inputs you never imagined.
+Manual testing can only cover inputs you anticipate. Fuzzing and property-based testing generate inputs automatically, discovering bugs through random exploration. For security-critical code (parsers, decoders, protocol handlers) these techniques are essential because attackers will send inputs you never imagined.
 
 ## 14.1 Property-Based Testing with `proptest`
 
@@ -340,7 +340,7 @@ done
 ⚠️ **Practicality note**: Running Miri once per corpus file is extremely slow. Use it on minimized corpora, targeted reproducers, or periodic CI jobs rather than every large fuzz corpus on every edit.
 
 ```rust,ignore
-// tests/miri_corpus.rs — test harness for running Miri on corpus files
+// tests/miri_corpus.rs - test harness for running Miri on corpus files
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::my_secure_app as my_secure_app;
 use std::env;
@@ -467,13 +467,13 @@ libfuzzer_sys::fuzz_target!(|actions: Vec<FuzzAction>| {
 - **Property-based testing** (`proptest`, `quickcheck`): Generates random inputs to test invariants. Good for mathematical properties and roundtrip tests.
 - **Fuzzing** (`cargo-fuzz`): Coverage-guided input generation. Best for parsers, decoders, and protocol handlers.
 - Differential fuzzing is useful when you have a reference implementation, older parser, or wire-compatible rewrite to compare against.
-- Fuzz **every** input-processing function—especially network parsers.
+- Fuzz **every** input-processing function, especially network parsers.
 - Use structured fuzzing (`arbitrary`) for complex input types.
 - Run fuzzing continuously in CI and maintain a seed corpus.
 - Use sanitizers (AddressSanitizer, ThreadSanitizer, MemorySanitizer) and Miri alongside fuzzing to detect memory safety and concurrency issues.
 - Save and commit regression test cases for all discovered bugs.
 
-In the next chapter, we cover static analysis and code auditing—tools and techniques for finding security issues without executing code.
+In the next chapter, we cover static analysis and code auditing: tools and techniques for finding security issues without executing code.
 
 ## 14.7 Exercises
 

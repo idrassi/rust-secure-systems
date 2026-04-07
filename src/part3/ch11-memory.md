@@ -1,4 +1,4 @@
-# Chapter 11 — Memory Layout and Low-Level Control
+# Chapter 11 - Memory Layout and Low-Level Control
 
 > *"Know your memory. Know your adversary."*
 
@@ -23,7 +23,7 @@ struct NetworkHeader {
 
 This is fine for internal use but **dangerous** for parsing external data.
 
-### 11.1.2 `#[repr(C)]` — C-Compatible Layout
+### 11.1.2 `#[repr(C)]` - C-Compatible Layout
 
 ```rust
 #[repr(C)]
@@ -48,7 +48,7 @@ struct CNetworkHeader {
 - Are shared with C code
 - Are cast from raw byte arrays
 
-### 11.1.3 `#[repr(C, packed)]` — No Padding
+### 11.1.3 `#[repr(C, packed)]` - No Padding
 
 ```rust
 #[repr(C, packed)]
@@ -85,7 +85,7 @@ fn read_packed_header(data: &[u8]) -> Option<PackedHeader> {
 }
 ```
 
-### 11.1.4 `#[repr(u8)]`, `#[repr(i32)]` — Enum Size Control
+### 11.1.4 `#[repr(u8)]`, `#[repr(i32)]` - Enum Size Control
 
 ```rust
 #[repr(u8)]
@@ -98,7 +98,7 @@ enum PacketType {
 // Guaranteed: sizeof(PacketType) == 1
 ```
 
-### 11.1.5 `#[repr(transparent)]` — Single-Field Wrapper
+### 11.1.5 `#[repr(transparent)]` - Single-Field Wrapper
 
 ```rust
 #[repr(transparent)]
@@ -170,6 +170,12 @@ struct AlignedBuffer {
 - Alignment can reduce performance variance and avoid unaligned-access traps on some targets
 - Do not assume a crypto primitive requires a specific alignment unless its API or hardware manual says so
 
+You cannot combine `packed` and `align` on the same struct. The compiler
+rejects that combination because `packed` lowers alignment while
+`align(N)` raises it. If you need a packed wire-format view and an aligned
+working buffer, keep them as separate types and copy or parse between them
+explicitly.
+
 ### 11.3.2 Cache-Line Alignment
 
 ```rust
@@ -229,7 +235,7 @@ Because the zeroing loop already uses `write_volatile`, the `compiler_fence` her
 - Use a zeroization primitive that is guaranteed not to be optimized away
 - Guard against heap metadata corruption
 
-### 11.4.2 The `zeroize` Crate — Practical Memory Wiping
+### 11.4.2 The `zeroize` Crate - Practical Memory Wiping
 
 The `zeroize` crate gives you a practical way to wipe specific buffers before release, unlike naive manual loops that the compiler may optimize away:
 
@@ -269,6 +275,11 @@ struct SecureBuffer {
 ```
 
 🔒 **Security practice**: Use `zeroize` (with the `derive` feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before `Drop` (see Chapter 2 §2.4 on `panic = "abort"`).
+
+Core dumps are another separate leak path: a crash can snapshot process memory
+before later cleanup would have happened, including live secrets that would
+normally be wiped on `Drop`. Chapter 19 section 19.6 shows how to disable core
+dumps for production services that handle sensitive material.
 
 ### 11.4.3 Safe Pointer Access with `&raw` (and `addr_of!`)
 
@@ -361,7 +372,7 @@ If you build C/C++ code via the `cc` crate, apply `-fstack-protector-strong` to 
 
 ### 11.5.2 Guard Pages
 
-Rust's default allocator does **not** place guard pages between heap allocations — neither in debug nor release mode. Guard pages exist at stack boundaries (enforced by the OS), not between individual heap allocations. For heap-level guard page protection, use a hardened allocator like GWP-ASan or run under AddressSanitizer (ASan):
+Rust's default allocator does **not** place guard pages between heap allocations, neither in debug nor release mode. Guard pages exist at stack boundaries (enforced by the OS), not between individual heap allocations. For heap-level guard page protection, use a hardened allocator like GWP-ASan or run under AddressSanitizer (ASan):
 
 ```bash
 # Run with ASan to detect heap buffer overflows
@@ -381,7 +392,7 @@ If you do not need allocator-specific behavior, omit `#[global_allocator]` entir
 - Lock memory pages containing secrets (prevent swapping).
 - Verify release hardening (RELRO/NX/PIE) and apply stack-protector flags to any C/C++ objects you compile.
 
-In the next chapter, we cover secure network programming—building network services that resist common attacks.
+In the next chapter, we cover secure network programming: building network services that resist common attacks.
 
 ## 11.7 Exercises
 

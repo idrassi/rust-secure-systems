@@ -1,6 +1,6 @@
-# Chapter 9 — Unsafe Rust: When and How
+# Chapter 9 - Unsafe Rust: When and How
 
-> *"With great power comes great responsibility—and a lot of code review."*
+> *"With great power comes great responsibility, and a lot of code review."*
 
 Unsafe Rust is the escape hatch that allows you to bypass the compiler's safety checks. It exists because there are things the compiler cannot verify: interfacing with C libraries, implementing low-level data structures, hardware access, and performance-critical optimizations that require raw pointer manipulation.
 
@@ -22,7 +22,7 @@ Inside an `unsafe` block, you can:
 
 Every `unsafe` block comes with an implicit contract: **you must ensure that safe code cannot cause undefined behavior through your unsafe code.**
 
-This is the "soundness" property: safe Rust code can never cause undefined behavior, even if it tries. If safe code *can* cause UB through your unsafe abstraction, your code is **unsound**—and that's a bug.
+This is the "soundness" property: safe Rust code can never cause undefined behavior, even if it tries. If safe code *can* cause UB through your unsafe abstraction, your code is **unsound** and that's a bug.
 
 ```rust
 // UNSOUND: safe code can cause UB
@@ -265,7 +265,7 @@ fn deref_example() {
 
 ⚠️ **Pitfall**: Pointer arithmetic can go out of bounds. Rust does not check pointer arithmetic at runtime. You must validate bounds yourself.
 
-### 9.4.2 Transmute — Type Punning
+### 9.4.2 Transmute - Type Punning
 
 `std::mem::transmute` reinterprets bytes as a different type. It is extremely dangerous:
 
@@ -338,14 +338,14 @@ unsafe impl<T: Send> Sync for SharedRawBuf<T> {}
 
 ⚠️ **Pitfall**: Implementing `Send` for a type that is not thread-safe (e.g., contains `Rc<T>` or `Cell<T>`) will cause data races. Always verify that all internal state is properly synchronized before implementing these traits.
 
-🔒 **Security practice**: Only implement `Send`/`Sync` when the type's internal synchronization guarantees thread safety. If unsure, do not implement them — the compiler's auto-derivation is conservative and correct by default.
+🔒 **Security practice**: Only implement `Send`/`Sync` when the type's internal synchronization guarantees thread safety. If unsure, do not implement them: the compiler's auto-derivation is conservative and correct by default.
 
 ### 9.4.6 Forbidding `unsafe` in Safe Code
 
 For security-critical projects, you can use lints to control where `unsafe` is allowed:
 
 ```rust
-// In lib.rs or main.rs — disallow unsafe code entirely
+// In lib.rs or main.rs - disallow unsafe code entirely
 #![forbid(unsafe_code)]
 ```
 
@@ -497,7 +497,7 @@ Prusti is a verification tool that uses the [Viper](https://viper.ethz.ch/) infr
 // Prusti uses the `prusti-contracts` crate for specifications
 // Currently requires a custom toolchain; see https://github.com/viperproject/prusti-dev
 
-// Example (conceptual — requires Prusti toolchain):
+// Example (conceptual, requires Prusti toolchain):
 // #[requires(x >= 0)]
 // #[ensures(result >= 0)]
 // fn safe_sqrt(x: i32) -> i32 {
@@ -521,7 +521,7 @@ Prusti is still research-grade and best suited to small, focused proofs rather t
 - Audit all unsafe code with the checklist.
 - Use Miri to detect undefined behavior in tests.
 
-In the next chapter, we explore the Foreign Function Interface—calling C code from Rust and vice versa, which is inherently unsafe and requires careful security consideration.
+In the next chapter, we explore the Foreign Function Interface: calling C code from Rust and vice versa, which is inherently unsafe and requires careful security consideration.
 
 ## 9.7 Exercises
 

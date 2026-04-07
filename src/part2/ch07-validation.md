@@ -1,8 +1,8 @@
-# Chapter 7 — Input Validation and Data Sanitization
+# Chapter 7 - Input Validation and Data Sanitization
 
 > *"All input is evil until proven otherwise."*
 
-Input validation is the cornerstone of secure software. Every major vulnerability class—injection, buffer overflow, path traversal, XSS—traces back to improperly validated input. As a security developer, you know that the attack surface of any system is defined by the inputs it processes.
+Input validation is the cornerstone of secure software. Every major vulnerability class (injection, buffer overflow, path traversal, XSS) traces back to improperly validated input. As a security developer, you know that the attack surface of any system is defined by the inputs it processes.
 
 Rust's type system gives you a significant advantage: many validation checks can be enforced at compile time rather than runtime. When that's not possible, Rust's expressive pattern matching and zero-cost abstractions make runtime validation both thorough and ergonomic.
 
@@ -389,6 +389,10 @@ fn is_public_ip(ip: IpAddr) -> bool {
 }
 ```
 
+The `to_ipv4_mapped()` branch closes a classic SSRF bypass: `::ffff:127.0.0.1`
+is still loopback, so it must be filtered the same way as plain IPv4
+`127.0.0.1`.
+
 Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a "valid" hostname into access to internal services.
 
 This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.
@@ -532,7 +536,7 @@ impl TlsRecord {
 
 This prevents protocol-level attacks including fuzzing, injection, and downgrade attacks. For TLS 1.3 specifically, perform downgrade checks in the handshake (`supported_versions`), not from the record-layer version field alone.
 
-## 7.4 The `serde` Ecosystem — Deserialization Safety
+## 7.4 The `serde` Ecosystem - Deserialization Safety
 
 Serde is Rust's serialization framework. While powerful, deserialization of untrusted data requires care:
 
@@ -569,7 +573,7 @@ where
 
 1. **Depth limits are format-specific**: `serde` provides the framework, but the actual recursion policy comes from the format crate. `serde_json` keeps a default recursion limit enabled; other deserializers or custom formats may not. Verify the behavior of the specific format you expose to untrusted input.
 
-2. **Integer overflow**: When deserializing into a smaller integer type, serde will reject values that don't fit—unlike many JSON parsers in C.
+2. **Integer overflow**: When deserializing into a smaller integer type, serde will reject values that don't fit, unlike many JSON parsers in C.
 
 3. **Denial of service**: Large allocations from untrusted input can exhaust memory. Enforce transport-level body size caps and keep parser safeguards enabled:
 
@@ -613,9 +617,9 @@ fn deserialize_with_limit(data: &[u8]) -> Result<UserInput, Box<dyn std::error::
 - Treat SSRF as a destination policy problem, not just a hostname syntax problem.
 - Validate protocol fields against specification limits.
 - Use `std::process::Command` with argument vectors instead of shell escaping.
-- Be cautious with serde deserialization of untrusted data—set depth and size limits.
+- Be cautious with serde deserialization of untrusted data: set depth and size limits.
 
-In the next chapter, we cover cryptography and secrets management—how to safely use cryptographic primitives and protect sensitive data in Rust applications.
+In the next chapter, we cover cryptography and secrets management: how to safely use cryptographic primitives and protect sensitive data in Rust applications.
 
 ## 7.6 Exercises
 

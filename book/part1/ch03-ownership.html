@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 3 — Ownership, Borrowing, and Lifetimes - Rust for Secure Systems Programming</title>
+        <title>Chapter 3 - Ownership, Borrowing, and Lifetimes - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,13 +181,13 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-3--ownership-borrowing-and-lifetimes"><a class="header" href="#chapter-3--ownership-borrowing-and-lifetimes">Chapter 3 — Ownership, Borrowing, and Lifetimes</a></h1>
+                        <h1 id="chapter-3---ownership-borrowing-and-lifetimes"><a class="header" href="#chapter-3---ownership-borrowing-and-lifetimes">Chapter 3 - Ownership, Borrowing, and Lifetimes</a></h1>
 <blockquote>
 <p><em>“You don’t free memory in Rust. The compiler decides when to free it, and it never gets it wrong.”</em></p>
 </blockquote>
 <p>This is the most important chapter in the book. Rust’s ownership model is what makes the language unique, and understanding it deeply is essential for writing secure systems code. If you come from C/C++, you are used to manually managing memory with <code>malloc</code>/<code>free</code> or <code>new</code>/<code>delete</code>. Rust replaces this with a set of compile-time rules that guarantee memory safety without garbage collection.</p>
 <h2 id="31-ownership-rules"><a class="header" href="#31-ownership-rules">3.1 Ownership Rules</a></h2>
-<p>Every value in Rust has exactly one <strong>owner</strong>—a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:</p>
+<p>Every value in Rust has exactly one <strong>owner</strong>: a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:</p>
 <ol>
 <li>Each value has exactly one owner.</li>
 <li>When the owner goes out of scope, the value is dropped.</li>
@@ -199,7 +199,7 @@
     // println!("{}", s1);           // ERROR: s1 no longer valid
     println!("{}", s2);              // OK: s2 is the owner
 }   // s2 is dropped here, memory freed</code></pre>
-<p>This is a <strong>move</strong>—ownership transfers from <code>s1</code> to <code>s2</code>. The compiler prevents use-after-free by making <code>s1</code> inaccessible after the move.</p>
+<p>This is a <strong>move</strong>: ownership transfers from <code>s1</code> to <code>s2</code>. The compiler prevents use-after-free by making <code>s1</code> inaccessible after the move.</p>
 <p>🔒 <strong>Security impact</strong>: Eliminates CWE-416 (Use-After-Free) and double-free bugs. In C, transferring a string pointer without clear ownership conventions leads to double-free or use-after-free. Rust enforces this at compile time.</p>
 <h3 id="311-the-copy-trait"><a class="header" href="#311-the-copy-trait">3.1.1 The <code>Copy</code> Trait</a></h3>
 <p>Some types are so small that copying them is cheaper than managing ownership. Types that implement the <code>Copy</code> trait are implicitly copied on assignment instead of moved:</p>
@@ -288,7 +288,7 @@ for (auto it = v.begin(); it != v.end(); ++it) {
     v.push(4);                // OK: borrow ended
 }</code></pre>
 <h2 id="33-lifetimes"><a class="header" href="#33-lifetimes">3.3 Lifetimes</a></h2>
-<p>Every reference in Rust has a <strong>lifetime</strong>—the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.</p>
+<p>Every reference in Rust has a <strong>lifetime</strong>: the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.</p>
 <h3 id="331-the-problem-lifetimes-solve"><a class="header" href="#331-the-problem-lifetimes-solve">3.3.1 The Problem Lifetimes Solve</a></h3>
 <p>Consider this function:</p>
 <pre class="playground"><code class="language-rust compile_fail edition2024"><span class="boring">#![allow(unused)]
@@ -356,7 +356,7 @@ impl&lt;'a&gt; Parser&lt;'a&gt; {
 <p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
 <p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once with <code>char_indices()</code>.</p>
 <h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
-<h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
+<h3 id="341-the-drop-trait---deterministic-cleanup"><a class="header" href="#341-the-drop-trait---deterministic-cleanup">3.4.1 The <code>Drop</code> Trait - Deterministic Cleanup</a></h3>
 <p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>
 <pre class="playground"><code class="language-rust edition2024">struct SecureBuffer {
     data: Vec&lt;u8&gt;,
@@ -400,7 +400,7 @@ struct SecureBuffer {
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
 <p>Deserialization has the same lifecycle cost: every <code>serde::Deserialize</code> call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.</p>
-<h3 id="342-manuallydropt--controlled-destruction-boundaries"><a class="header" href="#342-manuallydropt--controlled-destruction-boundaries">3.4.2 <code>ManuallyDrop&lt;T&gt;</code> — Controlled Destruction Boundaries</a></h3>
+<h3 id="342-manuallydropt---controlled-destruction-boundaries"><a class="header" href="#342-manuallydropt---controlled-destruction-boundaries">3.4.2 <code>ManuallyDrop&lt;T&gt;</code> - Controlled Destruction Boundaries</a></h3>
 <p>Most code should let Rust run destructors automatically. <code>ManuallyDrop&lt;T&gt;</code> exists for the narrower cases where you need to suppress that automatic <code>Drop</code> temporarily, such as handing ownership across an FFI boundary or forcing one resource to outlive another during teardown:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -421,7 +421,7 @@ fn transfer_fd_to_foreign_code(fd: OwnedFd) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Security note</strong>: <code>ManuallyDrop</code> disables Rust’s automatic cleanup, so a mistake becomes a leak or double-free bug immediately. Use it only at clearly documented ownership boundaries and keep exactly one deallocation path for the wrapped value.</p>
-<h3 id="343-interior-mutability--refcellt-and-cellt"><a class="header" href="#343-interior-mutability--refcellt-and-cellt">3.4.3 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
+<h3 id="343-interior-mutability---refcellt-and-cellt"><a class="header" href="#343-interior-mutability---refcellt-and-cellt">3.4.3 Interior Mutability - <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 10 — Foreign Function Interface - Rust for Secure Systems Programming</title>
+        <title>Chapter 10 - Foreign Function Interface - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,7 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-10--foreign-function-interface"><a class="header" href="#chapter-10--foreign-function-interface">Chapter 10 — Foreign Function Interface</a></h1>
+                        <h1 id="chapter-10---foreign-function-interface"><a class="header" href="#chapter-10---foreign-function-interface">Chapter 10 - Foreign Function Interface</a></h1>
 <blockquote>
 <p><em>“The boundary between Rust and C is the most dangerous place in your codebase.”</em></p>
 </blockquote>
@@ -369,7 +369,7 @@ Pointer validation does not make the function safe to call from Rust: the caller
 <li>✅ Validate all size/length arguments (bounds, max limits).</li>
 <li>✅ Wrap in <code>catch_unwind</code> to prevent panics from crossing FFI boundary.</li>
 <li>✅ Use <code>#[unsafe(no_mangle)]</code> (Edition 2024) and <code>extern "C"</code> for a stable ABI.</li>
-<li>✅ Never panic across the FFI boundary—it’s undefined behavior.</li>
+<li>✅ Never panic across the FFI boundary, it’s undefined behavior.</li>
 </ol>
 <p>When the foreign side is explicitly prepared to receive unwinding, stable Rust also offers <code>extern "C-unwind"</code>:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -471,7 +471,7 @@ fn main() {
 <p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary. Write generated artifacts to <code>OUT_DIR</code> (or another explicit build output path), not a hardcoded <code>target/</code> path that breaks custom target directories and cross-compilation setups.</p>
 <h2 id="104-dangerous-c-patterns"><a class="header" href="#104-dangerous-c-patterns">10.4 Dangerous C Patterns</a></h2>
 <h3 id="1041-longjmp-and-c-exceptions"><a class="header" href="#1041-longjmp-and-c-exceptions">10.4.1 <code>longjmp</code> and C++ Exceptions</a></h3>
-<p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior — it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>
+<p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior: it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">struct ResourceGuard;
@@ -491,7 +491,7 @@ int safe_c_operation(void) {
     if (setjmp(buf) == 0) {
         return c_library_do_jump();  // Normal path
     } else {
-        return -1;  // longjmp was caught — return error to Rust
+        return -1;  // longjmp was caught, return error to Rust
     }
 }
 </code></pre>
@@ -503,8 +503,8 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 </code></pre>
 <p>With <code>panic = "abort"</code>:</p>
 <ul>
-<li>Panics terminate the process immediately — they cannot cross the FFI boundary.</li>
-<li>No unwinding tables — smaller binary, reduced attack surface.</li>
+<li>Panics terminate the process immediately: they cannot cross the FFI boundary.</li>
+<li>No unwinding tables: smaller binary, reduced attack surface.</li>
 <li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
 </ul>
 <p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
@@ -565,7 +565,7 @@ impl CBuffer {
     }
 }
 
-// Do NOT implement Drop to free the memory—C owns it.
+// Do NOT implement Drop to free the memory C owns it.
 // If C expects Rust to free it, use the appropriate C deallocator.
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Golden rule</strong>: Never mix allocators. If C allocates with <code>malloc</code>, free with <code>free</code>. If Rust allocates with <code>Box&lt;[u8]&gt;</code> or <code>Vec</code>, reconstruct the matching Rust type on the free path. Mixing allocators is undefined behavior.</p>
@@ -608,12 +608,12 @@ fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
 <span class="boring">}</span></code></pre>
 <h2 id="107-summary"><a class="header" href="#107-summary">10.7 Summary</a></h2>
 <ul>
-<li>FFI is inherently unsafe—every boundary crossing requires careful validation.</li>
+<li>FFI is inherently unsafe: every boundary crossing requires careful validation.</li>
 <li>Use <code>bindgen</code> to generate bindings instead of writing them manually.</li>
 <li>Always validate inputs before passing to C and outputs from C.</li>
 <li>Use <code>catch_unwind</code> when Rust code is called from C to prevent panics from crossing the boundary.</li>
 <li>Use <code>#[repr(C)]</code> for stable ABI compatibility.</li>
-<li>Never mix allocators—match allocation and deallocation between Rust and C.</li>
+<li>Never mix allocators: match allocation and deallocation between Rust and C.</li>
 <li>Apply C hardening flags to any C code compiled in your project.</li>
 <li>Document ownership semantics clearly at every FFI boundary.</li>
 </ul>

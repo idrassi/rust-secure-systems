@@ -1,10 +1,10 @@
-# Chapter 4 — Type System and Pattern Matching
+# Chapter 4 - Type System and Pattern Matching
 
 > *"Make illegal states unrepresentable."*
 
 Rust's type system is one of its most powerful tools for writing secure code. It combines algebraic data types, exhaustive pattern matching, and a strict stance on implicit conversions to ensure that many classes of bugs simply cannot be expressed. For security developers accustomed to fighting type confusion bugs, integer overflows, and unhandled cases in C/C++ switch statements, Rust's type system is a breath of fresh air.
 
-## 4.1 No Null — Use `Option<T>`
+## 4.1 No Null - Use `Option<T>`
 
 Tony Hoare, the inventor of the null reference, called it his "billion-dollar mistake." In C/C++, any pointer can be null, and dereferencing a null pointer is undefined behavior (CWE-476). Rust eliminates null entirely from the language.
 
@@ -32,7 +32,7 @@ fn main() {
     // You CANNOT use the value without checking
     let user = find_user(100);
     
-    // Pattern matching — compiler ensures you handle both cases
+    // Pattern matching - compiler ensures you handle both cases
     match user {
         Some(name) => println!("Found: {}", name),
         None => println!("User not found"),
@@ -52,7 +52,7 @@ fn main() {
 
 ⚠️ **Caveat**: `.unwrap()` and `.expect()` will panic if called on `None`. In security-critical code, avoid these and handle the `None` case explicitly.
 
-## 4.2 No Exceptions — Use `Result<T, E>`
+## 4.2 No Exceptions - Use `Result<T, E>`
 
 Rust does not have exceptions. Instead, recoverable errors are represented by `Result<T, E>`:
 
@@ -153,7 +153,7 @@ fn check_permission(perm: Permission) -> bool {
 
 🔒 **Security impact**: When you add a new variant to an enum, the compiler will flag every `match` that doesn't handle it. This prevents the "forgotten case" bug class, which in C switch statements can silently fall through or be mishandled.
 
-### 4.3.2 `#[non_exhaustive]` — Future-Proofing Enums
+### 4.3.2 `#[non_exhaustive]` - Future-Proofing Enums
 
 When defining public enums in a library, mark them `#[non_exhaustive]` to force downstream consumers to handle future variants:
 
@@ -311,7 +311,7 @@ mod auth {
 
 Outside `auth`, callers can pass `Session<Admin>` and `Capability<RotateKeys>` to privileged functions, but they cannot forge those values with a struct literal because the fields and constructors stay inside the policy-enforcing module.
 
-## 4.5 Traits — Defining Shared Behavior
+## 4.5 Traits - Defining Shared Behavior
 
 Traits are Rust's answer to interfaces:
 
@@ -350,7 +350,7 @@ struct SharedState {
 
 🔒 **Security impact**: The `Send` and `Sync` traits prevent data races at compile time. If a type contains a non-thread-safe component (like `Rc<T>`), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.
 
-### The `From`/`Into` Traits — Safe Conversions
+### The `From`/`Into` Traits - Safe Conversions
 
 ```rust
 struct Port(u16);

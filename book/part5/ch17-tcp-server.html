@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 17 — Building a Hardened TCP Server - Rust for Secure Systems Programming</title>
+        <title>Chapter 17 - Building a Hardened TCP Server - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,7 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-17--building-a-hardened-tcp-server"><a class="header" href="#chapter-17--building-a-hardened-tcp-server">Chapter 17 — Building a Hardened TCP Server</a></h1>
+                        <h1 id="chapter-17---building-a-hardened-tcp-server"><a class="header" href="#chapter-17---building-a-hardened-tcp-server">Chapter 17 - Building a Hardened TCP Server</a></h1>
 <blockquote>
 <p><em>“Theory without practice is empty. Practice without theory is blind.”</em></p>
 </blockquote>
@@ -665,7 +665,7 @@ impl ConnectionHandler {
                         msg
                     },
                     Err(ProtocolError::IncompleteHeader) | Err(ProtocolError::IncompleteMessage { .. }) =&gt; {
-                    // Need more data — keep reading
+                    // Need more data - keep reading
                     break;
                     }
                     Err(e) =&gt; {
@@ -914,7 +914,7 @@ mod tests {
 <li><strong>No unsafe code</strong>: The entire server is safe Rust</li>
 <li><strong>Comprehensive testing</strong>: Unit tests and property tests around the protocol layer</li>
 </ol>
-<p>In the next chapter, we build a secure binary parser—another common security-critical component.</p>
+<p>In the next chapter, we build a secure binary parser: another common security-critical component.</p>
 <blockquote>
 <p><strong>Note</strong>: This server uses the <code>log</code> crate for simplicity. See §19.4.1 for a drop-in path to replace <code>log</code>/<code>env_logger</code> with <code>tracing</code> once you need structured JSON logs, request spans, or SIEM-friendly fields.</p>
 </blockquote>

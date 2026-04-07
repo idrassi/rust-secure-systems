@@ -1,8 +1,8 @@
-# Chapter 8 — Cryptography and Secrets Management
+# Chapter 8 - Cryptography and Secrets Management
 
 > *"Don't roll your own crypto. But if you must, know exactly what you're doing."*
 
-Cryptography is the backbone of secure systems—authentication, encryption, integrity, and key management all depend on it. For security developers, the challenge isn't usually inventing new algorithms; it's using existing ones correctly. Rust's ecosystem provides excellent cryptographic libraries, and the language's safety guarantees eliminate many of the pitfalls that lead to vulnerabilities in C implementations (buffer overflows in crypto code, timing side channels from branches on secret data, etc.).
+Cryptography is the backbone of secure systems: authentication, encryption, integrity, and key management all depend on it. For security developers, the challenge isn't usually inventing new algorithms; it's using existing ones correctly. Rust's ecosystem provides excellent cryptographic libraries, and the language's safety guarantees eliminate many of the pitfalls that lead to vulnerabilities in C implementations (buffer overflows in crypto code, timing side channels from branches on secret data, etc.).
 
 ## 8.1 Choosing Cryptographic Libraries
 
@@ -297,7 +297,7 @@ fn verify_password(password: &str, hash: &str) -> bool {
 
 ### Ed25519 Signatures
 
-Ed25519 is the recommended signature scheme for most applications — it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:
+Ed25519 is the recommended signature scheme for most applications: it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:
 
 ```toml
 [dependencies]
@@ -369,7 +369,7 @@ fn key_exchange_pipeline() {
     let bob_private = agreement::EphemeralPrivateKey::generate(&X25519, &rng).unwrap();
     let bob_public = bob_private.compute_public_key().unwrap();
     
-    // 2. Key agreement — both parties derive the same shared secret
+    // 2. Key agreement - both parties derive the same shared secret
     let alice_shared = agreement::agree_ephemeral(
         alice_private,
         &UnparsedPublicKey::new(&X25519, bob_public.as_ref()),
@@ -398,7 +398,7 @@ fn key_exchange_pipeline() {
 
 🔒 **Key exchange security**:
 - Always use **ephemeral** key pairs (generate fresh per session) for forward secrecy.
-- Use HKDF to derive encryption keys — never use the raw shared secret directly.
+- Use HKDF to derive encryption keys: never use the raw shared secret directly.
 - Include context info in HKDF expansion (e.g., `b"encryption-key"`, `b"mac-key"`) to derive different keys for different purposes.
 
 ### 8.5.1 Key Rotation and Key Lifetimes
@@ -426,9 +426,9 @@ NIST approved its first post-quantum FIPS standards on August 13, 2024: ML-KEM f
 
 ## 8.6 Secrets Management
 
-### 8.6.1 The `zeroize` Crate — Secure Memory Wiping
+### 8.6.1 The `zeroize` Crate - Secure Memory Wiping
 
-Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default—variables on the stack or heap may persist until the memory is reused.
+Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default: variables on the stack or heap may persist until the memory is reused.
 
 ```toml
 [dependencies]
@@ -471,7 +471,7 @@ Cancellation in async code does not change this guarantee. As discussed in Chapt
 
 One important caveat is shared ownership. If a secret is wrapped in `Arc<T>`, aborting one task only drops that task's clone. The secret is zeroized when the **last** strong reference disappears, not when any individual task is cancelled. Avoid long-lived `Arc` clones of raw secret material unless you are deliberately managing every copy's lifetime.
 
-### 8.6.2 The `secrecy` Crate — Encapsulating Secrets
+### 8.6.2 The `secrecy` Crate - Encapsulating Secrets
 
 ```toml
 [dependencies]
@@ -590,7 +590,7 @@ fn generate_api_token() -> String {
 }
 ```
 
-⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. In `rand` 0.8, `thread_rng()` is also backed by a CSPRNG, but `SystemRandom` makes the security intent clearer and keeps key generation tied directly to the operating system RNG.
+⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In `rand` 0.8, `thread_rng()` is also backed by a CSPRNG, but `SystemRandom` makes the security intent clearer and keeps key generation tied directly to the operating system RNG.
 
 ## 8.8 TLS with rustls
 
@@ -665,7 +665,7 @@ If you need JWT ecosystem interoperability, crates such as `jsonwebtoken` are co
 
 ## 8.10 Summary
 
-- Use `ring` or well-audited RustCrypto crates—never implement crypto primitives yourself.
+- Use `ring` or well-audited RustCrypto crates: never implement crypto primitives yourself.
 - Always use **authenticated encryption** (AES-GCM, ChaCha20-Poly1305).
 - Use AAD to authenticate unencrypted headers and protocol metadata.
 - **Never reuse nonces** with the same key for AEAD ciphers.
@@ -682,7 +682,7 @@ If you need JWT ecosystem interoperability, crates such as `jsonwebtoken` are co
 - Treat token verification as cryptography plus policy: pin algorithms, verify signatures, and validate claims.
 - Use `SystemRandom` for all cryptographic random number generation.
 
-In the next chapter, we enter the world of `unsafe` Rust—where the compiler's safety guarantees are manually maintained.
+In the next chapter, we enter the world of `unsafe` Rustwhere the compiler's safety guarantees are manually maintained.
 
 ## 8.11 Exercises
 

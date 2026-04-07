@@ -1,8 +1,8 @@
-# Chapter 15 — Static Analysis and Auditing
+# Chapter 15 - Static Analysis and Auditing
 
 > *"The compiler is your first auditor. Make it work harder."*
 
-Static analysis examines code without executing it, finding potential vulnerabilities through pattern matching, data flow analysis, and formal methods. Rust's compiler already performs more static analysis than C compilers, but additional tools can catch subtler issues—especially in `unsafe` code and dependency management.
+Static analysis examines code without executing it, finding potential vulnerabilities through pattern matching, data flow analysis, and formal methods. Rust's compiler already performs more static analysis than C compilers, but additional tools can catch subtler issues, especially in `unsafe` code and dependency management.
 
 ## 15.1 Compiler Warnings as Security Tools
 
@@ -17,7 +17,7 @@ rustflags = [
     "-D", "unused",                      # Unused code = dead code = potential confusion
 ]
 
-# Note: Clippy lints cannot be set via rustflags — they only work with `cargo clippy`.
+# Note: Clippy lints cannot be set via rustflags, they only work with `cargo clippy`.
 # Use a CI step or Makefile target instead:
 #   cargo clippy -- -W clippy::all -W clippy::pedantic
 ```
@@ -163,7 +163,7 @@ cargo audit --json > audit.json
 
 Parse the JSON in your pipeline if you need to gate on specific severities, archive reviewed exceptions with the rest of the build artifacts, or convert findings into SARIF for GitHub Code Scanning and similar dashboards.
 
-### 15.3.2 `cargo geiger` — Counting Unsafe Code
+### 15.3.2 `cargo geiger` - Counting Unsafe Code
 
 ```bash
 cargo install cargo-geiger --version 0.13.0 --locked
@@ -191,7 +191,7 @@ Functions  Expressions  Impls  Traits  Methods  Dependency
 
 ⚠️ **Tooling note**: `cargo-geiger` is useful, but it can lag the newest compiler releases. Pin the version you rely on in CI and keep a manual fallback such as `rg -n "\\bunsafe\\b"` for quick inventory work.
 
-### 15.3.3 `cargo crev` — Community Code Review
+### 15.3.3 `cargo crev` - Community Code Review
 
 ```bash
 cargo install cargo-crev --version 0.26.5 --locked
@@ -204,7 +204,7 @@ cargo crev verify
 - Review crates yourself and publish findings
 - Configure trust requirements for your project
 
-### 15.3.4 `cargo vet` — Supply Chain Auditing
+### 15.3.4 `cargo vet` - Supply Chain Auditing
 
 ```bash
 cargo install cargo-vet --version 0.10.2 --locked
@@ -225,7 +225,7 @@ notes = "Reviewed for memory safety, no unsafe code, constant-time operations ve
 
 ## 15.4 Additional Audit Tooling
 
-### 15.4.1 `cargo-careful` — Extra Runtime Checking
+### 15.4.1 `cargo-careful` - Extra Runtime Checking
 
 `cargo-careful` complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.
 
@@ -443,7 +443,7 @@ Creusot is another option in this space when you want Rust-oriented deductive ve
 - Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.
 - Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.
 
-In the next chapter, we cover supply chain security—protecting your build pipeline from tampering and compromise.
+In the next chapter, we cover supply chain security: protecting your build pipeline from tampering and compromise.
 
 ## 15.8 Exercises
 

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 5 — Error Handling Without Exceptions - Rust for Secure Systems Programming</title>
+        <title>Chapter 5 - Error Handling Without Exceptions - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,11 +181,11 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-5--error-handling-without-exceptions"><a class="header" href="#chapter-5--error-handling-without-exceptions">Chapter 5 — Error Handling Without Exceptions</a></h1>
+                        <h1 id="chapter-5---error-handling-without-exceptions"><a class="header" href="#chapter-5---error-handling-without-exceptions">Chapter 5 - Error Handling Without Exceptions</a></h1>
 <blockquote>
 <p><em>“Errors are not exceptional. They are a normal part of system operation.”</em></p>
 </blockquote>
-<p>Rust’s approach to error handling is fundamentally different from C’s return codes, C++’s exceptions, and Go’s multiple return values. It leverages the type system to make error handling <strong>explicit</strong>, <strong>type-safe</strong>, and <strong>impossible to forget</strong>. For security developers, this matters because unhandled or improperly handled errors are a leading cause of vulnerabilities—from ignoring return values to catching the wrong exception type.</p>
+<p>Rust’s approach to error handling is fundamentally different from C’s return codes, C++’s exceptions, and Go’s multiple return values. It leverages the type system to make error handling <strong>explicit</strong>, <strong>type-safe</strong>, and <strong>impossible to forget</strong>. For security developers, this matters because unhandled or improperly handled errors are a leading cause of vulnerabilities, from ignoring return values to catching the wrong exception type.</p>
 <h2 id="51-the-error-handling-landscape"><a class="header" href="#51-the-error-handling-landscape">5.1 The Error Handling Landscape</a></h2>
 <div class="table-wrapper">
 <table>
@@ -193,11 +193,11 @@
 <tr><th>Language</th><th>Mechanism</th><th>Can You Forget to Handle?</th></tr>
 </thead>
 <tbody>
-<tr><td>C</td><td>Return codes, <code>errno</code></td><td>✅ Yes — very common</td></tr>
-<tr><td>C++</td><td>Exceptions</td><td>✅ Yes — catch may miss types</td></tr>
+<tr><td>C</td><td>Return codes, <code>errno</code></td><td>✅ Yes, very common</td></tr>
+<tr><td>C++</td><td>Exceptions</td><td>✅ Yes, catch may miss types</td></tr>
 <tr><td>Go</td><td>Multiple return values</td><td>⚠️ Possible (but <code>err</code> is visible)</td></tr>
 <tr><td>Java</td><td>Checked exceptions</td><td>⚠️ Partially enforced</td></tr>
-<tr><td>Rust</td><td><code>Result&lt;T, E&gt;</code> + <code>?</code></td><td>❌ No — compiler enforces handling</td></tr>
+<tr><td>Rust</td><td><code>Result&lt;T, E&gt;</code> + <code>?</code></td><td>❌ No, compiler enforces handling</td></tr>
 </tbody>
 </table>
 </div>
@@ -354,7 +354,7 @@ impl std::error::Error for SecurityError {}
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Never include sensitive data (passwords, tokens, raw keys) in error messages. Error strings may be logged, displayed, or leaked to attackers. Note in the example above, <code>username</code> is logged but passwords are never included.</p>
 <h2 id="54-the-thiserror-and-anyhow-crates"><a class="header" href="#54-the-thiserror-and-anyhow-crates">5.4 The <code>thiserror</code> and <code>anyhow</code> Crates</a></h2>
-<h3 id="thiserror--derive-error-for-libraries"><a class="header" href="#thiserror--derive-error-for-libraries"><code>thiserror</code> — Derive Error for Libraries</a></h3>
+<h3 id="thiserror---derive-error-for-libraries"><a class="header" href="#thiserror---derive-error-for-libraries"><code>thiserror</code> - Derive Error for Libraries</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book as thiserror;
@@ -370,14 +370,14 @@ pub enum TlsError {
     CertificateInvalid(String),
 
     #[error("MAC verification failed")]
-    MacVerificationFailed,  // No details leaked—intentional for crypto errors
+    MacVerificationFailed,  // No details leaked, intentional for crypto errors
 
     #[error("IO error")]
     Io(#[from] std::io::Error),
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Crypto error best practice</strong>: Cryptographic errors should be <strong>generic</strong>. Do not distinguish between “invalid padding” and “invalid MAC” in error messages visible to the caller. This prevents oracle attacks (e.g., padding oracle, MAC oracle).</p>
-<h3 id="anyhow--flexible-errors-for-applications"><a class="header" href="#anyhow--flexible-errors-for-applications"><code>anyhow</code> — Flexible Errors for Applications</a></h3>
+<h3 id="anyhow---flexible-errors-for-applications"><a class="header" href="#anyhow---flexible-errors-for-applications"><code>anyhow</code> - Flexible Errors for Applications</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
@@ -412,7 +412,7 @@ fn load_key(path: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
 </span>fn decode_port(input: &amp;str) -&gt; Result&lt;u16, std::num::ParseIntError&gt; {
     // This is an expected failure → use Result
     // BAD: input.parse::&lt;u16&gt;().unwrap()
-    // STILL BAD: input.parse::&lt;u16&gt;().expect("invalid port") — still panics!
+    // STILL BAD: input.parse::&lt;u16&gt;().expect("invalid port"), still panics!
     // BEST: return Result
     input.parse()
 }
@@ -660,7 +660,7 @@ fn handle_request(req: Request) -&gt; Response {
 <li>Never use <code>unwrap()</code> in security-critical code paths.</li>
 <li>Sanitize error messages before exposing them externally.</li>
 </ul>
-<p>In the next chapter, we explore Rust’s concurrency model—how the ownership system extends to prevent data races and how to write concurrent code that is safe by construction.</p>
+<p>In the next chapter, we explore Rust’s concurrency model: how the ownership system extends to prevent data races and how to write concurrent code that is safe by construction.</p>
 <h2 id="58-exercises"><a class="header" href="#58-exercises">5.8 Exercises</a></h2>
 <ol>
 <li>

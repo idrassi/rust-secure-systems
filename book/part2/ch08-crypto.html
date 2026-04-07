@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 8 — Cryptography and Secrets Management - Rust for Secure Systems Programming</title>
+        <title>Chapter 8 - Cryptography and Secrets Management - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,11 +181,11 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-8--cryptography-and-secrets-management"><a class="header" href="#chapter-8--cryptography-and-secrets-management">Chapter 8 — Cryptography and Secrets Management</a></h1>
+                        <h1 id="chapter-8---cryptography-and-secrets-management"><a class="header" href="#chapter-8---cryptography-and-secrets-management">Chapter 8 - Cryptography and Secrets Management</a></h1>
 <blockquote>
 <p><em>“Don’t roll your own crypto. But if you must, know exactly what you’re doing.”</em></p>
 </blockquote>
-<p>Cryptography is the backbone of secure systems—authentication, encryption, integrity, and key management all depend on it. For security developers, the challenge isn’t usually inventing new algorithms; it’s using existing ones correctly. Rust’s ecosystem provides excellent cryptographic libraries, and the language’s safety guarantees eliminate many of the pitfalls that lead to vulnerabilities in C implementations (buffer overflows in crypto code, timing side channels from branches on secret data, etc.).</p>
+<p>Cryptography is the backbone of secure systems: authentication, encryption, integrity, and key management all depend on it. For security developers, the challenge isn’t usually inventing new algorithms; it’s using existing ones correctly. Rust’s ecosystem provides excellent cryptographic libraries, and the language’s safety guarantees eliminate many of the pitfalls that lead to vulnerabilities in C implementations (buffer overflows in crypto code, timing side channels from branches on secret data, etc.).</p>
 <h2 id="81-choosing-cryptographic-libraries"><a class="header" href="#81-choosing-cryptographic-libraries">8.1 Choosing Cryptographic Libraries</a></h2>
 <h3 id="811-the-ring-crate"><a class="header" href="#811-the-ring-crate">8.1.1 The <code>ring</code> Crate</a></h3>
 <p><code>ring</code> is the most widely used cryptographic library in Rust. It is a fork of BoringSSL’s crypto internals, providing:</p>
@@ -448,7 +448,7 @@ fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
 <p>⚠️ <strong>Legacy migration note</strong>: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.</p>
 <h2 id="84-digital-signatures"><a class="header" href="#84-digital-signatures">8.4 Digital Signatures</a></h2>
 <h3 id="ed25519-signatures"><a class="header" href="#ed25519-signatures">Ed25519 Signatures</a></h3>
-<p>Ed25519 is the recommended signature scheme for most applications — it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
+<p>Ed25519 is the recommended signature scheme for most applications: it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
 <pre><code class="language-toml">[dependencies]
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
 rand = "0.8"
@@ -514,7 +514,7 @@ fn key_exchange_pipeline() {
     let bob_private = agreement::EphemeralPrivateKey::generate(&amp;X25519, &amp;rng).unwrap();
     let bob_public = bob_private.compute_public_key().unwrap();
     
-    // 2. Key agreement — both parties derive the same shared secret
+    // 2. Key agreement - both parties derive the same shared secret
     let alice_shared = agreement::agree_ephemeral(
         alice_private,
         &amp;UnparsedPublicKey::new(&amp;X25519, bob_public.as_ref()),
@@ -543,7 +543,7 @@ fn key_exchange_pipeline() {
 <p>🔒 <strong>Key exchange security</strong>:</p>
 <ul>
 <li>Always use <strong>ephemeral</strong> key pairs (generate fresh per session) for forward secrecy.</li>
-<li>Use HKDF to derive encryption keys — never use the raw shared secret directly.</li>
+<li>Use HKDF to derive encryption keys: never use the raw shared secret directly.</li>
 <li>Include context info in HKDF expansion (e.g., <code>b"encryption-key"</code>, <code>b"mac-key"</code>) to derive different keys for different purposes.</li>
 </ul>
 <h3 id="851-key-rotation-and-key-lifetimes"><a class="header" href="#851-key-rotation-and-key-lifetimes">8.5.1 Key Rotation and Key Lifetimes</a></h3>
@@ -566,8 +566,8 @@ fn key_exchange_pipeline() {
 </ul>
 <p>⚠️ <strong>Migration rule</strong>: Prefer hybrid and crypto-agile designs during transition periods. Do not invent your own KEM combiner or signature format.</p>
 <h2 id="86-secrets-management"><a class="header" href="#86-secrets-management">8.6 Secrets Management</a></h2>
-<h3 id="861-the-zeroize-crate--secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate--secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate — Secure Memory Wiping</a></h3>
-<p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default—variables on the stack or heap may persist until the memory is reused.</p>
+<h3 id="861-the-zeroize-crate---secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate---secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate - Secure Memory Wiping</a></h3>
+<p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default: variables on the stack or heap may persist until the memory is reused.</p>
 <pre><code class="language-toml">[dependencies]
 zeroize = { version = "1", features = ["derive"] }
 </code></pre>
@@ -601,7 +601,7 @@ fn use_key() {
 <p>⚠️ <strong>Deserialize caveat</strong>: If a secret-bearing type also implements <code>serde::Deserialize</code>, every successful parse creates another live secret instance. Treat deserialization boundaries the same way you treat <code>Clone</code>: minimize copies and ensure each instance is dropped on its own lifecycle.</p>
 <p>Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so <code>ZeroizeOnDrop</code> fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as <code>mem::forget</code>, or reference cycles that prevent <code>Drop</code> from ever running.</p>
 <p>One important caveat is shared ownership. If a secret is wrapped in <code>Arc&lt;T&gt;</code>, aborting one task only drops that task’s clone. The secret is zeroized when the <strong>last</strong> strong reference disappears, not when any individual task is cancelled. Avoid long-lived <code>Arc</code> clones of raw secret material unless you are deliberately managing every copy’s lifetime.</p>
-<h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
+<h3 id="862-the-secrecy-crate---encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate---encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate - Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
 </code></pre>
@@ -702,7 +702,7 @@ fn generate_api_token() -&gt; String {
     hex::encode(bytes)
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
+<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
 <h2 id="88-tls-with-rustls"><a class="header" href="#88-tls-with-rustls">8.8 TLS with rustls</a></h2>
 <p>For secure network communication, use <code>rustls</code> instead of OpenSSL:</p>
 <pre><code class="language-toml">[dependencies]
@@ -772,7 +772,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 </div>
 <h2 id="810-summary"><a class="header" href="#810-summary">8.10 Summary</a></h2>
 <ul>
-<li>Use <code>ring</code> or well-audited RustCrypto crates—never implement crypto primitives yourself.</li>
+<li>Use <code>ring</code> or well-audited RustCrypto crates: never implement crypto primitives yourself.</li>
 <li>Always use <strong>authenticated encryption</strong> (AES-GCM, ChaCha20-Poly1305).</li>
 <li>Use AAD to authenticate unencrypted headers and protocol metadata.</li>
 <li><strong>Never reuse nonces</strong> with the same key for AEAD ciphers.</li>
@@ -789,7 +789,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <li>Treat token verification as cryptography plus policy: pin algorithms, verify signatures, and validate claims.</li>
 <li>Use <code>SystemRandom</code> for all cryptographic random number generation.</li>
 </ul>
-<p>In the next chapter, we enter the world of <code>unsafe</code> Rust—where the compiler’s safety guarantees are manually maintained.</p>
+<p>In the next chapter, we enter the world of <code>unsafe</code> Rustwhere the compiler’s safety guarantees are manually maintained.</p>
 <h2 id="811-exercises"><a class="header" href="#811-exercises">8.11 Exercises</a></h2>
 <ol>
 <li>

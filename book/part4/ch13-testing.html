@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 13 — Testing Strategies for Secure Code - Rust for Secure Systems Programming</title>
+        <title>Chapter 13 - Testing Strategies for Secure Code - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,11 +181,11 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-13--testing-strategies-for-secure-code"><a class="header" href="#chapter-13--testing-strategies-for-secure-code">Chapter 13 — Testing Strategies for Secure Code</a></h1>
+                        <h1 id="chapter-13---testing-strategies-for-secure-code"><a class="header" href="#chapter-13---testing-strategies-for-secure-code">Chapter 13 - Testing Strategies for Secure Code</a></h1>
 <blockquote>
-<p><em>“Program testing can be used to show the presence of bugs, but never to show their absence.”</em> — Edsger W. Dijkstra</p>
+<p><em>“Program testing can be used to show the presence of bugs, but never to show their absence.”</em> Edsger W. Dijkstra</p>
 </blockquote>
-<p>Testing security-critical code requires a different mindset than testing functionality. You’re not just verifying that the code works correctly for valid inputs—you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.</p>
+<p>Testing security-critical code requires a different mindset than testing functionality. You’re not just verifying that the code works correctly for valid inputs: you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.</p>
 <h2 id="131-rust-testing-fundamentals"><a class="header" href="#131-rust-testing-fundamentals">13.1 Rust Testing Fundamentals</a></h2>
 <h3 id="1311-unit-tests"><a class="header" href="#1311-unit-tests">13.1.1 Unit Tests</a></h3>
 <p>Rust has built-in test support:</p>
@@ -344,7 +344,7 @@ mod boundary_tests {
         assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), Some(u64::MAX));
     }
 }</code></pre>
-<h3 id="1322-negative-testing--testing-failure-modes"><a class="header" href="#1322-negative-testing--testing-failure-modes">13.2.2 Negative Testing — Testing Failure Modes</a></h3>
+<h3 id="1322-negative-testing---testing-failure-modes"><a class="header" href="#1322-negative-testing---testing-failure-modes">13.2.2 Negative Testing - Testing Failure Modes</a></h3>
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod negative_tests {
     use super::*;
@@ -553,7 +553,7 @@ mod unsafe_tests {
         assert!(result.is_err());
     }
 }</code></pre>
-<h2 id="135-doc-tests--testable-documentation"><a class="header" href="#135-doc-tests--testable-documentation">13.5 Doc Tests — Testable Documentation</a></h2>
+<h2 id="135-doc-tests---testable-documentation"><a class="header" href="#135-doc-tests---testable-documentation">13.5 Doc Tests - Testable Documentation</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>/// Validates that a username contains only alphanumeric characters and underscores.
@@ -665,7 +665,7 @@ cargo mutants --workspace --all-features
 <li>Use <code>cargo-llvm-cov</code> to find untested validation and error-handling paths.</li>
 <li>Use <code>cargo-mutants</code> to check whether tests actually fail when critical logic is changed.</li>
 </ul>
-<p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn’t think to test for.</p>
+<p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing: automated techniques for finding bugs you didn’t think to test for.</p>
 <h2 id="138-exercises"><a class="header" href="#138-exercises">13.8 Exercises</a></h2>
 <ol>
 <li>

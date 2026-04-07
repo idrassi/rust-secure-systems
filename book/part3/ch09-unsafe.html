@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 9 — Unsafe Rust: When and How - Rust for Secure Systems Programming</title>
+        <title>Chapter 9 - Unsafe Rust: When and How - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,9 +181,9 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-9--unsafe-rust-when-and-how"><a class="header" href="#chapter-9--unsafe-rust-when-and-how">Chapter 9 — Unsafe Rust: When and How</a></h1>
+                        <h1 id="chapter-9---unsafe-rust-when-and-how"><a class="header" href="#chapter-9---unsafe-rust-when-and-how">Chapter 9 - Unsafe Rust: When and How</a></h1>
 <blockquote>
-<p><em>“With great power comes great responsibility—and a lot of code review.”</em></p>
+<p><em>“With great power comes great responsibility, and a lot of code review.”</em></p>
 </blockquote>
 <p>Unsafe Rust is the escape hatch that allows you to bypass the compiler’s safety checks. It exists because there are things the compiler cannot verify: interfacing with C libraries, implementing low-level data structures, hardware access, and performance-critical optimizations that require raw pointer manipulation.</p>
 <p>For security developers, <code>unsafe</code> is the most critical area of Rust code. Every unsafe block is a potential source of memory corruption, and must be audited with the same rigor you’d apply to C code.</p>
@@ -199,7 +199,7 @@
 <p>⚠️ <strong>What <code>unsafe</code> does NOT disable</strong>: The borrow checker still operates. <code>unsafe</code> does not turn off the type system, lifetimes, or other compile-time checks. It only allows the five operations listed above.</p>
 <h2 id="92-the-safety-invariant"><a class="header" href="#92-the-safety-invariant">9.2 The Safety Invariant</a></h2>
 <p>Every <code>unsafe</code> block comes with an implicit contract: <strong>you must ensure that safe code cannot cause undefined behavior through your unsafe code.</strong></p>
-<p>This is the “soundness” property: safe Rust code can never cause undefined behavior, even if it tries. If safe code <em>can</em> cause UB through your unsafe abstraction, your code is <strong>unsound</strong>—and that’s a bug.</p>
+<p>This is the “soundness” property: safe Rust code can never cause undefined behavior, even if it tries. If safe code <em>can</em> cause UB through your unsafe abstraction, your code is <strong>unsound</strong> and that’s a bug.</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// UNSOUND: safe code can cause UB
@@ -423,7 +423,7 @@ impl SecretBox {
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Pitfall</strong>: Pointer arithmetic can go out of bounds. Rust does not check pointer arithmetic at runtime. You must validate bounds yourself.</p>
-<h3 id="942-transmute--type-punning"><a class="header" href="#942-transmute--type-punning">9.4.2 Transmute — Type Punning</a></h3>
+<h3 id="942-transmute---type-punning"><a class="header" href="#942-transmute---type-punning">9.4.2 Transmute - Type Punning</a></h3>
 <p><code>std::mem::transmute</code> reinterprets bytes as a different type. It is extremely dangerous:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -485,12 +485,12 @@ unsafe impl&lt;T: Send&gt; Send for SharedRawBuf&lt;T&gt; {}
 unsafe impl&lt;T: Send&gt; Sync for SharedRawBuf&lt;T&gt; {}
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Pitfall</strong>: Implementing <code>Send</code> for a type that is not thread-safe (e.g., contains <code>Rc&lt;T&gt;</code> or <code>Cell&lt;T&gt;</code>) will cause data races. Always verify that all internal state is properly synchronized before implementing these traits.</p>
-<p>🔒 <strong>Security practice</strong>: Only implement <code>Send</code>/<code>Sync</code> when the type’s internal synchronization guarantees thread safety. If unsure, do not implement them — the compiler’s auto-derivation is conservative and correct by default.</p>
+<p>🔒 <strong>Security practice</strong>: Only implement <code>Send</code>/<code>Sync</code> when the type’s internal synchronization guarantees thread safety. If unsure, do not implement them: the compiler’s auto-derivation is conservative and correct by default.</p>
 <h3 id="946-forbidding-unsafe-in-safe-code"><a class="header" href="#946-forbidding-unsafe-in-safe-code">9.4.6 Forbidding <code>unsafe</code> in Safe Code</a></h3>
 <p>For security-critical projects, you can use lints to control where <code>unsafe</code> is allowed:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// In lib.rs or main.rs — disallow unsafe code entirely
+</span>// In lib.rs or main.rs - disallow unsafe code entirely
 #![forbid(unsafe_code)]
 <span class="boring">}</span></code></pre>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -627,7 +627,7 @@ fn test_atomic_counter() {
 </span>// Prusti uses the `prusti-contracts` crate for specifications
 // Currently requires a custom toolchain; see https://github.com/viperproject/prusti-dev
 
-// Example (conceptual — requires Prusti toolchain):
+// Example (conceptual, requires Prusti toolchain):
 // #[requires(x &gt;= 0)]
 // #[ensures(result &gt;= 0)]
 // fn safe_sqrt(x: i32) -&gt; i32 {
@@ -649,7 +649,7 @@ fn test_atomic_counter() {
 <li>Audit all unsafe code with the checklist.</li>
 <li>Use Miri to detect undefined behavior in tests.</li>
 </ul>
-<p>In the next chapter, we explore the Foreign Function Interface—calling C code from Rust and vice versa, which is inherently unsafe and requires careful security consideration.</p>
+<p>In the next chapter, we explore the Foreign Function Interface: calling C code from Rust and vice versa, which is inherently unsafe and requires careful security consideration.</p>
 <h2 id="97-exercises"><a class="header" href="#97-exercises">9.7 Exercises</a></h2>
 <ol>
 <li>

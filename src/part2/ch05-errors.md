@@ -1,18 +1,18 @@
-# Chapter 5 — Error Handling Without Exceptions
+# Chapter 5 - Error Handling Without Exceptions
 
 > *"Errors are not exceptional. They are a normal part of system operation."*
 
-Rust's approach to error handling is fundamentally different from C's return codes, C++'s exceptions, and Go's multiple return values. It leverages the type system to make error handling **explicit**, **type-safe**, and **impossible to forget**. For security developers, this matters because unhandled or improperly handled errors are a leading cause of vulnerabilities—from ignoring return values to catching the wrong exception type.
+Rust's approach to error handling is fundamentally different from C's return codes, C++'s exceptions, and Go's multiple return values. It leverages the type system to make error handling **explicit**, **type-safe**, and **impossible to forget**. For security developers, this matters because unhandled or improperly handled errors are a leading cause of vulnerabilities, from ignoring return values to catching the wrong exception type.
 
 ## 5.1 The Error Handling Landscape
 
 | Language | Mechanism | Can You Forget to Handle? |
 |----------|-----------|--------------------------|
-| C | Return codes, `errno` | ✅ Yes — very common |
-| C++ | Exceptions | ✅ Yes — catch may miss types |
+| C | Return codes, `errno` | ✅ Yes, very common |
+| C++ | Exceptions | ✅ Yes, catch may miss types |
 | Go | Multiple return values | ⚠️ Possible (but `err` is visible) |
 | Java | Checked exceptions | ⚠️ Partially enforced |
-| Rust | `Result<T, E>` + `?` | ❌ No — compiler enforces handling |
+| Rust | `Result<T, E>` + `?` | ❌ No, compiler enforces handling |
 
 ## 5.2 `Result<T, E>` in Depth
 
@@ -179,7 +179,7 @@ impl std::error::Error for SecurityError {}
 
 ## 5.4 The `thiserror` and `anyhow` Crates
 
-### `thiserror` — Derive Error for Libraries
+### `thiserror` - Derive Error for Libraries
 
 ```rust,no_run
 # extern crate rust_secure_systems_book as thiserror;
@@ -195,7 +195,7 @@ pub enum TlsError {
     CertificateInvalid(String),
 
     #[error("MAC verification failed")]
-    MacVerificationFailed,  // No details leaked—intentional for crypto errors
+    MacVerificationFailed,  // No details leaked, intentional for crypto errors
 
     #[error("IO error")]
     Io(#[from] std::io::Error),
@@ -204,7 +204,7 @@ pub enum TlsError {
 
 🔒 **Crypto error best practice**: Cryptographic errors should be **generic**. Do not distinguish between "invalid padding" and "invalid MAC" in error messages visible to the caller. This prevents oracle attacks (e.g., padding oracle, MAC oracle).
 
-### `anyhow` — Flexible Errors for Applications
+### `anyhow` - Flexible Errors for Applications
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
@@ -238,7 +238,7 @@ In security-critical code, panic only for **bugs**, not for expected failure mod
 fn decode_port(input: &str) -> Result<u16, std::num::ParseIntError> {
     // This is an expected failure → use Result
     // BAD: input.parse::<u16>().unwrap()
-    // STILL BAD: input.parse::<u16>().expect("invalid port") — still panics!
+    // STILL BAD: input.parse::<u16>().expect("invalid port"), still panics!
     // BEST: return Result
     input.parse()
 }
@@ -497,7 +497,7 @@ fn handle_request(req: Request) -> Response {
 - Never use `unwrap()` in security-critical code paths.
 - Sanitize error messages before exposing them externally.
 
-In the next chapter, we explore Rust's concurrency model—how the ownership system extends to prevent data races and how to write concurrent code that is safe by construction.
+In the next chapter, we explore Rust's concurrency model: how the ownership system extends to prevent data races and how to write concurrent code that is safe by construction.
 
 ## 5.8 Exercises
 

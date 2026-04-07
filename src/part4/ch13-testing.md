@@ -1,8 +1,8 @@
-# Chapter 13 — Testing Strategies for Secure Code
+# Chapter 13 - Testing Strategies for Secure Code
 
-> *"Program testing can be used to show the presence of bugs, but never to show their absence."* — Edsger W. Dijkstra
+> *"Program testing can be used to show the presence of bugs, but never to show their absence."* Edsger W. Dijkstra
 
-Testing security-critical code requires a different mindset than testing functionality. You're not just verifying that the code works correctly for valid inputs—you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.
+Testing security-critical code requires a different mindset than testing functionality. You're not just verifying that the code works correctly for valid inputs: you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.
 
 ## 13.1 Rust Testing Fundamentals
 
@@ -179,7 +179,7 @@ mod boundary_tests {
 }
 ```
 
-### 13.2.2 Negative Testing — Testing Failure Modes
+### 13.2.2 Negative Testing - Testing Failure Modes
 
 ```rust,ignore
 #[cfg(test)]
@@ -408,7 +408,7 @@ mod unsafe_tests {
 }
 ```
 
-## 13.5 Doc Tests — Testable Documentation
+## 13.5 Doc Tests - Testable Documentation
 
 ```rust,no_run
 /// Validates that a username contains only alphanumeric characters and underscores.
@@ -539,7 +539,7 @@ This is especially valuable for authentication checks, parser bounds checks, rat
 - Use `cargo-llvm-cov` to find untested validation and error-handling paths.
 - Use `cargo-mutants` to check whether tests actually fail when critical logic is changed.
 
-In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn't think to test for.
+In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing: automated techniques for finding bugs you didn't think to test for.
 
 ## 13.8 Exercises
 

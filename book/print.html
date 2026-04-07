@@ -37,10 +37,10 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-747996ab.js";
+            window.path_to_searchindex_js = "searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8e63d631.js"></script>
+        <script src="toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -191,7 +191,7 @@
 <p class="book-masthead__meta">Book version 1.0.3 | April 7, 2026 | <a href="https://amcrypto.jp">amcrypto.jp</a></p>
 
 </section>
-<p>If you are reading this book, you likely already know the landscape: buffer overflows, use-after-free bugs, integer overflows, race conditions, and injection flaws remain the dominant vulnerability classes in systems software. Despite decades of effort—static analyzers, sanitizers, coding standards, and security review—C and C++ codebases continue to produce critical vulnerabilities at an alarming rate. The fundamental problem is that C and C++ give the programmer <em>too much power</em> with <em>too little guidance</em>.</p>
+<p>If you are reading this book, you likely already know the landscape: buffer overflows, use-after-free bugs, integer overflows, race conditions, and injection flaws remain the dominant vulnerability classes in systems software. Despite decades of effort(static analyzers, sanitizers, coding standards, and security review), C and C++ codebases continue to produce critical vulnerabilities at an alarming rate. The fundamental problem is that C and C++ give the programmer <em>too much power</em> with <em>too little guidance</em>.</p>
 <p>Rust changes the equation.</p>
 <p>Rust is not a silver bullet, but it is the most significant advance in systems programming language design for secure coding in decades. Its ownership model, borrow checker, and type system work together to eliminate entire categories of memory safety and concurrency bugs <em>at compile time</em>, without requiring a garbage collector or runtime overhead. This is a paradigm shift: instead of finding bugs through testing and review, Rust prevents them from existing in the first place.</p>
 <h2 id="who-this-book-is-for"><a class="header" href="#who-this-book-is-for">Who This Book Is For</a></h2>
@@ -206,14 +206,14 @@
 <h2 id="how-this-book-is-organized"><a class="header" href="#how-this-book-is-organized">How This Book Is Organized</a></h2>
 <p>The book is structured in five parts:</p>
 <ol>
-<li><strong>Foundations</strong> (Chapters 1–4): Rust basics through a security lens—why Rust matters, setup, ownership/borrowing, and the type system.</li>
-<li><strong>Secure by Design</strong> (Chapters 5–8): Error handling, concurrency safety, input validation, and cryptography—core patterns for writing secure software.</li>
-<li><strong>Systems Programming</strong> (Chapters 9–12): Unsafe Rust, FFI, memory layout, and network programming—bridging the gap between safe abstractions and the bare metal.</li>
-<li><strong>Assurance and Verification</strong> (Chapters 13–16): Testing, fuzzing, static analysis, and supply chain security—proving your code is correct.</li>
-<li><strong>Practical Secure Systems</strong> (Chapters 17–19): Three hands-on projects that bring everything together—a hardened TCP server, a secure parser, and deployment hardening.</li>
+<li><strong>Foundations</strong> (Chapters 1-4): Rust basics through a security lens,why Rust matters, setup, ownership/borrowing, and the type system.</li>
+<li><strong>Secure by Design</strong> (Chapters 5-8): Error handling, concurrency safety, input validation, and cryptography,core patterns for writing secure software.</li>
+<li><strong>Systems Programming</strong> (Chapters 9-12): Unsafe Rust, FFI, memory layout, and network programming,bridging the gap between safe abstractions and the bare metal.</li>
+<li><strong>Assurance and Verification</strong> (Chapters 13-16): Testing, fuzzing, static analysis, and supply chain security,proving your code is correct.</li>
+<li><strong>Practical Secure Systems</strong> (Chapters 17-19): Three hands-on projects that bring everything together,a hardened TCP server, a secure parser, and deployment hardening.</li>
 </ol>
 <h2 id="a-note-on-mindset"><a class="header" href="#a-note-on-mindset">A Note on Mindset</a></h2>
-<p>As a security-focused developer, you are accustomed to asking “what can go wrong?” Rust asks a different question: “what can the compiler prove is correct?” Learning to trust—and verify—the compiler is a key part of the Rust experience. But Rust also provides escape hatches (<code>unsafe</code>), and knowing when and how to use them safely is critical. This book spends significant time on that topic.</p>
+<p>As a security-focused developer, you are accustomed to asking “what can go wrong?” Rust asks a different question: “what can the compiler prove is correct?” Learning to trust and verify the compiler is a key part of the Rust experience. But Rust also provides escape hatches (<code>unsafe</code>), and knowing when and how to use them safely is critical. This book spends significant time on that topic.</p>
 <h2 id="conventions"><a class="header" href="#conventions">Conventions</a></h2>
 <p>Throughout this book:</p>
 <ul>
@@ -226,7 +226,7 @@
 </ul>
 <p>Let’s begin.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-1--why-rust-for-secure-systems"><a class="header" href="#chapter-1--why-rust-for-secure-systems">Chapter 1 — Why Rust for Secure Systems</a></h1>
+<h1 id="chapter-1--why-rust-for-secure-systems"><a class="header" href="#chapter-1--why-rust-for-secure-systems">Chapter 1 , Why Rust for Secure Systems</a></h1>
 <blockquote>
 <p><em>“The best way to write secure code is to make insecure code impossible to write.”</em></p>
 </blockquote>
@@ -280,9 +280,9 @@ fn main() {
 <p>Rust’s type system is rich and expressive. It uses:</p>
 <ul>
 <li><strong>Algebraic data types</strong> (<code>enum</code> and <code>struct</code>) that make illegal states unrepresentable.</li>
-<li><strong>Pattern matching</strong> that is exhaustive—the compiler ensures all cases are handled.</li>
-<li><strong>No implicit nulls</strong>—the <code>Option&lt;T&gt;</code> type explicitly represents the presence or absence of a value.</li>
-<li><strong>No implicit conversions</strong>—you must be explicit about type changes.</li>
+<li><strong>Pattern matching</strong> that is exhaustive,the compiler ensures all cases are handled.</li>
+<li><strong>No implicit nulls</strong>,the <code>Option&lt;T&gt;</code> type explicitly represents the presence or absence of a value.</li>
+<li><strong>No implicit conversions</strong>,you must be explicit about type changes.</li>
 </ul>
 <pre class="playground"><code class="language-rust edition2024">#[derive(Debug)]
 struct User {
@@ -396,7 +396,7 @@ fn main() {
 <ul>
 <li>Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.</li>
 <li>The ownership model, type system, and concurrency guarantees work together to make insecure patterns impossible to express in safe code.</li>
-<li>Rust does not protect against logic errors, side channels, or misuse of <code>unsafe</code> code—defense in depth is still required.</li>
+<li>Rust does not protect against logic errors, side channels, or misuse of <code>unsafe</code> code,defense in depth is still required.</li>
 <li>Rust is being adopted across the security industry for critical infrastructure.</li>
 </ul>
 <p>In the next chapter, we will set up a development environment optimized for secure Rust development, including tooling for linting, formatting, and dependency auditing.</p>
@@ -413,7 +413,7 @@ fn main() {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-2--setting-up-your-environment"><a class="header" href="#chapter-2--setting-up-your-environment">Chapter 2 — Setting Up Your Environment</a></h1>
+<h1 id="chapter-2---setting-up-your-environment"><a class="header" href="#chapter-2---setting-up-your-environment">Chapter 2 - Setting Up Your Environment</a></h1>
 <blockquote>
 <p><em>“A craftsman’s tools shape the quality of their work.”</em></p>
 </blockquote>
@@ -476,7 +476,7 @@ cargo build --target thumbv7em-none-eabihf --release
 </code></pre>
 <p>Treat bare-metal deployment as a different threat model, not just a smaller Linux process.</p>
 <h2 id="23-essential-security-tooling"><a class="header" href="#23-essential-security-tooling">2.3 Essential Security Tooling</a></h2>
-<h3 id="231-clippy--the-linting-powerhouse"><a class="header" href="#231-clippy--the-linting-powerhouse">2.3.1 Clippy — The Linting Powerhouse</a></h3>
+<h3 id="231-clippy---the-linting-powerhouse"><a class="header" href="#231-clippy---the-linting-powerhouse">2.3.1 Clippy - The Linting Powerhouse</a></h3>
 <p>Clippy is Rust’s comprehensive linter. It catches common mistakes, unsafe patterns, and style issues:</p>
 <pre><code class="language-bash">rustup component add clippy
 cargo clippy -- -W clippy::all -W clippy::pedantic
@@ -501,7 +501,7 @@ cargo clippy -- -W clippy::all -W clippy::pedantic
 <pre><code class="language-toml"># clippy.toml
 cognitive-complexity-threshold = 30
 </code></pre>
-<p>Configure Clippy linting in your CI pipeline or as a <code>Makefile</code>/<code>just</code> target — Clippy lints cannot be set via <code>rustflags</code> because <code>rustflags</code> only affects <code>rustc</code>, not <code>cargo clippy</code>:</p>
+<p>Configure Clippy linting in your CI pipeline or as a <code>Makefile</code>/<code>just</code> target. Clippy lints cannot be set via <code>rustflags</code> because <code>rustflags</code> only affects <code>rustc</code>, not <code>cargo clippy</code>:</p>
 <pre><code class="language-bash"># Baseline CI gate: fail the build on compiler warnings and low-noise panic checks
 cargo clippy --workspace --all-targets --all-features -- \
   -D warnings \
@@ -518,7 +518,7 @@ cargo clippy --workspace --all-targets --all-features -- \
 </code></pre>
 <p><code>-D warnings</code> promotes warning-level Clippy diagnostics to errors, so the explicit <code>-W clippy::...</code> flags here are mainly about <em>which</em> lints you want enabled and visible in the command. Read it as: “turn on these lints, then fail the build on all warnings.”</p>
 <p>Treat <code>clippy::indexing_slicing</code> and <code>clippy::arithmetic_side_effects</code> as review aids rather than “must be zero everywhere” policy knobs. In security-sensitive parsing code they are excellent prompts for manual review, but they are heuristic and will still warn on code that already proved bounds through surrounding checks.</p>
-<h3 id="232-rustfmt--consistent-code-formatting"><a class="header" href="#232-rustfmt--consistent-code-formatting">2.3.2 rustfmt — Consistent Code Formatting</a></h3>
+<h3 id="232-rustfmt---consistent-code-formatting"><a class="header" href="#232-rustfmt---consistent-code-formatting">2.3.2 rustfmt - Consistent Code Formatting</a></h3>
 <pre><code class="language-bash">rustup component add rustfmt
 cargo fmt
 </code></pre>
@@ -530,7 +530,7 @@ fn_params_layout = "Compressed"
 use_field_init_shorthand = true
 newline_style = "Unix"
 </code></pre>
-<h3 id="233-cargo-audit--dependency-vulnerability-scanner"><a class="header" href="#233-cargo-audit--dependency-vulnerability-scanner">2.3.3 cargo-audit — Dependency Vulnerability Scanner</a></h3>
+<h3 id="233-cargo-audit---dependency-vulnerability-scanner"><a class="header" href="#233-cargo-audit---dependency-vulnerability-scanner">2.3.3 cargo-audit - Dependency Vulnerability Scanner</a></h3>
 <pre><code class="language-bash">cargo install cargo-audit --version 0.22.1 --locked
 cargo audit
 </code></pre>
@@ -555,7 +555,7 @@ cargo vet init
 cargo vet
 </code></pre>
 <p><code>cargo-vet</code> records which crates and versions your team has reviewed, making dependency trust decisions explicit rather than tribal knowledge.</p>
-<h3 id="234-cargo-deny--policy-enforcement"><a class="header" href="#234-cargo-deny--policy-enforcement">2.3.4 cargo-deny — Policy Enforcement</a></h3>
+<h3 id="234-cargo-deny---policy-enforcement"><a class="header" href="#234-cargo-deny---policy-enforcement">2.3.4 cargo-deny - Policy Enforcement</a></h3>
 <pre><code class="language-bash">cargo install cargo-deny --version 0.19.0 --locked
 cargo deny check
 </code></pre>
@@ -586,12 +586,12 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["sparse+https://index.crates.io/"]
 </code></pre>
-<h3 id="235-cargo-geiger--unsafe-code-inventory"><a class="header" href="#235-cargo-geiger--unsafe-code-inventory">2.3.5 cargo-geiger — Unsafe Code Inventory</a></h3>
+<h3 id="235-cargo-geiger---unsafe-code-inventory"><a class="header" href="#235-cargo-geiger---unsafe-code-inventory">2.3.5 cargo-geiger - Unsafe Code Inventory</a></h3>
 <pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
 cargo geiger --all-features
 </code></pre>
 <p><code>cargo-geiger</code> does not prove a crate is unsafe, but it quickly shows where manual review effort should go. Use it to inventory <code>unsafe</code> code in your direct and transitive dependencies before you trust them in security-sensitive deployments.</p>
-<h3 id="236-cargo-outdated--dependency-freshness"><a class="header" href="#236-cargo-outdated--dependency-freshness">2.3.6 cargo-outdated — Dependency Freshness</a></h3>
+<h3 id="236-cargo-outdated---dependency-freshness"><a class="header" href="#236-cargo-outdated---dependency-freshness">2.3.6 cargo-outdated - Dependency Freshness</a></h3>
 <pre><code class="language-bash">cargo install cargo-outdated --version 0.18.0 --locked
 cargo outdated
 </code></pre>
@@ -607,7 +607,7 @@ rustflags = [
     # "-C", "debug-assertions=off",
 ]
 </code></pre>
-<pre><code class="language-toml"># Cargo.toml — profile settings must go here, not in .cargo/config.toml
+<pre><code class="language-toml"># Cargo.toml - profile settings must go here, not in .cargo/config.toml
 [profile.release]
 # Security-relevant profile settings
 overflow-checks = true       # Enable integer overflow checks even in release
@@ -649,7 +649,7 @@ opt-level = "z"              # Optimize for minimum size (more aggressive than "
 <li><strong>JetBrains</strong>: Prefer RustRover. If your team is already standardized on IntelliJ IDEA Ultimate, use the bundled Rust plugin there.</li>
 </ul>
 <h3 id="inlay-hints-and-diagnostics"><a class="header" href="#inlay-hints-and-diagnostics">Inlay Hints and Diagnostics</a></h3>
-<p>Enable inlay hints for type information—this is invaluable during security review:</p>
+<p>Enable inlay hints for type information, this is invaluable during security review:</p>
 <pre><code class="language-json">// VS Code settings.json
 {
     "rust-analyzer.inlayHints.enable": true,
@@ -742,7 +742,7 @@ jobs:
 <li>Configure a CI pipeline that enforces linting, testing, book verification, and dependency auditing.</li>
 <li>Use <code>rust-analyzer</code> for IDE integration with security-relevant diagnostics.</li>
 </ul>
-<p>In the next chapter, we dive into Rust’s ownership model—the foundation of its memory safety guarantees.</p>
+<p>In the next chapter, we dive into Rust’s ownership model, the foundation of its memory safety guarantees.</p>
 <h2 id="29-exercises"><a class="header" href="#29-exercises">2.9 Exercises</a></h2>
 <ol>
 <li>
@@ -761,13 +761,13 @@ jobs:
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-3--ownership-borrowing-and-lifetimes"><a class="header" href="#chapter-3--ownership-borrowing-and-lifetimes">Chapter 3 — Ownership, Borrowing, and Lifetimes</a></h1>
+<h1 id="chapter-3---ownership-borrowing-and-lifetimes"><a class="header" href="#chapter-3---ownership-borrowing-and-lifetimes">Chapter 3 - Ownership, Borrowing, and Lifetimes</a></h1>
 <blockquote>
 <p><em>“You don’t free memory in Rust. The compiler decides when to free it, and it never gets it wrong.”</em></p>
 </blockquote>
 <p>This is the most important chapter in the book. Rust’s ownership model is what makes the language unique, and understanding it deeply is essential for writing secure systems code. If you come from C/C++, you are used to manually managing memory with <code>malloc</code>/<code>free</code> or <code>new</code>/<code>delete</code>. Rust replaces this with a set of compile-time rules that guarantee memory safety without garbage collection.</p>
 <h2 id="31-ownership-rules"><a class="header" href="#31-ownership-rules">3.1 Ownership Rules</a></h2>
-<p>Every value in Rust has exactly one <strong>owner</strong>—a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:</p>
+<p>Every value in Rust has exactly one <strong>owner</strong>: a variable that is responsible for its lifetime. When the owner goes out of scope, the value is dropped (memory is freed, destructors run). The three fundamental rules are:</p>
 <ol>
 <li>Each value has exactly one owner.</li>
 <li>When the owner goes out of scope, the value is dropped.</li>
@@ -779,7 +779,7 @@ jobs:
     // println!("{}", s1);           // ERROR: s1 no longer valid
     println!("{}", s2);              // OK: s2 is the owner
 }   // s2 is dropped here, memory freed</code></pre>
-<p>This is a <strong>move</strong>—ownership transfers from <code>s1</code> to <code>s2</code>. The compiler prevents use-after-free by making <code>s1</code> inaccessible after the move.</p>
+<p>This is a <strong>move</strong>: ownership transfers from <code>s1</code> to <code>s2</code>. The compiler prevents use-after-free by making <code>s1</code> inaccessible after the move.</p>
 <p>🔒 <strong>Security impact</strong>: Eliminates CWE-416 (Use-After-Free) and double-free bugs. In C, transferring a string pointer without clear ownership conventions leads to double-free or use-after-free. Rust enforces this at compile time.</p>
 <h3 id="311-the-copy-trait"><a class="header" href="#311-the-copy-trait">3.1.1 The <code>Copy</code> Trait</a></h3>
 <p>Some types are so small that copying them is cheaper than managing ownership. Types that implement the <code>Copy</code> trait are implicitly copied on assignment instead of moved:</p>
@@ -868,7 +868,7 @@ for (auto it = v.begin(); it != v.end(); ++it) {
     v.push(4);                // OK: borrow ended
 }</code></pre>
 <h2 id="33-lifetimes"><a class="header" href="#33-lifetimes">3.3 Lifetimes</a></h2>
-<p>Every reference in Rust has a <strong>lifetime</strong>—the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.</p>
+<p>Every reference in Rust has a <strong>lifetime</strong>: the scope for which the reference is valid. Most of the time, lifetimes are implicit and inferred. But when the compiler cannot determine the relationship between reference lifetimes, you must annotate them explicitly.</p>
 <h3 id="331-the-problem-lifetimes-solve"><a class="header" href="#331-the-problem-lifetimes-solve">3.3.1 The Problem Lifetimes Solve</a></h3>
 <p>Consider this function:</p>
 <pre class="playground"><code class="language-rust compile_fail edition2024"><span class="boring">#![allow(unused)]
@@ -936,7 +936,7 @@ impl&lt;'a&gt; Parser&lt;'a&gt; {
 <p>This ensures the <code>Parser</code> cannot outlive the <code>input</code> string it references.</p>
 <p>⚠️ <strong>Performance note</strong>: <code>chars().nth(self.position)</code> is <code>O(n)</code> because UTF-8 strings are not indexable by character offset. Fine for a teaching example, but hot parsers should track byte offsets or iterate once with <code>char_indices()</code>.</p>
 <h2 id="34-common-patterns-for-security-developers"><a class="header" href="#34-common-patterns-for-security-developers">3.4 Common Patterns for Security Developers</a></h2>
-<h3 id="341-the-drop-trait--deterministic-cleanup"><a class="header" href="#341-the-drop-trait--deterministic-cleanup">3.4.1 The <code>Drop</code> Trait — Deterministic Cleanup</a></h3>
+<h3 id="341-the-drop-trait---deterministic-cleanup"><a class="header" href="#341-the-drop-trait---deterministic-cleanup">3.4.1 The <code>Drop</code> Trait - Deterministic Cleanup</a></h3>
 <p>Rust’s <code>Drop</code> trait is the equivalent of a C++ destructor. On normal return and unwinding paths, it runs deterministically when a value goes out of scope:</p>
 <pre class="playground"><code class="language-rust edition2024">struct SecureBuffer {
     data: Vec&lt;u8&gt;,
@@ -980,7 +980,7 @@ struct SecureBuffer {
 <p>Neither <code>Drop</code> nor <code>zeroize</code> is a complete secret-lifecycle guarantee. They do not run on paths such as <code>panic = "abort"</code>, <code>std::process::exit</code>, or deliberate leaks like <code>mem::forget</code>, and they do not erase copies of the secret that were already made elsewhere.</p>
 <p>⚠️ <strong>Clone caveat</strong>: If a secret-bearing type implements <code>Clone</code>, every clone is a distinct copy that must also be zeroized. Prefer move-only secret types unless you have a clear lifecycle for each copy.</p>
 <p>Deserialization has the same lifecycle cost: every <code>serde::Deserialize</code> call materializes another live secret value. Keep secret-bearing DTOs narrow and zeroize transient copies promptly.</p>
-<h3 id="342-manuallydropt--controlled-destruction-boundaries"><a class="header" href="#342-manuallydropt--controlled-destruction-boundaries">3.4.2 <code>ManuallyDrop&lt;T&gt;</code> — Controlled Destruction Boundaries</a></h3>
+<h3 id="342-manuallydropt---controlled-destruction-boundaries"><a class="header" href="#342-manuallydropt---controlled-destruction-boundaries">3.4.2 <code>ManuallyDrop&lt;T&gt;</code> - Controlled Destruction Boundaries</a></h3>
 <p>Most code should let Rust run destructors automatically. <code>ManuallyDrop&lt;T&gt;</code> exists for the narrower cases where you need to suppress that automatic <code>Drop</code> temporarily, such as handing ownership across an FFI boundary or forcing one resource to outlive another during teardown:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1001,7 +1001,7 @@ fn transfer_fd_to_foreign_code(fd: OwnedFd) -&gt; i32 {
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Security note</strong>: <code>ManuallyDrop</code> disables Rust’s automatic cleanup, so a mistake becomes a leak or double-free bug immediately. Use it only at clearly documented ownership boundaries and keep exactly one deallocation path for the wrapped value.</p>
-<h3 id="343-interior-mutability--refcellt-and-cellt"><a class="header" href="#343-interior-mutability--refcellt-and-cellt">3.4.3 Interior Mutability — <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
+<h3 id="343-interior-mutability---refcellt-and-cellt"><a class="header" href="#343-interior-mutability---refcellt-and-cellt">3.4.3 Interior Mutability - <code>RefCell&lt;T&gt;</code> and <code>Cell&lt;T&gt;</code></a></h3>
 <p>Sometimes you need to mutate data even when there are immutable references to it. Rust provides safe interior mutability types:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1072,12 +1072,12 @@ impl Logger {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-4--type-system-and-pattern-matching"><a class="header" href="#chapter-4--type-system-and-pattern-matching">Chapter 4 — Type System and Pattern Matching</a></h1>
+<h1 id="chapter-4---type-system-and-pattern-matching"><a class="header" href="#chapter-4---type-system-and-pattern-matching">Chapter 4 - Type System and Pattern Matching</a></h1>
 <blockquote>
 <p><em>“Make illegal states unrepresentable.”</em></p>
 </blockquote>
 <p>Rust’s type system is one of its most powerful tools for writing secure code. It combines algebraic data types, exhaustive pattern matching, and a strict stance on implicit conversions to ensure that many classes of bugs simply cannot be expressed. For security developers accustomed to fighting type confusion bugs, integer overflows, and unhandled cases in C/C++ switch statements, Rust’s type system is a breath of fresh air.</p>
-<h2 id="41-no-null--use-optiont"><a class="header" href="#41-no-null--use-optiont">4.1 No Null — Use <code>Option&lt;T&gt;</code></a></h2>
+<h2 id="41-no-null---use-optiont"><a class="header" href="#41-no-null---use-optiont">4.1 No Null - Use <code>Option&lt;T&gt;</code></a></h2>
 <p>Tony Hoare, the inventor of the null reference, called it his “billion-dollar mistake.” In C/C++, any pointer can be null, and dereferencing a null pointer is undefined behavior (CWE-476). Rust eliminates null entirely from the language.</p>
 <p>Instead, Rust uses the <code>Option&lt;T&gt;</code> enum:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -1100,7 +1100,7 @@ fn main() {
     // You CANNOT use the value without checking
     let user = find_user(100);
     
-    // Pattern matching — compiler ensures you handle both cases
+    // Pattern matching - compiler ensures you handle both cases
     match user {
         Some(name) =&gt; println!("Found: {}", name),
         None =&gt; println!("User not found"),
@@ -1116,7 +1116,7 @@ fn main() {
 }</code></pre>
 <p>🔒 <strong>Security impact</strong>: CWE-476 (NULL Pointer Dereference) is <strong>impossible</strong> in safe Rust. Every potentially-absent value is wrapped in <code>Option</code>, and the compiler forces you to handle the <code>None</code> case.</p>
 <p>⚠️ <strong>Caveat</strong>: <code>.unwrap()</code> and <code>.expect()</code> will panic if called on <code>None</code>. In security-critical code, avoid these and handle the <code>None</code> case explicitly.</p>
-<h2 id="42-no-exceptions--use-resultt-e"><a class="header" href="#42-no-exceptions--use-resultt-e">4.2 No Exceptions — Use <code>Result&lt;T, E&gt;</code></a></h2>
+<h2 id="42-no-exceptions---use-resultt-e"><a class="header" href="#42-no-exceptions---use-resultt-e">4.2 No Exceptions - Use <code>Result&lt;T, E&gt;</code></a></h2>
 <p>Rust does not have exceptions. Instead, recoverable errors are represented by <code>Result&lt;T, E&gt;</code>:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1204,7 +1204,7 @@ fn check_permission(perm: Permission) -&gt; bool {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: When you add a new variant to an enum, the compiler will flag every <code>match</code> that doesn’t handle it. This prevents the “forgotten case” bug class, which in C switch statements can silently fall through or be mishandled.</p>
-<h3 id="432-non_exhaustive--future-proofing-enums"><a class="header" href="#432-non_exhaustive--future-proofing-enums">4.3.2 <code>#[non_exhaustive]</code> — Future-Proofing Enums</a></h3>
+<h3 id="432-non_exhaustive---future-proofing-enums"><a class="header" href="#432-non_exhaustive---future-proofing-enums">4.3.2 <code>#[non_exhaustive]</code> - Future-Proofing Enums</a></h3>
 <p>When defining public enums in a library, mark them <code>#[non_exhaustive]</code> to force downstream consumers to handle future variants:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1349,7 +1349,7 @@ fn rotate_signing_key(_cap: &amp;Capability&lt;RotateKeys&gt;) {}
 }
 <span class="boring">}</span></code></pre>
 <p>Outside <code>auth</code>, callers can pass <code>Session&lt;Admin&gt;</code> and <code>Capability&lt;RotateKeys&gt;</code> to privileged functions, but they cannot forge those values with a struct literal because the fields and constructors stay inside the policy-enforcing module.</p>
-<h2 id="45-traits--defining-shared-behavior"><a class="header" href="#45-traits--defining-shared-behavior">4.5 Traits — Defining Shared Behavior</a></h2>
+<h2 id="45-traits---defining-shared-behavior"><a class="header" href="#45-traits---defining-shared-behavior">4.5 Traits - Defining Shared Behavior</a></h2>
 <p>Traits are Rust’s answer to interfaces:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1383,7 +1383,7 @@ struct SharedState {
 // This type can be safely shared between threads.
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.</p>
-<h3 id="the-frominto-traits--safe-conversions"><a class="header" href="#the-frominto-traits--safe-conversions">The <code>From</code>/<code>Into</code> Traits — Safe Conversions</a></h3>
+<h3 id="the-frominto-traits---safe-conversions"><a class="header" href="#the-frominto-traits---safe-conversions">The <code>From</code>/<code>Into</code> Traits - Safe Conversions</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>struct Port(u16);
@@ -1560,11 +1560,11 @@ type HmacKey = FixedBuffer&lt;64&gt;;  // 512-bit key
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-5--error-handling-without-exceptions"><a class="header" href="#chapter-5--error-handling-without-exceptions">Chapter 5 — Error Handling Without Exceptions</a></h1>
+<h1 id="chapter-5---error-handling-without-exceptions"><a class="header" href="#chapter-5---error-handling-without-exceptions">Chapter 5 - Error Handling Without Exceptions</a></h1>
 <blockquote>
 <p><em>“Errors are not exceptional. They are a normal part of system operation.”</em></p>
 </blockquote>
-<p>Rust’s approach to error handling is fundamentally different from C’s return codes, C++’s exceptions, and Go’s multiple return values. It leverages the type system to make error handling <strong>explicit</strong>, <strong>type-safe</strong>, and <strong>impossible to forget</strong>. For security developers, this matters because unhandled or improperly handled errors are a leading cause of vulnerabilities—from ignoring return values to catching the wrong exception type.</p>
+<p>Rust’s approach to error handling is fundamentally different from C’s return codes, C++’s exceptions, and Go’s multiple return values. It leverages the type system to make error handling <strong>explicit</strong>, <strong>type-safe</strong>, and <strong>impossible to forget</strong>. For security developers, this matters because unhandled or improperly handled errors are a leading cause of vulnerabilities, from ignoring return values to catching the wrong exception type.</p>
 <h2 id="51-the-error-handling-landscape"><a class="header" href="#51-the-error-handling-landscape">5.1 The Error Handling Landscape</a></h2>
 <div class="table-wrapper">
 <table>
@@ -1572,11 +1572,11 @@ type HmacKey = FixedBuffer&lt;64&gt;;  // 512-bit key
 <tr><th>Language</th><th>Mechanism</th><th>Can You Forget to Handle?</th></tr>
 </thead>
 <tbody>
-<tr><td>C</td><td>Return codes, <code>errno</code></td><td>✅ Yes — very common</td></tr>
-<tr><td>C++</td><td>Exceptions</td><td>✅ Yes — catch may miss types</td></tr>
+<tr><td>C</td><td>Return codes, <code>errno</code></td><td>✅ Yes, very common</td></tr>
+<tr><td>C++</td><td>Exceptions</td><td>✅ Yes, catch may miss types</td></tr>
 <tr><td>Go</td><td>Multiple return values</td><td>⚠️ Possible (but <code>err</code> is visible)</td></tr>
 <tr><td>Java</td><td>Checked exceptions</td><td>⚠️ Partially enforced</td></tr>
-<tr><td>Rust</td><td><code>Result&lt;T, E&gt;</code> + <code>?</code></td><td>❌ No — compiler enforces handling</td></tr>
+<tr><td>Rust</td><td><code>Result&lt;T, E&gt;</code> + <code>?</code></td><td>❌ No, compiler enforces handling</td></tr>
 </tbody>
 </table>
 </div>
@@ -1733,7 +1733,7 @@ impl std::error::Error for SecurityError {}
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Never include sensitive data (passwords, tokens, raw keys) in error messages. Error strings may be logged, displayed, or leaked to attackers. Note in the example above, <code>username</code> is logged but passwords are never included.</p>
 <h2 id="54-the-thiserror-and-anyhow-crates"><a class="header" href="#54-the-thiserror-and-anyhow-crates">5.4 The <code>thiserror</code> and <code>anyhow</code> Crates</a></h2>
-<h3 id="thiserror--derive-error-for-libraries"><a class="header" href="#thiserror--derive-error-for-libraries"><code>thiserror</code> — Derive Error for Libraries</a></h3>
+<h3 id="thiserror---derive-error-for-libraries"><a class="header" href="#thiserror---derive-error-for-libraries"><code>thiserror</code> - Derive Error for Libraries</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book as thiserror;
@@ -1749,14 +1749,14 @@ pub enum TlsError {
     CertificateInvalid(String),
 
     #[error("MAC verification failed")]
-    MacVerificationFailed,  // No details leaked—intentional for crypto errors
+    MacVerificationFailed,  // No details leaked, intentional for crypto errors
 
     #[error("IO error")]
     Io(#[from] std::io::Error),
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Crypto error best practice</strong>: Cryptographic errors should be <strong>generic</strong>. Do not distinguish between “invalid padding” and “invalid MAC” in error messages visible to the caller. This prevents oracle attacks (e.g., padding oracle, MAC oracle).</p>
-<h3 id="anyhow--flexible-errors-for-applications"><a class="header" href="#anyhow--flexible-errors-for-applications"><code>anyhow</code> — Flexible Errors for Applications</a></h3>
+<h3 id="anyhow---flexible-errors-for-applications"><a class="header" href="#anyhow---flexible-errors-for-applications"><code>anyhow</code> - Flexible Errors for Applications</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
@@ -1791,7 +1791,7 @@ fn load_key(path: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
 </span>fn decode_port(input: &amp;str) -&gt; Result&lt;u16, std::num::ParseIntError&gt; {
     // This is an expected failure → use Result
     // BAD: input.parse::&lt;u16&gt;().unwrap()
-    // STILL BAD: input.parse::&lt;u16&gt;().expect("invalid port") — still panics!
+    // STILL BAD: input.parse::&lt;u16&gt;().expect("invalid port"), still panics!
     // BEST: return Result
     input.parse()
 }
@@ -2039,7 +2039,7 @@ fn handle_request(req: Request) -&gt; Response {
 <li>Never use <code>unwrap()</code> in security-critical code paths.</li>
 <li>Sanitize error messages before exposing them externally.</li>
 </ul>
-<p>In the next chapter, we explore Rust’s concurrency model—how the ownership system extends to prevent data races and how to write concurrent code that is safe by construction.</p>
+<p>In the next chapter, we explore Rust’s concurrency model: how the ownership system extends to prevent data races and how to write concurrent code that is safe by construction.</p>
 <h2 id="58-exercises"><a class="header" href="#58-exercises">5.8 Exercises</a></h2>
 <ol>
 <li>
@@ -2056,12 +2056,12 @@ fn handle_request(req: Request) -&gt; Response {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-6--fearless-concurrency"><a class="header" href="#chapter-6--fearless-concurrency">Chapter 6 — Fearless Concurrency</a></h1>
+<h1 id="chapter-6---fearless-concurrency"><a class="header" href="#chapter-6---fearless-concurrency">Chapter 6 - Fearless Concurrency</a></h1>
 <blockquote>
-<p><em>“Data races are not just bugs—they are security vulnerabilities.”</em></p>
+<p><em>“Data races are not just bugs, they are security vulnerabilities.”</em></p>
 </blockquote>
 <p>Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don’t deadlock. The result is a constant stream of concurrency vulnerabilities: unsynchronized shared-state bugs (CWE-362) and higher-level logic races such as TOCTOU (CWE-367).</p>
-<p>Rust’s ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is “fearless concurrency”—not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.</p>
+<p>Rust’s ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is “fearless concurrency”: not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.</p>
 <h2 id="61-thread-safety-guarantees"><a class="header" href="#61-thread-safety-guarantees">6.1 Thread Safety Guarantees</a></h2>
 <h3 id="611-the-send-and-sync-traits"><a class="header" href="#611-the-send-and-sync-traits">6.1.1 The <code>Send</code> and <code>Sync</code> Traits</a></h3>
 <p>Rust’s concurrency safety rests on two marker traits:</p>
@@ -2156,10 +2156,10 @@ worker.join().unwrap();
 </span><span class="boring">}</span></code></pre>
 <p>Set custom stack sizes only when you understand the recursion depth and per-thread buffer usage. Too-small stacks turn parsing bugs into hard crashes.</p>
 <h2 id="62-synchronization-primitives"><a class="header" href="#62-synchronization-primitives">6.2 Synchronization Primitives</a></h2>
-<h3 id="621-mutext--mutual-exclusion"><a class="header" href="#621-mutext--mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> — Mutual Exclusion</a></h3>
+<h3 id="621-mutext---mutual-exclusion"><a class="header" href="#621-mutext---mutual-exclusion">6.2.1 <code>Mutex&lt;T&gt;</code> - Mutual Exclusion</a></h3>
 <p><code>Mutex&lt;T&gt;</code> provides exclusive access to <code>T</code>. The lock guard pattern ensures the lock is always released:</p>
 <blockquote>
-<p><strong>Note</strong>: The examples in this section use <code>.unwrap()</code> for brevity. In production security-critical code, handle mutex poisoning explicitly (see the poisoning discussion below) and avoid <code>.unwrap()</code> on <code>Result</code> types—use <code>.unwrap_or_else()</code>, <code>match</code>, or the <code>?</code> operator instead.</p>
+<p><strong>Note</strong>: The examples in this section use <code>.unwrap()</code> for brevity. In production security-critical code, handle mutex poisoning explicitly (see the poisoning discussion below) and avoid <code>.unwrap()</code> on <code>Result</code> types, use <code>.unwrap_or_else()</code>, <code>match</code>, or the <code>?</code> operator instead.</p>
 </blockquote>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -2202,7 +2202,7 @@ match mutex.lock() {
     }
 }
 <span class="boring">}</span></code></pre>
-<h3 id="622-rwlockt--read-write-lock"><a class="header" href="#622-rwlockt--read-write-lock">6.2.2 <code>RwLock&lt;T&gt;</code> — Read-Write Lock</a></h3>
+<h3 id="622-rwlockt---read-write-lock"><a class="header" href="#622-rwlockt---read-write-lock">6.2.2 <code>RwLock&lt;T&gt;</code> - Read-Write Lock</a></h3>
 <p><code>RwLock&lt;T&gt;</code> allows multiple readers OR one writer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -2473,7 +2473,7 @@ while let Some(result) = tasks.join_next().await {
 </span><span class="boring">}</span></code></pre>
 <p><code>JoinSet</code> fits security-sensitive request and shutdown scopes because the set owns the task group: dropping it aborts any still-running tasks instead of silently leaving them detached. Pair it with a <code>Semaphore</code> when you also need a hard concurrency cap.</p>
 <h2 id="65-cancellation-safety-in-async-rust"><a class="header" href="#65-cancellation-safety-in-async-rust">6.5 Cancellation Safety in Async Rust</a></h2>
-<p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.</p>
+<p>One of the most subtle security pitfalls in async Rust is <strong>cancellation safety</strong> (sometimes called “cancel safety”). When a <code>tokio::select!</code> branch is not chosen, or a <code>JoinHandle</code> is aborted, the future at the other branch is <strong>dropped</strong> mid-execution. If that future was in the middle of an operation with side effects, such as reading from a socket or holding a lock, those side effects may be lost or left in an inconsistent state.</p>
 <p>Cancellation here means “the future is dropped.” Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.</p>
 <h3 id="651-the-problem"><a class="header" href="#651-the-problem">6.5.1 The Problem</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -2530,7 +2530,7 @@ tokio::select! {
 </ul>
 <h3 id="652-making-async-code-cancellation-safe"><a class="header" href="#652-making-async-code-cancellation-safe">6.5.2 Making Async Code Cancellation-Safe</a></h3>
 <p>A function is cancellation-safe if dropping the future at any <code>.await</code> point leaves the system in a consistent state. Key patterns:</p>
-<p><strong>Pattern 1: Use cancellation-safe operations.</strong> <code>tokio::io::AsyncReadExt::read()</code> (which reads <em>up to</em> N bytes) is cancellation-safe because it either reads data or doesn’t—no partial state. <code>read_exact()</code> is <strong>not</strong> cancellation-safe because it may have read some bytes but not all.</p>
+<p><strong>Pattern 1: Use cancellation-safe operations.</strong> <code>tokio::io::AsyncReadExt::read()</code> (which reads <em>up to</em> N bytes) is cancellation-safe because it either reads data or doesn’t: no partial state. <code>read_exact()</code> is <strong>not</strong> cancellation-safe because it may have read some bytes but not all.</p>
 <p><strong>Pattern 2: Buffer and retry.</strong> Use a framed reader that buffers partial reads:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -2766,11 +2766,11 @@ int main() {
 <li><code>OnceLock</code> and <code>LazyLock</code> provide race-free one-time initialization for shared security state.</li>
 <li><code>Condvar</code> lets threads wait on predicates without busy-waiting; always re-check the condition in a loop.</li>
 <li>Channels enable message-passing concurrency; prefer bounded channels to prevent memory exhaustion.</li>
-<li>Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks—use consistent lock ordering.</li>
+<li>Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks: use consistent lock ordering.</li>
 <li>Async/await is efficient for I/O-bound workloads; understand the differences between sync and async mutexes.</li>
 <li><strong>Cancellation safety</strong> is critical in async code: always use framed codecs or buffered readers to ensure partial reads are not lost when futures are dropped.</li>
 </ul>
-<p>In the next chapter, we tackle input validation—the first line of defense against injection and parsing attacks.</p>
+<p>In the next chapter, we tackle input validation: the first line of defense against injection and parsing attacks.</p>
 <h2 id="68-exercises"><a class="header" href="#68-exercises">6.8 Exercises</a></h2>
 <ol>
 <li>
@@ -2787,11 +2787,11 @@ int main() {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-7--input-validation-and-data-sanitization"><a class="header" href="#chapter-7--input-validation-and-data-sanitization">Chapter 7 — Input Validation and Data Sanitization</a></h1>
+<h1 id="chapter-7---input-validation-and-data-sanitization"><a class="header" href="#chapter-7---input-validation-and-data-sanitization">Chapter 7 - Input Validation and Data Sanitization</a></h1>
 <blockquote>
 <p><em>“All input is evil until proven otherwise.”</em></p>
 </blockquote>
-<p>Input validation is the cornerstone of secure software. Every major vulnerability class—injection, buffer overflow, path traversal, XSS—traces back to improperly validated input. As a security developer, you know that the attack surface of any system is defined by the inputs it processes.</p>
+<p>Input validation is the cornerstone of secure software. Every major vulnerability class (injection, buffer overflow, path traversal, XSS) traces back to improperly validated input. As a security developer, you know that the attack surface of any system is defined by the inputs it processes.</p>
 <p>Rust’s type system gives you a significant advantage: many validation checks can be enforced at compile time rather than runtime. When that’s not possible, Rust’s expressive pattern matching and zero-cost abstractions make runtime validation both thorough and ergonomic.</p>
 <h2 id="71-the-validation-pyramid"><a class="header" href="#71-the-validation-pyramid">7.1 The Validation Pyramid</a></h2>
 <p>Secure input handling follows three layers:</p>
@@ -3144,6 +3144,9 @@ fn is_public_ip(ip: IpAddr) -&gt; bool {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>The <code>to_ipv4_mapped()</code> branch closes a classic SSRF bypass: <code>::ffff:127.0.0.1</code>
+is still loopback, so it must be filtered the same way as plain IPv4
+<code>127.0.0.1</code>.</p>
 <p>Resolve the hostname immediately before connecting, reject loopback/private/link-local ranges, and re-check after redirects. Otherwise, a DNS rebinding attack can turn a “valid” hostname into access to internal services.</p>
 <p>This example is deliberately conservative and still not exhaustive. Treat it as a starting policy and add environment-specific deny rules for your own internal ranges, overlay networks, and non-routable service endpoints.</p>
 <h3 id="726-regular-expressions-and-redos"><a class="header" href="#726-regular-expressions-and-redos">7.2.6 Regular Expressions and ReDoS</a></h3>
@@ -3278,7 +3281,7 @@ impl TlsRecord {
 <li>Legacy version field sanity (TLS 1.3 still uses <code>0x0303</code> at the record layer)</li>
 </ul>
 <p>This prevents protocol-level attacks including fuzzing, injection, and downgrade attacks. For TLS 1.3 specifically, perform downgrade checks in the handshake (<code>supported_versions</code>), not from the record-layer version field alone.</p>
-<h2 id="74-the-serde-ecosystem--deserialization-safety"><a class="header" href="#74-the-serde-ecosystem--deserialization-safety">7.4 The <code>serde</code> Ecosystem — Deserialization Safety</a></h2>
+<h2 id="74-the-serde-ecosystem---deserialization-safety"><a class="header" href="#74-the-serde-ecosystem---deserialization-safety">7.4 The <code>serde</code> Ecosystem - Deserialization Safety</a></h2>
 <p>Serde is Rust’s serialization framework. While powerful, deserialization of untrusted data requires care:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3315,7 +3318,7 @@ where
 <p><strong>Depth limits are format-specific</strong>: <code>serde</code> provides the framework, but the actual recursion policy comes from the format crate. <code>serde_json</code> keeps a default recursion limit enabled; other deserializers or custom formats may not. Verify the behavior of the specific format you expose to untrusted input.</p>
 </li>
 <li>
-<p><strong>Integer overflow</strong>: When deserializing into a smaller integer type, serde will reject values that don’t fit—unlike many JSON parsers in C.</p>
+<p><strong>Integer overflow</strong>: When deserializing into a smaller integer type, serde will reject values that don’t fit, unlike many JSON parsers in C.</p>
 </li>
 <li>
 <p><strong>Denial of service</strong>: Large allocations from untrusted input can exhaust memory. Enforce transport-level body size caps and keep parser safeguards enabled:</p>
@@ -3361,9 +3364,9 @@ where
 <li>Treat SSRF as a destination policy problem, not just a hostname syntax problem.</li>
 <li>Validate protocol fields against specification limits.</li>
 <li>Use <code>std::process::Command</code> with argument vectors instead of shell escaping.</li>
-<li>Be cautious with serde deserialization of untrusted data—set depth and size limits.</li>
+<li>Be cautious with serde deserialization of untrusted data: set depth and size limits.</li>
 </ul>
-<p>In the next chapter, we cover cryptography and secrets management—how to safely use cryptographic primitives and protect sensitive data in Rust applications.</p>
+<p>In the next chapter, we cover cryptography and secrets management: how to safely use cryptographic primitives and protect sensitive data in Rust applications.</p>
 <h2 id="76-exercises"><a class="header" href="#76-exercises">7.6 Exercises</a></h2>
 <ol>
 <li>
@@ -3380,11 +3383,11 @@ where
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-8--cryptography-and-secrets-management"><a class="header" href="#chapter-8--cryptography-and-secrets-management">Chapter 8 — Cryptography and Secrets Management</a></h1>
+<h1 id="chapter-8---cryptography-and-secrets-management"><a class="header" href="#chapter-8---cryptography-and-secrets-management">Chapter 8 - Cryptography and Secrets Management</a></h1>
 <blockquote>
 <p><em>“Don’t roll your own crypto. But if you must, know exactly what you’re doing.”</em></p>
 </blockquote>
-<p>Cryptography is the backbone of secure systems—authentication, encryption, integrity, and key management all depend on it. For security developers, the challenge isn’t usually inventing new algorithms; it’s using existing ones correctly. Rust’s ecosystem provides excellent cryptographic libraries, and the language’s safety guarantees eliminate many of the pitfalls that lead to vulnerabilities in C implementations (buffer overflows in crypto code, timing side channels from branches on secret data, etc.).</p>
+<p>Cryptography is the backbone of secure systems: authentication, encryption, integrity, and key management all depend on it. For security developers, the challenge isn’t usually inventing new algorithms; it’s using existing ones correctly. Rust’s ecosystem provides excellent cryptographic libraries, and the language’s safety guarantees eliminate many of the pitfalls that lead to vulnerabilities in C implementations (buffer overflows in crypto code, timing side channels from branches on secret data, etc.).</p>
 <h2 id="81-choosing-cryptographic-libraries"><a class="header" href="#81-choosing-cryptographic-libraries">8.1 Choosing Cryptographic Libraries</a></h2>
 <h3 id="811-the-ring-crate"><a class="header" href="#811-the-ring-crate">8.1.1 The <code>ring</code> Crate</a></h3>
 <p><code>ring</code> is the most widely used cryptographic library in Rust. It is a fork of BoringSSL’s crypto internals, providing:</p>
@@ -3647,7 +3650,7 @@ fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
 <p>⚠️ <strong>Legacy migration note</strong>: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.</p>
 <h2 id="84-digital-signatures"><a class="header" href="#84-digital-signatures">8.4 Digital Signatures</a></h2>
 <h3 id="ed25519-signatures"><a class="header" href="#ed25519-signatures">Ed25519 Signatures</a></h3>
-<p>Ed25519 is the recommended signature scheme for most applications — it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
+<p>Ed25519 is the recommended signature scheme for most applications: it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
 <pre><code class="language-toml">[dependencies]
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
 rand = "0.8"
@@ -3713,7 +3716,7 @@ fn key_exchange_pipeline() {
     let bob_private = agreement::EphemeralPrivateKey::generate(&amp;X25519, &amp;rng).unwrap();
     let bob_public = bob_private.compute_public_key().unwrap();
     
-    // 2. Key agreement — both parties derive the same shared secret
+    // 2. Key agreement - both parties derive the same shared secret
     let alice_shared = agreement::agree_ephemeral(
         alice_private,
         &amp;UnparsedPublicKey::new(&amp;X25519, bob_public.as_ref()),
@@ -3742,7 +3745,7 @@ fn key_exchange_pipeline() {
 <p>🔒 <strong>Key exchange security</strong>:</p>
 <ul>
 <li>Always use <strong>ephemeral</strong> key pairs (generate fresh per session) for forward secrecy.</li>
-<li>Use HKDF to derive encryption keys — never use the raw shared secret directly.</li>
+<li>Use HKDF to derive encryption keys: never use the raw shared secret directly.</li>
 <li>Include context info in HKDF expansion (e.g., <code>b"encryption-key"</code>, <code>b"mac-key"</code>) to derive different keys for different purposes.</li>
 </ul>
 <h3 id="851-key-rotation-and-key-lifetimes"><a class="header" href="#851-key-rotation-and-key-lifetimes">8.5.1 Key Rotation and Key Lifetimes</a></h3>
@@ -3765,8 +3768,8 @@ fn key_exchange_pipeline() {
 </ul>
 <p>⚠️ <strong>Migration rule</strong>: Prefer hybrid and crypto-agile designs during transition periods. Do not invent your own KEM combiner or signature format.</p>
 <h2 id="86-secrets-management"><a class="header" href="#86-secrets-management">8.6 Secrets Management</a></h2>
-<h3 id="861-the-zeroize-crate--secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate--secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate — Secure Memory Wiping</a></h3>
-<p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default—variables on the stack or heap may persist until the memory is reused.</p>
+<h3 id="861-the-zeroize-crate---secure-memory-wiping"><a class="header" href="#861-the-zeroize-crate---secure-memory-wiping">8.6.1 The <code>zeroize</code> Crate - Secure Memory Wiping</a></h3>
+<p>Cryptographic keys and passwords must be zeroed from memory after use. Rust does not guarantee this by default: variables on the stack or heap may persist until the memory is reused.</p>
 <pre><code class="language-toml">[dependencies]
 zeroize = { version = "1", features = ["derive"] }
 </code></pre>
@@ -3800,7 +3803,7 @@ fn use_key() {
 <p>⚠️ <strong>Deserialize caveat</strong>: If a secret-bearing type also implements <code>serde::Deserialize</code>, every successful parse creates another live secret instance. Treat deserialization boundaries the same way you treat <code>Clone</code>: minimize copies and ensure each instance is dropped on its own lifecycle.</p>
 <p>Cancellation in async code does not change this guarantee. As discussed in Chapter 6, aborting a Tokio task works by dropping the future, so <code>ZeroizeOnDrop</code> fields are wiped on that drop path too. The exceptions are the usual ones: process aborts, deliberate leaks such as <code>mem::forget</code>, or reference cycles that prevent <code>Drop</code> from ever running.</p>
 <p>One important caveat is shared ownership. If a secret is wrapped in <code>Arc&lt;T&gt;</code>, aborting one task only drops that task’s clone. The secret is zeroized when the <strong>last</strong> strong reference disappears, not when any individual task is cancelled. Avoid long-lived <code>Arc</code> clones of raw secret material unless you are deliberately managing every copy’s lifetime.</p>
-<h3 id="862-the-secrecy-crate--encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate--encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate — Encapsulating Secrets</a></h3>
+<h3 id="862-the-secrecy-crate---encapsulating-secrets"><a class="header" href="#862-the-secrecy-crate---encapsulating-secrets">8.6.2 The <code>secrecy</code> Crate - Encapsulating Secrets</a></h3>
 <pre><code class="language-toml">[dependencies]
 secrecy = "0.10"
 </code></pre>
@@ -3901,7 +3904,7 @@ fn generate_api_token() -&gt; String {
     hex::encode(bytes)
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production — it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
+<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
 <h2 id="88-tls-with-rustls"><a class="header" href="#88-tls-with-rustls">8.8 TLS with rustls</a></h2>
 <p>For secure network communication, use <code>rustls</code> instead of OpenSSL:</p>
 <pre><code class="language-toml">[dependencies]
@@ -3971,7 +3974,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 </div>
 <h2 id="810-summary"><a class="header" href="#810-summary">8.10 Summary</a></h2>
 <ul>
-<li>Use <code>ring</code> or well-audited RustCrypto crates—never implement crypto primitives yourself.</li>
+<li>Use <code>ring</code> or well-audited RustCrypto crates: never implement crypto primitives yourself.</li>
 <li>Always use <strong>authenticated encryption</strong> (AES-GCM, ChaCha20-Poly1305).</li>
 <li>Use AAD to authenticate unencrypted headers and protocol metadata.</li>
 <li><strong>Never reuse nonces</strong> with the same key for AEAD ciphers.</li>
@@ -3988,7 +3991,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <li>Treat token verification as cryptography plus policy: pin algorithms, verify signatures, and validate claims.</li>
 <li>Use <code>SystemRandom</code> for all cryptographic random number generation.</li>
 </ul>
-<p>In the next chapter, we enter the world of <code>unsafe</code> Rust—where the compiler’s safety guarantees are manually maintained.</p>
+<p>In the next chapter, we enter the world of <code>unsafe</code> Rustwhere the compiler’s safety guarantees are manually maintained.</p>
 <h2 id="811-exercises"><a class="header" href="#811-exercises">8.11 Exercises</a></h2>
 <ol>
 <li>
@@ -4014,9 +4017,9 @@ fn create_tls_client_config() -&gt; ClientConfig {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-9--unsafe-rust-when-and-how"><a class="header" href="#chapter-9--unsafe-rust-when-and-how">Chapter 9 — Unsafe Rust: When and How</a></h1>
+<h1 id="chapter-9---unsafe-rust-when-and-how"><a class="header" href="#chapter-9---unsafe-rust-when-and-how">Chapter 9 - Unsafe Rust: When and How</a></h1>
 <blockquote>
-<p><em>“With great power comes great responsibility—and a lot of code review.”</em></p>
+<p><em>“With great power comes great responsibility, and a lot of code review.”</em></p>
 </blockquote>
 <p>Unsafe Rust is the escape hatch that allows you to bypass the compiler’s safety checks. It exists because there are things the compiler cannot verify: interfacing with C libraries, implementing low-level data structures, hardware access, and performance-critical optimizations that require raw pointer manipulation.</p>
 <p>For security developers, <code>unsafe</code> is the most critical area of Rust code. Every unsafe block is a potential source of memory corruption, and must be audited with the same rigor you’d apply to C code.</p>
@@ -4032,7 +4035,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
 <p>⚠️ <strong>What <code>unsafe</code> does NOT disable</strong>: The borrow checker still operates. <code>unsafe</code> does not turn off the type system, lifetimes, or other compile-time checks. It only allows the five operations listed above.</p>
 <h2 id="92-the-safety-invariant"><a class="header" href="#92-the-safety-invariant">9.2 The Safety Invariant</a></h2>
 <p>Every <code>unsafe</code> block comes with an implicit contract: <strong>you must ensure that safe code cannot cause undefined behavior through your unsafe code.</strong></p>
-<p>This is the “soundness” property: safe Rust code can never cause undefined behavior, even if it tries. If safe code <em>can</em> cause UB through your unsafe abstraction, your code is <strong>unsound</strong>—and that’s a bug.</p>
+<p>This is the “soundness” property: safe Rust code can never cause undefined behavior, even if it tries. If safe code <em>can</em> cause UB through your unsafe abstraction, your code is <strong>unsound</strong> and that’s a bug.</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>// UNSOUND: safe code can cause UB
@@ -4256,7 +4259,7 @@ impl SecretBox {
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Pitfall</strong>: Pointer arithmetic can go out of bounds. Rust does not check pointer arithmetic at runtime. You must validate bounds yourself.</p>
-<h3 id="942-transmute--type-punning"><a class="header" href="#942-transmute--type-punning">9.4.2 Transmute — Type Punning</a></h3>
+<h3 id="942-transmute---type-punning"><a class="header" href="#942-transmute---type-punning">9.4.2 Transmute - Type Punning</a></h3>
 <p><code>std::mem::transmute</code> reinterprets bytes as a different type. It is extremely dangerous:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -4318,12 +4321,12 @@ unsafe impl&lt;T: Send&gt; Send for SharedRawBuf&lt;T&gt; {}
 unsafe impl&lt;T: Send&gt; Sync for SharedRawBuf&lt;T&gt; {}
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Pitfall</strong>: Implementing <code>Send</code> for a type that is not thread-safe (e.g., contains <code>Rc&lt;T&gt;</code> or <code>Cell&lt;T&gt;</code>) will cause data races. Always verify that all internal state is properly synchronized before implementing these traits.</p>
-<p>🔒 <strong>Security practice</strong>: Only implement <code>Send</code>/<code>Sync</code> when the type’s internal synchronization guarantees thread safety. If unsure, do not implement them — the compiler’s auto-derivation is conservative and correct by default.</p>
+<p>🔒 <strong>Security practice</strong>: Only implement <code>Send</code>/<code>Sync</code> when the type’s internal synchronization guarantees thread safety. If unsure, do not implement them: the compiler’s auto-derivation is conservative and correct by default.</p>
 <h3 id="946-forbidding-unsafe-in-safe-code"><a class="header" href="#946-forbidding-unsafe-in-safe-code">9.4.6 Forbidding <code>unsafe</code> in Safe Code</a></h3>
 <p>For security-critical projects, you can use lints to control where <code>unsafe</code> is allowed:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// In lib.rs or main.rs — disallow unsafe code entirely
+</span>// In lib.rs or main.rs - disallow unsafe code entirely
 #![forbid(unsafe_code)]
 <span class="boring">}</span></code></pre>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -4460,7 +4463,7 @@ fn test_atomic_counter() {
 </span>// Prusti uses the `prusti-contracts` crate for specifications
 // Currently requires a custom toolchain; see https://github.com/viperproject/prusti-dev
 
-// Example (conceptual — requires Prusti toolchain):
+// Example (conceptual, requires Prusti toolchain):
 // #[requires(x &gt;= 0)]
 // #[ensures(result &gt;= 0)]
 // fn safe_sqrt(x: i32) -&gt; i32 {
@@ -4482,7 +4485,7 @@ fn test_atomic_counter() {
 <li>Audit all unsafe code with the checklist.</li>
 <li>Use Miri to detect undefined behavior in tests.</li>
 </ul>
-<p>In the next chapter, we explore the Foreign Function Interface—calling C code from Rust and vice versa, which is inherently unsafe and requires careful security consideration.</p>
+<p>In the next chapter, we explore the Foreign Function Interface: calling C code from Rust and vice versa, which is inherently unsafe and requires careful security consideration.</p>
 <h2 id="97-exercises"><a class="header" href="#97-exercises">9.7 Exercises</a></h2>
 <ol>
 <li>
@@ -4511,7 +4514,7 @@ impl&lt;V&gt; FastMap&lt;V&gt; {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-10--foreign-function-interface"><a class="header" href="#chapter-10--foreign-function-interface">Chapter 10 — Foreign Function Interface</a></h1>
+<h1 id="chapter-10---foreign-function-interface"><a class="header" href="#chapter-10---foreign-function-interface">Chapter 10 - Foreign Function Interface</a></h1>
 <blockquote>
 <p><em>“The boundary between Rust and C is the most dangerous place in your codebase.”</em></p>
 </blockquote>
@@ -4699,7 +4702,7 @@ Pointer validation does not make the function safe to call from Rust: the caller
 <li>✅ Validate all size/length arguments (bounds, max limits).</li>
 <li>✅ Wrap in <code>catch_unwind</code> to prevent panics from crossing FFI boundary.</li>
 <li>✅ Use <code>#[unsafe(no_mangle)]</code> (Edition 2024) and <code>extern "C"</code> for a stable ABI.</li>
-<li>✅ Never panic across the FFI boundary—it’s undefined behavior.</li>
+<li>✅ Never panic across the FFI boundary, it’s undefined behavior.</li>
 </ol>
 <p>When the foreign side is explicitly prepared to receive unwinding, stable Rust also offers <code>extern "C-unwind"</code>:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -4801,7 +4804,7 @@ fn main() {
 <p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary. Write generated artifacts to <code>OUT_DIR</code> (or another explicit build output path), not a hardcoded <code>target/</code> path that breaks custom target directories and cross-compilation setups.</p>
 <h2 id="104-dangerous-c-patterns"><a class="header" href="#104-dangerous-c-patterns">10.4 Dangerous C Patterns</a></h2>
 <h3 id="1041-longjmp-and-c-exceptions"><a class="header" href="#1041-longjmp-and-c-exceptions">10.4.1 <code>longjmp</code> and C++ Exceptions</a></h3>
-<p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior — it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>
+<p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior: it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">struct ResourceGuard;
@@ -4821,7 +4824,7 @@ int safe_c_operation(void) {
     if (setjmp(buf) == 0) {
         return c_library_do_jump();  // Normal path
     } else {
-        return -1;  // longjmp was caught — return error to Rust
+        return -1;  // longjmp was caught, return error to Rust
     }
 }
 </code></pre>
@@ -4833,8 +4836,8 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 </code></pre>
 <p>With <code>panic = "abort"</code>:</p>
 <ul>
-<li>Panics terminate the process immediately — they cannot cross the FFI boundary.</li>
-<li>No unwinding tables — smaller binary, reduced attack surface.</li>
+<li>Panics terminate the process immediately: they cannot cross the FFI boundary.</li>
+<li>No unwinding tables: smaller binary, reduced attack surface.</li>
 <li><code>catch_unwind</code> becomes a no-op (panics are no longer catchable).</li>
 </ul>
 <p>⚠️ <strong>Trade-off</strong>: With <code>panic = "abort"</code>, you lose the ability to catch panics. Ensure all error handling uses <code>Result</code> rather than relying on panic catching.</p>
@@ -4895,7 +4898,7 @@ impl CBuffer {
     }
 }
 
-// Do NOT implement Drop to free the memory—C owns it.
+// Do NOT implement Drop to free the memory C owns it.
 // If C expects Rust to free it, use the appropriate C deallocator.
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Golden rule</strong>: Never mix allocators. If C allocates with <code>malloc</code>, free with <code>free</code>. If Rust allocates with <code>Box&lt;[u8]&gt;</code> or <code>Vec</code>, reconstruct the matching Rust type on the free path. Mixing allocators is undefined behavior.</p>
@@ -4938,12 +4941,12 @@ fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
 <span class="boring">}</span></code></pre>
 <h2 id="107-summary"><a class="header" href="#107-summary">10.7 Summary</a></h2>
 <ul>
-<li>FFI is inherently unsafe—every boundary crossing requires careful validation.</li>
+<li>FFI is inherently unsafe: every boundary crossing requires careful validation.</li>
 <li>Use <code>bindgen</code> to generate bindings instead of writing them manually.</li>
 <li>Always validate inputs before passing to C and outputs from C.</li>
 <li>Use <code>catch_unwind</code> when Rust code is called from C to prevent panics from crossing the boundary.</li>
 <li>Use <code>#[repr(C)]</code> for stable ABI compatibility.</li>
-<li>Never mix allocators—match allocation and deallocation between Rust and C.</li>
+<li>Never mix allocators: match allocation and deallocation between Rust and C.</li>
 <li>Apply C hardening flags to any C code compiled in your project.</li>
 <li>Document ownership semantics clearly at every FFI boundary.</li>
 </ul>
@@ -4961,7 +4964,7 @@ fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-11--memory-layout-and-low-level-control"><a class="header" href="#chapter-11--memory-layout-and-low-level-control">Chapter 11 — Memory Layout and Low-Level Control</a></h1>
+<h1 id="chapter-11---memory-layout-and-low-level-control"><a class="header" href="#chapter-11---memory-layout-and-low-level-control">Chapter 11 - Memory Layout and Low-Level Control</a></h1>
 <blockquote>
 <p><em>“Know your memory. Know your adversary.”</em></p>
 </blockquote>
@@ -4981,7 +4984,7 @@ fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
 // Size: might be 12, 14, or 16 bytes depending on compiler decisions
 <span class="boring">}</span></code></pre>
 <p>This is fine for internal use but <strong>dangerous</strong> for parsing external data.</p>
-<h3 id="1112-reprc--c-compatible-layout"><a class="header" href="#1112-reprc--c-compatible-layout">11.1.2 <code>#[repr(C)]</code> — C-Compatible Layout</a></h3>
+<h3 id="1112-reprc---c-compatible-layout"><a class="header" href="#1112-reprc---c-compatible-layout">11.1.2 <code>#[repr(C)]</code> - C-Compatible Layout</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(C)]
@@ -5007,7 +5010,7 @@ struct CNetworkHeader {
 <li>Are shared with C code</li>
 <li>Are cast from raw byte arrays</li>
 </ul>
-<h3 id="1113-reprc-packed--no-padding"><a class="header" href="#1113-reprc-packed--no-padding">11.1.3 <code>#[repr(C, packed)]</code> — No Padding</a></h3>
+<h3 id="1113-reprc-packed---no-padding"><a class="header" href="#1113-reprc-packed---no-padding">11.1.3 <code>#[repr(C, packed)]</code> - No Padding</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(C, packed)]
@@ -5043,7 +5046,7 @@ struct PackedHeader {
     Some(unsafe { ptr::read_unaligned(ptr) })
 }
 <span class="boring">}</span></code></pre>
-<h3 id="1114-repru8-repri32--enum-size-control"><a class="header" href="#1114-repru8-repri32--enum-size-control">11.1.4 <code>#[repr(u8)]</code>, <code>#[repr(i32)]</code> — Enum Size Control</a></h3>
+<h3 id="1114-repru8-repri32---enum-size-control"><a class="header" href="#1114-repru8-repri32---enum-size-control">11.1.4 <code>#[repr(u8)]</code>, <code>#[repr(i32)]</code> - Enum Size Control</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(u8)]
@@ -5055,7 +5058,7 @@ enum PacketType {
 }
 // Guaranteed: sizeof(PacketType) == 1
 <span class="boring">}</span></code></pre>
-<h3 id="1115-reprtransparent--single-field-wrapper"><a class="header" href="#1115-reprtransparent--single-field-wrapper">11.1.5 <code>#[repr(transparent)]</code> — Single-Field Wrapper</a></h3>
+<h3 id="1115-reprtransparent---single-field-wrapper"><a class="header" href="#1115-reprtransparent---single-field-wrapper">11.1.5 <code>#[repr(transparent)]</code> - Single-Field Wrapper</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[repr(transparent)]
@@ -5118,6 +5121,11 @@ struct AlignedBuffer {
 <li>Alignment can reduce performance variance and avoid unaligned-access traps on some targets</li>
 <li>Do not assume a crypto primitive requires a specific alignment unless its API or hardware manual says so</li>
 </ul>
+<p>You cannot combine <code>packed</code> and <code>align</code> on the same struct. The compiler
+rejects that combination because <code>packed</code> lowers alignment while
+<code>align(N)</code> raises it. If you need a packed wire-format view and an aligned
+working buffer, keep them as separate types and copy or parse between them
+explicitly.</p>
 <h3 id="1132-cache-line-alignment"><a class="header" href="#1132-cache-line-alignment">11.3.2 Cache-Line Alignment</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -5169,7 +5177,7 @@ static GLOBAL: SecureAllocator = SecureAllocator;
 <li>Use a zeroization primitive that is guaranteed not to be optimized away</li>
 <li>Guard against heap metadata corruption</li>
 </ul>
-<h3 id="1142-the-zeroize-crate--practical-memory-wiping"><a class="header" href="#1142-the-zeroize-crate--practical-memory-wiping">11.4.2 The <code>zeroize</code> Crate — Practical Memory Wiping</a></h3>
+<h3 id="1142-the-zeroize-crate---practical-memory-wiping"><a class="header" href="#1142-the-zeroize-crate---practical-memory-wiping">11.4.2 The <code>zeroize</code> Crate - Practical Memory Wiping</a></h3>
 <p>The <code>zeroize</code> crate gives you a practical way to wipe specific buffers before release, unlike naive manual loops that the compiler may optimize away:</p>
 <pre><code class="language-toml">[dependencies]
 zeroize = { version = "1", features = ["derive"] }
@@ -5205,6 +5213,10 @@ struct SecureBuffer {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Use <code>zeroize</code> (with the <code>derive</code> feature) instead of manual zeroing loops. The crate is designed so the wipe operation itself is not optimized away, but it only affects the buffer you zeroize and only on code paths where zeroization runs. It does not erase copies you already made, and it cannot help if the process aborts or exits before <code>Drop</code> (see Chapter 2 §2.4 on <code>panic = "abort"</code>).</p>
+<p>Core dumps are another separate leak path: a crash can snapshot process memory
+before later cleanup would have happened, including live secrets that would
+normally be wiped on <code>Drop</code>. Chapter 19 section 19.6 shows how to disable core
+dumps for production services that handle sensitive material.</p>
 <h3 id="1143-safe-pointer-access-with-raw-and-addr_of"><a class="header" href="#1143-safe-pointer-access-with-raw-and-addr_of">11.4.3 Safe Pointer Access with <code>&amp;raw</code> (and <code>addr_of!</code>)</a></h3>
 <p>When working with structs that contain fields you cannot safely create (e.g., a <code>MaybeUninit</code> field), Edition 2024 prefers <code>&amp;raw const expr</code> and <code>&amp;raw mut expr</code>. They are the direct syntax behind the older <code>addr_of!</code> and <code>addr_of_mut!</code> macros and let you obtain raw pointers without creating intermediate references:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -5281,7 +5293,7 @@ rustflags = ["-C", "force-frame-pointers=yes"]
 </code></pre>
 <p>If you build C/C++ code via the <code>cc</code> crate, apply <code>-fstack-protector-strong</code> to those objects separately. For RELRO, NX, and PIE settings, use the linker hardening flags from Chapter 19. Frame pointers improve observability; they are not a canary mechanism.</p>
 <h3 id="1152-guard-pages"><a class="header" href="#1152-guard-pages">11.5.2 Guard Pages</a></h3>
-<p>Rust’s default allocator does <strong>not</strong> place guard pages between heap allocations — neither in debug nor release mode. Guard pages exist at stack boundaries (enforced by the OS), not between individual heap allocations. For heap-level guard page protection, use a hardened allocator like GWP-ASan or run under AddressSanitizer (ASan):</p>
+<p>Rust’s default allocator does <strong>not</strong> place guard pages between heap allocations, neither in debug nor release mode. Guard pages exist at stack boundaries (enforced by the OS), not between individual heap allocations. For heap-level guard page protection, use a hardened allocator like GWP-ASan or run under AddressSanitizer (ASan):</p>
 <pre><code class="language-bash"># Run with ASan to detect heap buffer overflows
 RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 </code></pre>
@@ -5297,7 +5309,7 @@ RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 <li>Lock memory pages containing secrets (prevent swapping).</li>
 <li>Verify release hardening (RELRO/NX/PIE) and apply stack-protector flags to any C/C++ objects you compile.</li>
 </ul>
-<p>In the next chapter, we cover secure network programming—building network services that resist common attacks.</p>
+<p>In the next chapter, we cover secure network programming: building network services that resist common attacks.</p>
 <h2 id="117-exercises"><a class="header" href="#117-exercises">11.7 Exercises</a></h2>
 <ol>
 <li>
@@ -5311,11 +5323,11 @@ RUSTFLAGS="-Zsanitizer=address" cargo +nightly run
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-12--secure-network-programming"><a class="header" href="#chapter-12--secure-network-programming">Chapter 12 — Secure Network Programming</a></h1>
+<h1 id="chapter-12---secure-network-programming"><a class="header" href="#chapter-12---secure-network-programming">Chapter 12 - Secure Network Programming</a></h1>
 <blockquote>
 <p><em>“The network is not trustworthy. Design accordingly.”</em></p>
 </blockquote>
-<p>Network services are the most exposed attack surface in any system. Every connection could be an attacker probing for vulnerabilities—buffer overflows in parsers, resource exhaustion through connection floods, injection attacks through malformed input, and timing attacks through crafted requests.</p>
+<p>Network services are the most exposed attack surface in any system. Every connection could be an attacker probing for vulnerabilities: buffer overflows in parsers, resource exhaustion through connection floods, injection attacks through malformed input, and timing attacks through crafted requests.</p>
 <p>Rust’s memory safety eliminates many traditional network vulnerabilities, but secure network programming requires more than memory safety. This chapter covers the patterns and practices for building robust, attack-resistant network services.</p>
 <h2 id="121-connection-handling"><a class="header" href="#121-connection-handling">12.1 Connection Handling</a></h2>
 <h3 id="1211-basic-tcp-server-with-tokio"><a class="header" href="#1211-basic-tcp-server-with-tokio">12.1.1 Basic TCP Server with tokio</a></h3>
@@ -5476,7 +5488,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
 <li><strong>Explicit framing buffer</strong>: Correctly handles fragmented and coalesced TCP reads</li>
 </ol>
 <blockquote>
-<p><strong>Note</strong>: The examples above use <code>.unwrap()</code> in a few places (e.g., on <code>lock()</code> results and <code>join</code> handles) for readability. In production code, replace these with proper error handling—especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.</p>
+<p><strong>Note</strong>: The examples above use <code>.unwrap()</code> in a few places (e.g., on <code>lock()</code> results and <code>join</code> handles) for readability. In production code, replace these with proper error handling, especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.</p>
 </blockquote>
 <h3 id="1212-rate-limiting"><a class="header" href="#1212-rate-limiting">12.1.2 Rate Limiting</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -5765,7 +5777,7 @@ fn create_mtls_config(
 <li>Use checked arithmetic for length calculations.</li>
 <li>Never trust a length field from the network without bounds checking.</li>
 </ol>
-<p>DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.</p>
+<p>DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks. For the post-resolution destination policy check, see Chapter 7 section 7.2.5.</p>
 <p>If you need an in-process encrypted resolver, <code>hickory-resolver</code> exposes ready-made configurations for DNS-over-TLS and DNS-over-HTTPS:</p>
 <pre><code class="language-rust ignore">use hickory_resolver::Resolver;
 use hickory_resolver::config::ResolverConfig;
@@ -5890,13 +5902,13 @@ fn log_security_event(event: &amp;SecurityEvent) {
 <ul>
 <li>Use connection limiting, rate limiting, and timeouts to prevent DoS attacks.</li>
 <li>Always set read/write/session timeouts on network connections.</li>
-<li>Use <code>rustls</code> for TLS—memory-safe by design.</li>
+<li>Use <code>rustls</code> for TLS: memory-safe by design.</li>
 <li>Validate all length fields from network data with checked arithmetic.</li>
 <li>Limit both request and response sizes to prevent amplification attacks.</li>
 <li>Log security events without exposing sensitive data.</li>
 <li>Apply the principle of least privilege: bind to specific interfaces, use firewall rules.</li>
 </ul>
-<p>In the next chapter, we move to Part IV—testing and verification strategies for proving your code is secure.</p>
+<p>In the next chapter, we move to Part IV: testing and verification strategies for proving your code is secure.</p>
 <h2 id="126-exercises"><a class="header" href="#126-exercises">12.6 Exercises</a></h2>
 <ol>
 <li>
@@ -5910,11 +5922,11 @@ fn log_security_event(event: &amp;SecurityEvent) {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-13--testing-strategies-for-secure-code"><a class="header" href="#chapter-13--testing-strategies-for-secure-code">Chapter 13 — Testing Strategies for Secure Code</a></h1>
+<h1 id="chapter-13---testing-strategies-for-secure-code"><a class="header" href="#chapter-13---testing-strategies-for-secure-code">Chapter 13 - Testing Strategies for Secure Code</a></h1>
 <blockquote>
-<p><em>“Program testing can be used to show the presence of bugs, but never to show their absence.”</em> — Edsger W. Dijkstra</p>
+<p><em>“Program testing can be used to show the presence of bugs, but never to show their absence.”</em> Edsger W. Dijkstra</p>
 </blockquote>
-<p>Testing security-critical code requires a different mindset than testing functionality. You’re not just verifying that the code works correctly for valid inputs—you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.</p>
+<p>Testing security-critical code requires a different mindset than testing functionality. You’re not just verifying that the code works correctly for valid inputs: you must also verify that it fails safely for every possible invalid, malicious, or unexpected input. This chapter covers Rust testing strategies with a security focus.</p>
 <h2 id="131-rust-testing-fundamentals"><a class="header" href="#131-rust-testing-fundamentals">13.1 Rust Testing Fundamentals</a></h2>
 <h3 id="1311-unit-tests"><a class="header" href="#1311-unit-tests">13.1.1 Unit Tests</a></h3>
 <p>Rust has built-in test support:</p>
@@ -6073,7 +6085,7 @@ mod boundary_tests {
         assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), Some(u64::MAX));
     }
 }</code></pre>
-<h3 id="1322-negative-testing--testing-failure-modes"><a class="header" href="#1322-negative-testing--testing-failure-modes">13.2.2 Negative Testing — Testing Failure Modes</a></h3>
+<h3 id="1322-negative-testing---testing-failure-modes"><a class="header" href="#1322-negative-testing---testing-failure-modes">13.2.2 Negative Testing - Testing Failure Modes</a></h3>
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod negative_tests {
     use super::*;
@@ -6282,7 +6294,7 @@ mod unsafe_tests {
         assert!(result.is_err());
     }
 }</code></pre>
-<h2 id="135-doc-tests--testable-documentation"><a class="header" href="#135-doc-tests--testable-documentation">13.5 Doc Tests — Testable Documentation</a></h2>
+<h2 id="135-doc-tests---testable-documentation"><a class="header" href="#135-doc-tests---testable-documentation">13.5 Doc Tests - Testable Documentation</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>/// Validates that a username contains only alphanumeric characters and underscores.
@@ -6394,7 +6406,7 @@ cargo mutants --workspace --all-features
 <li>Use <code>cargo-llvm-cov</code> to find untested validation and error-handling paths.</li>
 <li>Use <code>cargo-mutants</code> to check whether tests actually fail when critical logic is changed.</li>
 </ul>
-<p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing—automated techniques for finding bugs you didn’t think to test for.</p>
+<p>In the next chapter, we go beyond manual test cases to explore fuzzing and property-based testing: automated techniques for finding bugs you didn’t think to test for.</p>
 <h2 id="138-exercises"><a class="header" href="#138-exercises">13.8 Exercises</a></h2>
 <ol>
 <li>
@@ -6408,11 +6420,11 @@ cargo mutants --workspace --all-features
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-14--fuzzing-and-property-based-testing"><a class="header" href="#chapter-14--fuzzing-and-property-based-testing">Chapter 14 — Fuzzing and Property-Based Testing</a></h1>
+<h1 id="chapter-14---fuzzing-and-property-based-testing"><a class="header" href="#chapter-14---fuzzing-and-property-based-testing">Chapter 14 - Fuzzing and Property-Based Testing</a></h1>
 <blockquote>
 <p><em>“The best test cases are the ones you didn’t think to write.”</em></p>
 </blockquote>
-<p>Manual testing can only cover inputs you anticipate. Fuzzing and property-based testing generate inputs automatically, discovering bugs through random exploration. For security-critical code—parsers, decoders, protocol handlers—these techniques are essential because attackers will send inputs you never imagined.</p>
+<p>Manual testing can only cover inputs you anticipate. Fuzzing and property-based testing generate inputs automatically, discovering bugs through random exploration. For security-critical code (parsers, decoders, protocol handlers) these techniques are essential because attackers will send inputs you never imagined.</p>
 <h2 id="141-property-based-testing-with-proptest"><a class="header" href="#141-property-based-testing-with-proptest">14.1 Property-Based Testing with <code>proptest</code></a></h2>
 <p>Property-based testing generates random inputs that satisfy specified constraints and checks that properties (invariants) hold for all of them.</p>
 <h3 id="1411-basic-setup"><a class="header" href="#1411-basic-setup">14.1.1 Basic Setup</a></h3>
@@ -6716,7 +6728,7 @@ for file in fuzz/corpus/parse_message/*; do
 done
 </code></pre>
 <p>⚠️ <strong>Practicality note</strong>: Running Miri once per corpus file is extremely slow. Use it on minimized corpora, targeted reproducers, or periodic CI jobs rather than every large fuzz corpus on every edit.</p>
-<pre><code class="language-rust ignore">// tests/miri_corpus.rs — test harness for running Miri on corpus files
+<pre><code class="language-rust ignore">// tests/miri_corpus.rs - test harness for running Miri on corpus files
 <span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::my_secure_app as my_secure_app;
 </span>use std::env;
@@ -6829,13 +6841,13 @@ libfuzzer_sys::fuzz_target!(|actions: Vec&lt;FuzzAction&gt;| {
 <li><strong>Property-based testing</strong> (<code>proptest</code>, <code>quickcheck</code>): Generates random inputs to test invariants. Good for mathematical properties and roundtrip tests.</li>
 <li><strong>Fuzzing</strong> (<code>cargo-fuzz</code>): Coverage-guided input generation. Best for parsers, decoders, and protocol handlers.</li>
 <li>Differential fuzzing is useful when you have a reference implementation, older parser, or wire-compatible rewrite to compare against.</li>
-<li>Fuzz <strong>every</strong> input-processing function—especially network parsers.</li>
+<li>Fuzz <strong>every</strong> input-processing function, especially network parsers.</li>
 <li>Use structured fuzzing (<code>arbitrary</code>) for complex input types.</li>
 <li>Run fuzzing continuously in CI and maintain a seed corpus.</li>
 <li>Use sanitizers (AddressSanitizer, ThreadSanitizer, MemorySanitizer) and Miri alongside fuzzing to detect memory safety and concurrency issues.</li>
 <li>Save and commit regression test cases for all discovered bugs.</li>
 </ul>
-<p>In the next chapter, we cover static analysis and code auditing—tools and techniques for finding security issues without executing code.</p>
+<p>In the next chapter, we cover static analysis and code auditing: tools and techniques for finding security issues without executing code.</p>
 <h2 id="147-exercises"><a class="header" href="#147-exercises">14.7 Exercises</a></h2>
 <ol>
 <li>
@@ -6852,11 +6864,11 @@ libfuzzer_sys::fuzz_target!(|actions: Vec&lt;FuzzAction&gt;| {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-15--static-analysis-and-auditing"><a class="header" href="#chapter-15--static-analysis-and-auditing">Chapter 15 — Static Analysis and Auditing</a></h1>
+<h1 id="chapter-15---static-analysis-and-auditing"><a class="header" href="#chapter-15---static-analysis-and-auditing">Chapter 15 - Static Analysis and Auditing</a></h1>
 <blockquote>
 <p><em>“The compiler is your first auditor. Make it work harder.”</em></p>
 </blockquote>
-<p>Static analysis examines code without executing it, finding potential vulnerabilities through pattern matching, data flow analysis, and formal methods. Rust’s compiler already performs more static analysis than C compilers, but additional tools can catch subtler issues—especially in <code>unsafe</code> code and dependency management.</p>
+<p>Static analysis examines code without executing it, finding potential vulnerabilities through pattern matching, data flow analysis, and formal methods. Rust’s compiler already performs more static analysis than C compilers, but additional tools can catch subtler issues, especially in <code>unsafe</code> code and dependency management.</p>
 <h2 id="151-compiler-warnings-as-security-tools"><a class="header" href="#151-compiler-warnings-as-security-tools">15.1 Compiler Warnings as Security Tools</a></h2>
 <h3 id="1511-essential-warning-flags"><a class="header" href="#1511-essential-warning-flags">15.1.1 Essential Warning Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml
@@ -6867,7 +6879,7 @@ rustflags = [
     "-D", "unused",                      # Unused code = dead code = potential confusion
 ]
 
-# Note: Clippy lints cannot be set via rustflags — they only work with `cargo clippy`.
+# Note: Clippy lints cannot be set via rustflags, they only work with `cargo clippy`.
 # Use a CI step or Makefile target instead:
 #   cargo clippy -- -W clippy::all -W clippy::pedantic
 </code></pre>
@@ -6990,7 +7002,7 @@ Solution: upgrade to a reviewed fixed release
 <pre><code class="language-bash">cargo audit --json &gt; audit.json
 </code></pre>
 <p>Parse the JSON in your pipeline if you need to gate on specific severities, archive reviewed exceptions with the rest of the build artifacts, or convert findings into SARIF for GitHub Code Scanning and similar dashboards.</p>
-<h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
+<h3 id="1532-cargo-geiger---counting-unsafe-code"><a class="header" href="#1532-cargo-geiger---counting-unsafe-code">15.3.2 <code>cargo geiger</code> - Counting Unsafe Code</a></h3>
 <pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
 cargo geiger --all-features
 </code></pre>
@@ -7013,7 +7025,7 @@ Functions  Expressions  Impls  Traits  Methods  Dependency
 <li>Custom allocators</li>
 </ul>
 <p>⚠️ <strong>Tooling note</strong>: <code>cargo-geiger</code> is useful, but it can lag the newest compiler releases. Pin the version you rely on in CI and keep a manual fallback such as <code>rg -n "\\bunsafe\\b"</code> for quick inventory work.</p>
-<h3 id="1533-cargo-crev--community-code-review"><a class="header" href="#1533-cargo-crev--community-code-review">15.3.3 <code>cargo crev</code> — Community Code Review</a></h3>
+<h3 id="1533-cargo-crev---community-code-review"><a class="header" href="#1533-cargo-crev---community-code-review">15.3.3 <code>cargo crev</code> - Community Code Review</a></h3>
 <pre><code class="language-bash">cargo install cargo-crev --version 0.26.5 --locked
 cargo crev import trust --from-url https://github.com/crev-dev/crev-proofs
 cargo crev verify
@@ -7024,7 +7036,7 @@ cargo crev verify
 <li>Review crates yourself and publish findings</li>
 <li>Configure trust requirements for your project</li>
 </ul>
-<h3 id="1534-cargo-vet--supply-chain-auditing"><a class="header" href="#1534-cargo-vet--supply-chain-auditing">15.3.4 <code>cargo vet</code> — Supply Chain Auditing</a></h3>
+<h3 id="1534-cargo-vet---supply-chain-auditing"><a class="header" href="#1534-cargo-vet---supply-chain-auditing">15.3.4 <code>cargo vet</code> - Supply Chain Auditing</a></h3>
 <pre><code class="language-bash">cargo install cargo-vet --version 0.10.2 --locked
 cargo vet init
 cargo vet
@@ -7038,7 +7050,7 @@ version = "1.2.3"
 notes = "Reviewed for memory safety, no unsafe code, constant-time operations verified"
 </code></pre>
 <h2 id="154-additional-audit-tooling"><a class="header" href="#154-additional-audit-tooling">15.4 Additional Audit Tooling</a></h2>
-<h3 id="1541-cargo-careful--extra-runtime-checking"><a class="header" href="#1541-cargo-careful--extra-runtime-checking">15.4.1 <code>cargo-careful</code> — Extra Runtime Checking</a></h3>
+<h3 id="1541-cargo-careful---extra-runtime-checking"><a class="header" href="#1541-cargo-careful---extra-runtime-checking">15.4.1 <code>cargo-careful</code> - Extra Runtime Checking</a></h3>
 <p><code>cargo-careful</code> complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.</p>
 <pre><code class="language-bash">cargo install cargo-careful --version 0.4.10 --locked
 cargo +nightly careful test
@@ -7210,7 +7222,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li>Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.</li>
 <li>Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.</li>
 </ul>
-<p>In the next chapter, we cover supply chain security—protecting your build pipeline from tampering and compromise.</p>
+<p>In the next chapter, we cover supply chain security: protecting your build pipeline from tampering and compromise.</p>
 <h2 id="158-exercises"><a class="header" href="#158-exercises">15.8 Exercises</a></h2>
 <ol>
 <li>
@@ -7227,12 +7239,12 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-16--supply-chain-security"><a class="header" href="#chapter-16--supply-chain-security">Chapter 16 — Supply Chain Security</a></h1>
+<h1 id="chapter-16---supply-chain-security"><a class="header" href="#chapter-16---supply-chain-security">Chapter 16 - Supply Chain Security</a></h1>
 <blockquote>
 <p><em>“Your code is only as secure as your weakest dependency.”</em></p>
 </blockquote>
 <p>Modern software is built on layers of dependencies, each of which represents trust. A single compromised dependency can introduce a backdoor into every application that uses it. The Rust ecosystem, centered around crates.io, has experienced supply chain attacks including typo-squatting, dependency confusion, and maintainer account compromise.</p>
-<p>This chapter covers how to protect your Rust project from supply chain attacks—from dependency selection to build reproducibility.</p>
+<p>This chapter covers how to protect your Rust project from supply chain attacks: from dependency selection to build reproducibility.</p>
 <h2 id="161-the-threat-model"><a class="header" href="#161-the-threat-model">16.1 The Threat Model</a></h2>
 <h3 id="1611-attack-vectors"><a class="header" href="#1611-attack-vectors">16.1.1 Attack Vectors</a></h3>
 <div class="table-wrapper">
@@ -7554,7 +7566,7 @@ jobs:
 <li>Use <code>cargo-deny</code> to enforce license, source, and ban policies.</li>
 <li>Use <code>cargo-supply-chain</code> to see who publishes and maintains the crates you implicitly trust.</li>
 <li>Vendor dependencies for air-gapped builds.</li>
-<li>Audit <code>build.rs</code> scripts— they have full system access at build time.</li>
+<li>Audit <code>build.rs</code> scripts: they have full system access at build time.</li>
 <li>Build in sandboxed environments with <code>--frozen --offline</code>.</li>
 <li>Generate and maintain a Software Bill of Materials (SBOM).</li>
 <li>Implement supply chain security checks in CI/CD.</li>
@@ -7575,7 +7587,7 @@ jobs:
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-17--building-a-hardened-tcp-server"><a class="header" href="#chapter-17--building-a-hardened-tcp-server">Chapter 17 — Building a Hardened TCP Server</a></h1>
+<h1 id="chapter-17---building-a-hardened-tcp-server"><a class="header" href="#chapter-17---building-a-hardened-tcp-server">Chapter 17 - Building a Hardened TCP Server</a></h1>
 <blockquote>
 <p><em>“Theory without practice is empty. Practice without theory is blind.”</em></p>
 </blockquote>
@@ -8059,7 +8071,7 @@ impl ConnectionHandler {
                         msg
                     },
                     Err(ProtocolError::IncompleteHeader) | Err(ProtocolError::IncompleteMessage { .. }) =&gt; {
-                    // Need more data — keep reading
+                    // Need more data - keep reading
                     break;
                     }
                     Err(e) =&gt; {
@@ -8308,7 +8320,7 @@ mod tests {
 <li><strong>No unsafe code</strong>: The entire server is safe Rust</li>
 <li><strong>Comprehensive testing</strong>: Unit tests and property tests around the protocol layer</li>
 </ol>
-<p>In the next chapter, we build a secure binary parser—another common security-critical component.</p>
+<p>In the next chapter, we build a secure binary parser: another common security-critical component.</p>
 <blockquote>
 <p><strong>Note</strong>: This server uses the <code>log</code> crate for simplicity. See §19.4.1 for a drop-in path to replace <code>log</code>/<code>env_logger</code> with <code>tracing</code> once you need structured JSON logs, request spans, or SIEM-friendly fields.</p>
 </blockquote>
@@ -8325,7 +8337,7 @@ mod tests {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-18--secure-parser-construction"><a class="header" href="#chapter-18--secure-parser-construction">Chapter 18 — Secure Parser Construction</a></h1>
+<h1 id="chapter-18---secure-parser-construction"><a class="header" href="#chapter-18---secure-parser-construction">Chapter 18 - Secure Parser Construction</a></h1>
 <blockquote>
 <p><em>“Parsers are the gateway to every system. Secure the gateway.”</em></p>
 </blockquote>
@@ -8856,11 +8868,11 @@ proptest! {
 <li><strong>Roundtrip property</strong>: Serialization followed by parsing produces equivalent results for canonical messages.</li>
 <li><strong>Iterative structure</strong>: The parser avoids attacker-controlled recursion depth and the stack-overflow risk that comes with it.</li>
 </ol>
-<p>In the final chapter, we cover deployment hardening—how to build, configure, and deploy Rust applications for maximum security in production.</p>
+<p>In the final chapter, we cover deployment hardening: how to build, configure, and deploy Rust applications for maximum security in production.</p>
 <h2 id="188-exercises"><a class="header" href="#188-exercises">18.8 Exercises</a></h2>
 <ol>
 <li>
-<p><strong>Streaming Parser</strong>: Extend the <code>TlvMessage</code> parser to support incremental (streaming) parsing — it should accept partial data, return <code>Incomplete</code> when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple <code>read()</code> calls.</p>
+<p><strong>Streaming Parser</strong>: Extend the <code>TlvMessage</code> parser to support incremental (streaming) parsing: it should accept partial data, return <code>Incomplete</code> when more bytes are needed, and resume parsing when more data arrives. This is essential for TCP-based protocols where a message may arrive in multiple <code>read()</code> calls.</p>
 </li>
 <li>
 <p><strong>Parser Combinators with <code>nom</code></strong>: Rewrite the TLV parser using the <code>nom</code> crate. Compare the code size, error quality, and performance against the hand-written parser. Discuss which approach is better for security auditing (fewer lines vs. more explicit control).</p>
@@ -8870,11 +8882,11 @@ proptest! {
 </li>
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="chapter-19--deployment-hardening-and-release"><a class="header" href="#chapter-19--deployment-hardening-and-release">Chapter 19 — Deployment Hardening and Release</a></h1>
+<h1 id="chapter-19---deployment-hardening-and-release"><a class="header" href="#chapter-19---deployment-hardening-and-release">Chapter 19 - Deployment Hardening and Release</a></h1>
 <blockquote>
 <p><em>“Secure code deployed insecurely is insecure.”</em></p>
 </blockquote>
-<p>Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline—from compiler hardening flags to runtime protections, from container security to monitoring.</p>
+<p>Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline, from compiler hardening flags to runtime protections, from container security to monitoring.</p>
 <p>This chapter is intentionally generic, but the concrete commands use the Chapter 17 companion service from this repository where that makes verification less ambiguous. When you see <code>ch17-hardened-server</code>, substitute your own package or binary name in a different codebase.</p>
 <h2 id="191-compilation-hardening"><a class="header" href="#191-compilation-hardening">19.1 Compilation Hardening</a></h2>
 <h3 id="1911-release-profile-configuration"><a class="header" href="#1911-release-profile-configuration">19.1.1 Release Profile Configuration</a></h3>
@@ -9015,6 +9027,9 @@ ENTRYPOINT ["secure-server"]
 <li><strong>Non-root user</strong>: Runs as <code>nonroot</code> by default.</li>
 <li><strong>No unnecessary files</strong>: Only the compiled binary is copied.</li>
 </ol>
+<p><code>ch17-hardened-server</code> is the only binary crate in this workspace example, so
+it gets a placeholder <code>main.rs</code>. The other workspace members are libraries, so
+empty <code>lib.rs</code> files are enough for Cargo’s dependency-caching pass.</p>
 <h3 id="1922-container-hardening-with-podmandocker"><a class="header" href="#1922-container-hardening-with-podmandocker">19.2.2 Container Hardening with Podman/Docker</a></h3>
 <pre><code class="language-yaml"># docker-compose.yml (or podman kube)
 services:
@@ -9373,7 +9388,7 @@ async fn handle_connection(
 <ol>
 <li><strong>Correlation</strong>: Every event is tagged with connection ID, peer address, and user ID, enabling post-incident analysis.</li>
 <li><strong>Machine-readable</strong>: JSON output integrates with SIEM systems (Splunk, ELK, Datadog) for automated alerting.</li>
-<li><strong>Contextual spans</strong>: A security event in a handler automatically includes the full request context—no manual threading of parameters.</li>
+<li><strong>Contextual spans</strong>: A security event in a handler automatically includes the full request context: no manual threading of parameters.</li>
 <li><strong>Audit trail</strong>: Structured logs serve as an audit trail for compliance (SOC 2, PCI-DSS).</li>
 </ol>
 <p>Do not treat all structured logs as security audit logs. Operational logs optimize for debugging and throughput; they may be sampled, redacted differently, or dropped under load. Audit logs need a stricter schema, a separate or append-only sink, restricted writers, synchronized clocks, and tamper-evident retention. On Linux, <code>tracing-journald</code> or a syslog/auditd sink is a common way to route security events separately from high-volume application logs.</p>
@@ -9515,6 +9530,11 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <li>Permission-restricted files such as <code>/run/secrets/&lt;name&gt;</code> in Docker Swarm and similar platforms</li>
 <li>Platform key stores such as DPAPI, Credential Manager, or kernel-backed secret stores</li>
 </ul>
+<p>Core dumps are a separate concern from <code>Drop</code>-based wiping. A crashing process
+can write its entire address space to disk, including keys, passwords, or
+tokens that are still live and have not reached their zeroization path yet.
+Disable core dumps in production unless you operate a tightly controlled,
+encrypted, access-restricted crash-dump pipeline.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -9630,6 +9650,8 @@ LimitNOFILE=4096
 MemoryMax=512M
 TasksMax=50
 CPUWeight=50
+# Disable core dumps so crashes do not persist secret memory to disk
+LimitCORE=0
 
 # Environment
 Environment=RUST_LOG=info
@@ -9642,14 +9664,19 @@ WantedBy=multi-user.target
 <p>If you need to restrict the service to specific listen ports, combine
 <code>RestrictAddressFamilies=</code> with socket activation, container/network policy, or
 host firewall rules. Address-family filtering alone is not a port-level control.</p>
+<p><code>LimitCORE=0</code> matters for secret-bearing services because a core dump captures
+process memory at crash time. Without it, a crash can persist live key material
+or tokens to disk even when the application uses <code>zeroize</code> on normal drop
+paths.</p>
 <p>🔒 <strong>Security features</strong>:</p>
 <ol>
 <li><strong>NoNewPrivileges</strong>: Prevents the process from gaining additional privileges via setuid/setgid.</li>
 <li><strong>ProtectSystem=strict</strong>: Makes the entire filesystem read-only except explicitly listed paths.</li>
 <li><strong>PrivateTmp</strong>: Gives the service its own private <code>/tmp</code> directory.</li>
 <li><strong>RestrictAddressFamilies</strong>: Limits the service to IPv4/IPv6 sockets, reducing the reachable kernel API surface.</li>
-<li><strong>SystemCallFilter</strong>: Restricts system calls — even arbitrary code execution is limited.</li>
+<li><strong>SystemCallFilter</strong>: Restricts system calls, even arbitrary code execution is limited.</li>
 <li><strong>MemoryMax/TasksMax</strong>: Prevents resource exhaustion from affecting the rest of the system.</li>
+<li><strong>LimitCORE=0</strong>: Prevents crash dumps from persisting live process memory, including secrets, to disk.</li>
 </ol>
 <p>Verify the hardening is effective:</p>
 <pre><code class="language-bash"># Check the security properties of a running service
@@ -9713,7 +9740,7 @@ aa-genprof /usr/local/bin/secure-server
   deny /** l,
 }
 </code></pre>
-<p>🔒 <strong>Security practice</strong>: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
+<p>🔒 <strong>Security practice</strong>: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth, even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
 <h2 id="197-release-checklist"><a class="header" href="#197-release-checklist">19.7 Release Checklist</a></h2>
 <p>Before deploying a Rust application to production:</p>
 <h3 id="build-verification"><a class="header" href="#build-verification">Build Verification</a></h3>
@@ -9722,8 +9749,8 @@ aa-genprof /usr/local/bin/secure-server
 <li><input disabled="" type="checkbox"> Verify binary hardening (checksec: RELRO, NX, PIE, and canary status for any C/C++ objects)</li>
 <li><input disabled="" type="checkbox"> Run full test suite (<code>cargo test --all-features</code>)</li>
 <li><input disabled="" type="checkbox"> Run clippy with security lints (<code>cargo clippy -- -W clippy::unwrap_used</code>)</li>
-<li><input disabled="" type="checkbox"> Run <code>cargo audit</code> — no known vulnerabilities</li>
-<li><input disabled="" type="checkbox"> Run <code>cargo deny check</code> — all policies pass</li>
+<li><input disabled="" type="checkbox"> Run <code>cargo audit</code> - no known vulnerabilities</li>
+<li><input disabled="" type="checkbox"> Run <code>cargo deny check</code> - all policies pass</li>
 <li><input disabled="" type="checkbox"> Run fuzzing targets (at least 1 hour each)</li>
 </ul>
 <h3 id="binary-verification"><a class="header" href="#binary-verification">Binary Verification</a></h3>

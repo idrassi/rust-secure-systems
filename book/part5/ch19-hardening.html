@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 19 — Deployment Hardening and Release - Rust for Secure Systems Programming</title>
+        <title>Chapter 19 - Deployment Hardening and Release - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,11 +181,11 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-19--deployment-hardening-and-release"><a class="header" href="#chapter-19--deployment-hardening-and-release">Chapter 19 — Deployment Hardening and Release</a></h1>
+                        <h1 id="chapter-19---deployment-hardening-and-release"><a class="header" href="#chapter-19---deployment-hardening-and-release">Chapter 19 - Deployment Hardening and Release</a></h1>
 <blockquote>
 <p><em>“Secure code deployed insecurely is insecure.”</em></p>
 </blockquote>
-<p>Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline—from compiler hardening flags to runtime protections, from container security to monitoring.</p>
+<p>Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline, from compiler hardening flags to runtime protections, from container security to monitoring.</p>
 <p>This chapter is intentionally generic, but the concrete commands use the Chapter 17 companion service from this repository where that makes verification less ambiguous. When you see <code>ch17-hardened-server</code>, substitute your own package or binary name in a different codebase.</p>
 <h2 id="191-compilation-hardening"><a class="header" href="#191-compilation-hardening">19.1 Compilation Hardening</a></h2>
 <h3 id="1911-release-profile-configuration"><a class="header" href="#1911-release-profile-configuration">19.1.1 Release Profile Configuration</a></h3>
@@ -326,6 +326,9 @@ ENTRYPOINT ["secure-server"]
 <li><strong>Non-root user</strong>: Runs as <code>nonroot</code> by default.</li>
 <li><strong>No unnecessary files</strong>: Only the compiled binary is copied.</li>
 </ol>
+<p><code>ch17-hardened-server</code> is the only binary crate in this workspace example, so
+it gets a placeholder <code>main.rs</code>. The other workspace members are libraries, so
+empty <code>lib.rs</code> files are enough for Cargo’s dependency-caching pass.</p>
 <h3 id="1922-container-hardening-with-podmandocker"><a class="header" href="#1922-container-hardening-with-podmandocker">19.2.2 Container Hardening with Podman/Docker</a></h3>
 <pre><code class="language-yaml"># docker-compose.yml (or podman kube)
 services:
@@ -684,7 +687,7 @@ async fn handle_connection(
 <ol>
 <li><strong>Correlation</strong>: Every event is tagged with connection ID, peer address, and user ID, enabling post-incident analysis.</li>
 <li><strong>Machine-readable</strong>: JSON output integrates with SIEM systems (Splunk, ELK, Datadog) for automated alerting.</li>
-<li><strong>Contextual spans</strong>: A security event in a handler automatically includes the full request context—no manual threading of parameters.</li>
+<li><strong>Contextual spans</strong>: A security event in a handler automatically includes the full request context: no manual threading of parameters.</li>
 <li><strong>Audit trail</strong>: Structured logs serve as an audit trail for compliance (SOC 2, PCI-DSS).</li>
 </ol>
 <p>Do not treat all structured logs as security audit logs. Operational logs optimize for debugging and throughput; they may be sampled, redacted differently, or dropped under load. Audit logs need a stricter schema, a separate or append-only sink, restricted writers, synchronized clocks, and tamper-evident retention. On Linux, <code>tracing-journald</code> or a syslog/auditd sink is a common way to route security events separately from high-volume application logs.</p>
@@ -826,6 +829,11 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <li>Permission-restricted files such as <code>/run/secrets/&lt;name&gt;</code> in Docker Swarm and similar platforms</li>
 <li>Platform key stores such as DPAPI, Credential Manager, or kernel-backed secret stores</li>
 </ul>
+<p>Core dumps are a separate concern from <code>Drop</code>-based wiping. A crashing process
+can write its entire address space to disk, including keys, passwords, or
+tokens that are still live and have not reached their zeroization path yet.
+Disable core dumps in production unless you operate a tightly controlled,
+encrypted, access-restricted crash-dump pipeline.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -941,6 +949,8 @@ LimitNOFILE=4096
 MemoryMax=512M
 TasksMax=50
 CPUWeight=50
+# Disable core dumps so crashes do not persist secret memory to disk
+LimitCORE=0
 
 # Environment
 Environment=RUST_LOG=info
@@ -953,14 +963,19 @@ WantedBy=multi-user.target
 <p>If you need to restrict the service to specific listen ports, combine
 <code>RestrictAddressFamilies=</code> with socket activation, container/network policy, or
 host firewall rules. Address-family filtering alone is not a port-level control.</p>
+<p><code>LimitCORE=0</code> matters for secret-bearing services because a core dump captures
+process memory at crash time. Without it, a crash can persist live key material
+or tokens to disk even when the application uses <code>zeroize</code> on normal drop
+paths.</p>
 <p>🔒 <strong>Security features</strong>:</p>
 <ol>
 <li><strong>NoNewPrivileges</strong>: Prevents the process from gaining additional privileges via setuid/setgid.</li>
 <li><strong>ProtectSystem=strict</strong>: Makes the entire filesystem read-only except explicitly listed paths.</li>
 <li><strong>PrivateTmp</strong>: Gives the service its own private <code>/tmp</code> directory.</li>
 <li><strong>RestrictAddressFamilies</strong>: Limits the service to IPv4/IPv6 sockets, reducing the reachable kernel API surface.</li>
-<li><strong>SystemCallFilter</strong>: Restricts system calls — even arbitrary code execution is limited.</li>
+<li><strong>SystemCallFilter</strong>: Restricts system calls, even arbitrary code execution is limited.</li>
 <li><strong>MemoryMax/TasksMax</strong>: Prevents resource exhaustion from affecting the rest of the system.</li>
+<li><strong>LimitCORE=0</strong>: Prevents crash dumps from persisting live process memory, including secrets, to disk.</li>
 </ol>
 <p>Verify the hardening is effective:</p>
 <pre><code class="language-bash"># Check the security properties of a running service
@@ -1024,7 +1039,7 @@ aa-genprof /usr/local/bin/secure-server
   deny /** l,
 }
 </code></pre>
-<p>🔒 <strong>Security practice</strong>: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
+<p>🔒 <strong>Security practice</strong>: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth, even if the application has a memory corruption vulnerability in <code>unsafe</code> code, the OS-level restrictions limit what an attacker can do.</p>
 <h2 id="197-release-checklist"><a class="header" href="#197-release-checklist">19.7 Release Checklist</a></h2>
 <p>Before deploying a Rust application to production:</p>
 <h3 id="build-verification"><a class="header" href="#build-verification">Build Verification</a></h3>
@@ -1033,8 +1048,8 @@ aa-genprof /usr/local/bin/secure-server
 <li><input disabled="" type="checkbox"> Verify binary hardening (checksec: RELRO, NX, PIE, and canary status for any C/C++ objects)</li>
 <li><input disabled="" type="checkbox"> Run full test suite (<code>cargo test --all-features</code>)</li>
 <li><input disabled="" type="checkbox"> Run clippy with security lints (<code>cargo clippy -- -W clippy::unwrap_used</code>)</li>
-<li><input disabled="" type="checkbox"> Run <code>cargo audit</code> — no known vulnerabilities</li>
-<li><input disabled="" type="checkbox"> Run <code>cargo deny check</code> — all policies pass</li>
+<li><input disabled="" type="checkbox"> Run <code>cargo audit</code> - no known vulnerabilities</li>
+<li><input disabled="" type="checkbox"> Run <code>cargo deny check</code> - all policies pass</li>
 <li><input disabled="" type="checkbox"> Run fuzzing targets (at least 1 hour each)</li>
 </ul>
 <h3 id="binary-verification"><a class="header" href="#binary-verification">Binary Verification</a></h3>

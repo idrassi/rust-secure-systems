@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 4 — Type System and Pattern Matching - Rust for Secure Systems Programming</title>
+        <title>Chapter 4 - Type System and Pattern Matching - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,12 +181,12 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-4--type-system-and-pattern-matching"><a class="header" href="#chapter-4--type-system-and-pattern-matching">Chapter 4 — Type System and Pattern Matching</a></h1>
+                        <h1 id="chapter-4---type-system-and-pattern-matching"><a class="header" href="#chapter-4---type-system-and-pattern-matching">Chapter 4 - Type System and Pattern Matching</a></h1>
 <blockquote>
 <p><em>“Make illegal states unrepresentable.”</em></p>
 </blockquote>
 <p>Rust’s type system is one of its most powerful tools for writing secure code. It combines algebraic data types, exhaustive pattern matching, and a strict stance on implicit conversions to ensure that many classes of bugs simply cannot be expressed. For security developers accustomed to fighting type confusion bugs, integer overflows, and unhandled cases in C/C++ switch statements, Rust’s type system is a breath of fresh air.</p>
-<h2 id="41-no-null--use-optiont"><a class="header" href="#41-no-null--use-optiont">4.1 No Null — Use <code>Option&lt;T&gt;</code></a></h2>
+<h2 id="41-no-null---use-optiont"><a class="header" href="#41-no-null---use-optiont">4.1 No Null - Use <code>Option&lt;T&gt;</code></a></h2>
 <p>Tony Hoare, the inventor of the null reference, called it his “billion-dollar mistake.” In C/C++, any pointer can be null, and dereferencing a null pointer is undefined behavior (CWE-476). Rust eliminates null entirely from the language.</p>
 <p>Instead, Rust uses the <code>Option&lt;T&gt;</code> enum:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -209,7 +209,7 @@ fn main() {
     // You CANNOT use the value without checking
     let user = find_user(100);
     
-    // Pattern matching — compiler ensures you handle both cases
+    // Pattern matching - compiler ensures you handle both cases
     match user {
         Some(name) =&gt; println!("Found: {}", name),
         None =&gt; println!("User not found"),
@@ -225,7 +225,7 @@ fn main() {
 }</code></pre>
 <p>🔒 <strong>Security impact</strong>: CWE-476 (NULL Pointer Dereference) is <strong>impossible</strong> in safe Rust. Every potentially-absent value is wrapped in <code>Option</code>, and the compiler forces you to handle the <code>None</code> case.</p>
 <p>⚠️ <strong>Caveat</strong>: <code>.unwrap()</code> and <code>.expect()</code> will panic if called on <code>None</code>. In security-critical code, avoid these and handle the <code>None</code> case explicitly.</p>
-<h2 id="42-no-exceptions--use-resultt-e"><a class="header" href="#42-no-exceptions--use-resultt-e">4.2 No Exceptions — Use <code>Result&lt;T, E&gt;</code></a></h2>
+<h2 id="42-no-exceptions---use-resultt-e"><a class="header" href="#42-no-exceptions---use-resultt-e">4.2 No Exceptions - Use <code>Result&lt;T, E&gt;</code></a></h2>
 <p>Rust does not have exceptions. Instead, recoverable errors are represented by <code>Result&lt;T, E&gt;</code>:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -313,7 +313,7 @@ fn check_permission(perm: Permission) -&gt; bool {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: When you add a new variant to an enum, the compiler will flag every <code>match</code> that doesn’t handle it. This prevents the “forgotten case” bug class, which in C switch statements can silently fall through or be mishandled.</p>
-<h3 id="432-non_exhaustive--future-proofing-enums"><a class="header" href="#432-non_exhaustive--future-proofing-enums">4.3.2 <code>#[non_exhaustive]</code> — Future-Proofing Enums</a></h3>
+<h3 id="432-non_exhaustive---future-proofing-enums"><a class="header" href="#432-non_exhaustive---future-proofing-enums">4.3.2 <code>#[non_exhaustive]</code> - Future-Proofing Enums</a></h3>
 <p>When defining public enums in a library, mark them <code>#[non_exhaustive]</code> to force downstream consumers to handle future variants:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -458,7 +458,7 @@ fn rotate_signing_key(_cap: &amp;Capability&lt;RotateKeys&gt;) {}
 }
 <span class="boring">}</span></code></pre>
 <p>Outside <code>auth</code>, callers can pass <code>Session&lt;Admin&gt;</code> and <code>Capability&lt;RotateKeys&gt;</code> to privileged functions, but they cannot forge those values with a struct literal because the fields and constructors stay inside the policy-enforcing module.</p>
-<h2 id="45-traits--defining-shared-behavior"><a class="header" href="#45-traits--defining-shared-behavior">4.5 Traits — Defining Shared Behavior</a></h2>
+<h2 id="45-traits---defining-shared-behavior"><a class="header" href="#45-traits---defining-shared-behavior">4.5 Traits - Defining Shared Behavior</a></h2>
 <p>Traits are Rust’s answer to interfaces:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -492,7 +492,7 @@ struct SharedState {
 // This type can be safely shared between threads.
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: The <code>Send</code> and <code>Sync</code> traits prevent data races at compile time. If a type contains a non-thread-safe component (like <code>Rc&lt;T&gt;</code>), the compiler will refuse to let you share it across threads. This removes a major source of CWE-362-style concurrency bugs, but it does not eliminate higher-level logic races such as TOCTOU.</p>
-<h3 id="the-frominto-traits--safe-conversions"><a class="header" href="#the-frominto-traits--safe-conversions">The <code>From</code>/<code>Into</code> Traits — Safe Conversions</a></h3>
+<h3 id="the-frominto-traits---safe-conversions"><a class="header" href="#the-frominto-traits---safe-conversions">The <code>From</code>/<code>Into</code> Traits - Safe Conversions</a></h3>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>struct Port(u16);

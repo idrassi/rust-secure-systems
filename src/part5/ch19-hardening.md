@@ -1,8 +1,8 @@
-# Chapter 19 — Deployment Hardening and Release
+# Chapter 19 - Deployment Hardening and Release
 
 > *"Secure code deployed insecurely is insecure."*
 
-Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline—from compiler hardening flags to runtime protections, from container security to monitoring.
+Writing secure Rust code is necessary but not sufficient. How you compile, package, deploy, and operate your software determines its real-world security posture. This chapter covers the full deployment pipeline, from compiler hardening flags to runtime protections, from container security to monitoring.
 
 This chapter is intentionally generic, but the concrete commands use the Chapter 17 companion service from this repository where that makes verification less ambiguous. When you see `ch17-hardened-server`, substitute your own package or binary name in a different codebase.
 
@@ -157,6 +157,10 @@ ENTRYPOINT ["secure-server"]
 2. **Distroless base**: No shell, no package manager, minimal attack surface.
 3. **Non-root user**: Runs as `nonroot` by default.
 4. **No unnecessary files**: Only the compiled binary is copied.
+
+`ch17-hardened-server` is the only binary crate in this workspace example, so
+it gets a placeholder `main.rs`. The other workspace members are libraries, so
+empty `lib.rs` files are enough for Cargo's dependency-caching pass.
 
 ### 19.2.2 Container Hardening with Podman/Docker
 
@@ -551,7 +555,7 @@ async fn handle_connection(
 🔒 **Security benefits of structured tracing**:
 1. **Correlation**: Every event is tagged with connection ID, peer address, and user ID, enabling post-incident analysis.
 2. **Machine-readable**: JSON output integrates with SIEM systems (Splunk, ELK, Datadog) for automated alerting.
-3. **Contextual spans**: A security event in a handler automatically includes the full request context—no manual threading of parameters.
+3. **Contextual spans**: A security event in a handler automatically includes the full request context: no manual threading of parameters.
 4. **Audit trail**: Structured logs serve as an audit trail for compliance (SOC 2, PCI-DSS).
 
 Do not treat all structured logs as security audit logs. Operational logs optimize for debugging and throughput; they may be sampled, redacted differently, or dropped under load. Audit logs need a stricter schema, a separate or append-only sink, restricted writers, synchronized clocks, and tamper-evident retention. On Linux, `tracing-journald` or a syslog/auditd sink is a common way to route security events separately from high-volume application logs.
@@ -707,6 +711,12 @@ Prefer runtime secret injection instead:
 - Permission-restricted files such as `/run/secrets/<name>` in Docker Swarm and similar platforms
 - Platform key stores such as DPAPI, Credential Manager, or kernel-backed secret stores
 
+Core dumps are a separate concern from `Drop`-based wiping. A crashing process
+can write its entire address space to disk, including keys, passwords, or
+tokens that are still live and have not reached their zeroization path yet.
+Disable core dumps in production unless you operate a tightly controlled,
+encrypted, access-restricted crash-dump pipeline.
+
 ### 19.5.2 Files with Restricted Permissions
 
 ```rust,no_run
@@ -834,6 +844,8 @@ LimitNOFILE=4096
 MemoryMax=512M
 TasksMax=50
 CPUWeight=50
+# Disable core dumps so crashes do not persist secret memory to disk
+LimitCORE=0
 
 # Environment
 Environment=RUST_LOG=info
@@ -848,13 +860,19 @@ If you need to restrict the service to specific listen ports, combine
 `RestrictAddressFamilies=` with socket activation, container/network policy, or
 host firewall rules. Address-family filtering alone is not a port-level control.
 
+`LimitCORE=0` matters for secret-bearing services because a core dump captures
+process memory at crash time. Without it, a crash can persist live key material
+or tokens to disk even when the application uses `zeroize` on normal drop
+paths.
+
 🔒 **Security features**:
 1. **NoNewPrivileges**: Prevents the process from gaining additional privileges via setuid/setgid.
 2. **ProtectSystem=strict**: Makes the entire filesystem read-only except explicitly listed paths.
 3. **PrivateTmp**: Gives the service its own private `/tmp` directory.
 4. **RestrictAddressFamilies**: Limits the service to IPv4/IPv6 sockets, reducing the reachable kernel API surface.
-5. **SystemCallFilter**: Restricts system calls — even arbitrary code execution is limited.
+5. **SystemCallFilter**: Restricts system calls, even arbitrary code execution is limited.
 6. **MemoryMax/TasksMax**: Prevents resource exhaustion from affecting the rest of the system.
+7. **LimitCORE=0**: Prevents crash dumps from persisting live process memory, including secrets, to disk.
 
 Verify the hardening is effective:
 
@@ -934,7 +952,7 @@ An example AppArmor profile:
 }
 ```
 
-🔒 **Security practice**: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth — even if the application has a memory corruption vulnerability in `unsafe` code, the OS-level restrictions limit what an attacker can do.
+🔒 **Security practice**: Use at least one layer of OS sandboxing or MAC (systemd sandboxing, Landlock, AppArmor, or SELinux) for any production Rust service. Defense in depth, even if the application has a memory corruption vulnerability in `unsafe` code, the OS-level restrictions limit what an attacker can do.
 
 ## 19.7 Release Checklist
 
@@ -945,8 +963,8 @@ Before deploying a Rust application to production:
 - [ ] Verify binary hardening (checksec: RELRO, NX, PIE, and canary status for any C/C++ objects)
 - [ ] Run full test suite (`cargo test --all-features`)
 - [ ] Run clippy with security lints (`cargo clippy -- -W clippy::unwrap_used`)
-- [ ] Run `cargo audit` — no known vulnerabilities
-- [ ] Run `cargo deny check` — all policies pass
+- [ ] Run `cargo audit` - no known vulnerabilities
+- [ ] Run `cargo deny check` - all policies pass
 - [ ] Run fuzzing targets (at least 1 hour each)
 
 ### Binary Verification

@@ -1,10 +1,10 @@
-# Chapter 6 — Fearless Concurrency
+# Chapter 6 - Fearless Concurrency
 
-> *"Data races are not just bugs—they are security vulnerabilities."*
+> *"Data races are not just bugs, they are security vulnerabilities."*
 
 Concurrent programming is where most systems developers feel the most pain. In C/C++, shared mutable state protected by locks is an honor system: the compiler cannot verify that locks are acquired in the correct order, that every shared variable is protected, or that threads don't deadlock. The result is a constant stream of concurrency vulnerabilities: unsynchronized shared-state bugs (CWE-362) and higher-level logic races such as TOCTOU (CWE-367).
 
-Rust's ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is "fearless concurrency"—not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.
+Rust's ownership system extends naturally to concurrency, enforcing thread safety at compile time. The compiler knows which data is shared, which is mutable, and whether synchronization is in place. This is "fearless concurrency": not because concurrency is easy, but because the compiler catches the most dangerous mistakes before the code ever runs.
 
 ## 6.1 Thread Safety Guarantees
 
@@ -125,11 +125,11 @@ Set custom stack sizes only when you understand the recursion depth and per-thre
 
 ## 6.2 Synchronization Primitives
 
-### 6.2.1 `Mutex<T>` — Mutual Exclusion
+### 6.2.1 `Mutex<T>` - Mutual Exclusion
 
 `Mutex<T>` provides exclusive access to `T`. The lock guard pattern ensures the lock is always released:
 
-> **Note**: The examples in this section use `.unwrap()` for brevity. In production security-critical code, handle mutex poisoning explicitly (see the poisoning discussion below) and avoid `.unwrap()` on `Result` types—use `.unwrap_or_else()`, `match`, or the `?` operator instead.
+> **Note**: The examples in this section use `.unwrap()` for brevity. In production security-critical code, handle mutex poisoning explicitly (see the poisoning discussion below) and avoid `.unwrap()` on `Result` types, use `.unwrap_or_else()`, `match`, or the `?` operator instead.
 
 ```rust
 use std::sync::Mutex;
@@ -174,7 +174,7 @@ match mutex.lock() {
 }
 ```
 
-### 6.2.2 `RwLock<T>` — Read-Write Lock
+### 6.2.2 `RwLock<T>` - Read-Write Lock
 
 `RwLock<T>` allows multiple readers OR one writer:
 
@@ -488,7 +488,7 @@ while let Some(result) = tasks.join_next().await {
 
 ## 6.5 Cancellation Safety in Async Rust
 
-One of the most subtle security pitfalls in async Rust is **cancellation safety** (sometimes called "cancel safety"). When a `tokio::select!` branch is not chosen, or a `JoinHandle` is aborted, the future at the other branch is **dropped** mid-execution. If that future was in the middle of an operation with side effects—such as reading from a socket or holding a lock—those side effects may be lost or left in an inconsistent state.
+One of the most subtle security pitfalls in async Rust is **cancellation safety** (sometimes called "cancel safety"). When a `tokio::select!` branch is not chosen, or a `JoinHandle` is aborted, the future at the other branch is **dropped** mid-execution. If that future was in the middle of an operation with side effects, such as reading from a socket or holding a lock, those side effects may be lost or left in an inconsistent state.
 
 Cancellation here means "the future is dropped." Tokio is not asynchronously interrupting the OS thread or injecting a signal into your code.
 
@@ -550,7 +550,7 @@ tokio::select! {
 
 A function is cancellation-safe if dropping the future at any `.await` point leaves the system in a consistent state. Key patterns:
 
-**Pattern 1: Use cancellation-safe operations.** `tokio::io::AsyncReadExt::read()` (which reads *up to* N bytes) is cancellation-safe because it either reads data or doesn't—no partial state. `read_exact()` is **not** cancellation-safe because it may have read some bytes but not all.
+**Pattern 1: Use cancellation-safe operations.** `tokio::io::AsyncReadExt::read()` (which reads *up to* N bytes) is cancellation-safe because it either reads data or doesn't: no partial state. `read_exact()` is **not** cancellation-safe because it may have read some bytes but not all.
 
 **Pattern 2: Buffer and retry.** Use a framed reader that buffers partial reads:
 
@@ -808,11 +808,11 @@ fn main() {
 - `OnceLock` and `LazyLock` provide race-free one-time initialization for shared security state.
 - `Condvar` lets threads wait on predicates without busy-waiting; always re-check the condition in a loop.
 - Channels enable message-passing concurrency; prefer bounded channels to prevent memory exhaustion.
-- Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks—use consistent lock ordering.
+- Rust prevents use-after-free in concurrent contexts but does not prevent deadlocks: use consistent lock ordering.
 - Async/await is efficient for I/O-bound workloads; understand the differences between sync and async mutexes.
 - **Cancellation safety** is critical in async code: always use framed codecs or buffered readers to ensure partial reads are not lost when futures are dropped.
 
-In the next chapter, we tackle input validation—the first line of defense against injection and parsing attacks.
+In the next chapter, we tackle input validation: the first line of defense against injection and parsing attacks.
 
 ## 6.8 Exercises
 

@@ -1,4 +1,4 @@
-# Chapter 10 — Foreign Function Interface
+# Chapter 10 - Foreign Function Interface
 
 > *"The boundary between Rust and C is the most dangerous place in your codebase."*
 
@@ -204,7 +204,7 @@ Avoid sentinel return values for arithmetic helpers unless the ABI guarantees on
 3. ✅ Validate all size/length arguments (bounds, max limits).
 4. ✅ Wrap in `catch_unwind` to prevent panics from crossing FFI boundary.
 5. ✅ Use `#[unsafe(no_mangle)]` (Edition 2024) and `extern "C"` for a stable ABI.
-6. ✅ Never panic across the FFI boundary—it's undefined behavior.
+6. ✅ Never panic across the FFI boundary, it's undefined behavior.
 
 When the foreign side is explicitly prepared to receive unwinding, stable Rust also offers `extern "C-unwind"`:
 
@@ -328,7 +328,7 @@ fn main() {
 
 ### 10.4.1 `longjmp` and C++ Exceptions
 
-⚠️ **Critical**: Never let `longjmp` (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior — it bypasses Rust destructors, leaking resources and potentially corrupting the program state:
+⚠️ **Critical**: Never let `longjmp` (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior: it bypasses Rust destructors, leaking resources and potentially corrupting the program state:
 
 ```rust,no_run
 # struct ResourceGuard;
@@ -351,7 +351,7 @@ int safe_c_operation(void) {
     if (setjmp(buf) == 0) {
         return c_library_do_jump();  // Normal path
     } else {
-        return -1;  // longjmp was caught — return error to Rust
+        return -1;  // longjmp was caught, return error to Rust
     }
 }
 ```
@@ -367,8 +367,8 @@ panic = "abort"  # Panic immediately aborts the process instead of unwinding
 ```
 
 With `panic = "abort"`:
-- Panics terminate the process immediately — they cannot cross the FFI boundary.
-- No unwinding tables — smaller binary, reduced attack surface.
+- Panics terminate the process immediately: they cannot cross the FFI boundary.
+- No unwinding tables: smaller binary, reduced attack surface.
 - `catch_unwind` becomes a no-op (panics are no longer catchable).
 
 ⚠️ **Trade-off**: With `panic = "abort"`, you lose the ability to catch panics. Ensure all error handling uses `Result` rather than relying on panic catching.
@@ -437,7 +437,7 @@ impl CBuffer {
     }
 }
 
-// Do NOT implement Drop to free the memory—C owns it.
+// Do NOT implement Drop to free the memory C owns it.
 // If C expects Rust to free it, use the appropriate C deallocator.
 ```
 
@@ -485,12 +485,12 @@ fn register_callback_safe(cb: Option<Callback>) -> i32 {
 
 ## 10.7 Summary
 
-- FFI is inherently unsafe—every boundary crossing requires careful validation.
+- FFI is inherently unsafe: every boundary crossing requires careful validation.
 - Use `bindgen` to generate bindings instead of writing them manually.
 - Always validate inputs before passing to C and outputs from C.
 - Use `catch_unwind` when Rust code is called from C to prevent panics from crossing the boundary.
 - Use `#[repr(C)]` for stable ABI compatibility.
-- Never mix allocators—match allocation and deallocation between Rust and C.
+- Never mix allocators: match allocation and deallocation between Rust and C.
 - Apply C hardening flags to any C code compiled in your project.
 - Document ownership semantics clearly at every FFI boundary.
 

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 1 — Why Rust for Secure Systems - Rust for Secure Systems Programming</title>
+        <title>Chapter 1 - Why Rust for Secure Systems - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,7 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-1--why-rust-for-secure-systems"><a class="header" href="#chapter-1--why-rust-for-secure-systems">Chapter 1 — Why Rust for Secure Systems</a></h1>
+                        <h1 id="chapter-1--why-rust-for-secure-systems"><a class="header" href="#chapter-1--why-rust-for-secure-systems">Chapter 1 , Why Rust for Secure Systems</a></h1>
 <blockquote>
 <p><em>“The best way to write secure code is to make insecure code impossible to write.”</em></p>
 </blockquote>
@@ -235,9 +235,9 @@ fn main() {
 <p>Rust’s type system is rich and expressive. It uses:</p>
 <ul>
 <li><strong>Algebraic data types</strong> (<code>enum</code> and <code>struct</code>) that make illegal states unrepresentable.</li>
-<li><strong>Pattern matching</strong> that is exhaustive—the compiler ensures all cases are handled.</li>
-<li><strong>No implicit nulls</strong>—the <code>Option&lt;T&gt;</code> type explicitly represents the presence or absence of a value.</li>
-<li><strong>No implicit conversions</strong>—you must be explicit about type changes.</li>
+<li><strong>Pattern matching</strong> that is exhaustive,the compiler ensures all cases are handled.</li>
+<li><strong>No implicit nulls</strong>,the <code>Option&lt;T&gt;</code> type explicitly represents the presence or absence of a value.</li>
+<li><strong>No implicit conversions</strong>,you must be explicit about type changes.</li>
 </ul>
 <pre class="playground"><code class="language-rust edition2024">#[derive(Debug)]
 struct User {
@@ -351,7 +351,7 @@ fn main() {
 <ul>
 <li>Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.</li>
 <li>The ownership model, type system, and concurrency guarantees work together to make insecure patterns impossible to express in safe code.</li>
-<li>Rust does not protect against logic errors, side channels, or misuse of <code>unsafe</code> code—defense in depth is still required.</li>
+<li>Rust does not protect against logic errors, side channels, or misuse of <code>unsafe</code> code,defense in depth is still required.</li>
 <li>Rust is being adopted across the security industry for critical infrastructure.</li>
 </ul>
 <p>In the next chapter, we will set up a development environment optimized for secure Rust development, including tooling for linting, formatting, and dependency auditing.</p>

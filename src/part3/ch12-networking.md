@@ -1,8 +1,8 @@
-# Chapter 12 — Secure Network Programming
+# Chapter 12 - Secure Network Programming
 
 > *"The network is not trustworthy. Design accordingly."*
 
-Network services are the most exposed attack surface in any system. Every connection could be an attacker probing for vulnerabilities—buffer overflows in parsers, resource exhaustion through connection floods, injection attacks through malformed input, and timing attacks through crafted requests.
+Network services are the most exposed attack surface in any system. Every connection could be an attacker probing for vulnerabilities: buffer overflows in parsers, resource exhaustion through connection floods, injection attacks through malformed input, and timing attacks through crafted requests.
 
 Rust's memory safety eliminates many traditional network vulnerabilities, but secure network programming requires more than memory safety. This chapter covers the patterns and practices for building robust, attack-resistant network services.
 
@@ -173,7 +173,7 @@ On Unix, broken-pipe `SIGPIPE` delivery is a classic networking footgun. For Rus
 5. **TCP_NODELAY**: Disables Nagle's algorithm, preventing the latency amplification caused by its interaction with the peer's delayed-ACK timer
 6. **Explicit framing buffer**: Correctly handles fragmented and coalesced TCP reads
 
-> **Note**: The examples above use `.unwrap()` in a few places (e.g., on `lock()` results and `join` handles) for readability. In production code, replace these with proper error handling—especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.
+> **Note**: The examples above use `.unwrap()` in a few places (e.g., on `lock()` results and `join` handles) for readability. In production code, replace these with proper error handling, especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.
 
 ### 12.1.2 Rate Limiting
 
@@ -485,7 +485,7 @@ fn safe_length_add(a: usize, b: usize) -> Option<usize> {
 2. Use checked arithmetic for length calculations.
 3. Never trust a length field from the network without bounds checking.
 
-DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks.
+DNS is another security boundary, not just a lookup mechanism. For outbound clients, pin the resolver path you trust, defend against DNS rebinding when hostnames eventually authorize private-network access, and prefer authenticated resolver transports (DNS-over-TLS / DNS-over-HTTPS, or DNSSEC-aware infrastructure) when your deployment depends on hostile networks. For the post-resolution destination policy check, see Chapter 7 section 7.2.5.
 
 If you need an in-process encrypted resolver, `hickory-resolver` exposes ready-made configurations for DNS-over-TLS and DNS-over-HTTPS:
 
@@ -621,13 +621,13 @@ fn log_security_event(event: &SecurityEvent) {
 
 - Use connection limiting, rate limiting, and timeouts to prevent DoS attacks.
 - Always set read/write/session timeouts on network connections.
-- Use `rustls` for TLS—memory-safe by design.
+- Use `rustls` for TLS: memory-safe by design.
 - Validate all length fields from network data with checked arithmetic.
 - Limit both request and response sizes to prevent amplification attacks.
 - Log security events without exposing sensitive data.
 - Apply the principle of least privilege: bind to specific interfaces, use firewall rules.
 
-In the next chapter, we move to Part IV—testing and verification strategies for proving your code is secure.
+In the next chapter, we move to Part IV: testing and verification strategies for proving your code is secure.
 
 ## 12.6 Exercises
 

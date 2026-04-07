@@ -1,4 +1,4 @@
-# Chapter 17 — Building a Hardened TCP Server
+# Chapter 17 - Building a Hardened TCP Server
 
 > *"Theory without practice is empty. Practice without theory is blind."*
 
@@ -497,7 +497,7 @@ impl ConnectionHandler {
                         msg
                     },
                     Err(ProtocolError::IncompleteHeader) | Err(ProtocolError::IncompleteMessage { .. }) => {
-                    // Need more data — keep reading
+                    // Need more data - keep reading
                     break;
                     }
                     Err(e) => {
@@ -758,7 +758,7 @@ This server demonstrates the practical application of secure Rust development:
 4. **No unsafe code**: The entire server is safe Rust
 5. **Comprehensive testing**: Unit tests and property tests around the protocol layer
 
-In the next chapter, we build a secure binary parser—another common security-critical component.
+In the next chapter, we build a secure binary parser: another common security-critical component.
 
 > **Note**: This server uses the `log` crate for simplicity. See §19.4.1 for a drop-in path to replace `log`/`env_logger` with `tracing` once you need structured JSON logs, request spans, or SIEM-friendly fields.
 

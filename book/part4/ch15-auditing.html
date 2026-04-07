@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Chapter 15 — Static Analysis and Auditing - Rust for Secure Systems Programming</title>
+        <title>Chapter 15 - Static Analysis and Auditing - Rust for Secure Systems Programming</title>
 
 
         <!-- Custom HTML head -->
@@ -36,10 +36,10 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-747996ab.js";
+            window.path_to_searchindex_js = "../searchindex-0f618b86.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8e63d631.js"></script>
+        <script src="../toc-933a3071.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,11 +181,11 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="chapter-15--static-analysis-and-auditing"><a class="header" href="#chapter-15--static-analysis-and-auditing">Chapter 15 — Static Analysis and Auditing</a></h1>
+                        <h1 id="chapter-15---static-analysis-and-auditing"><a class="header" href="#chapter-15---static-analysis-and-auditing">Chapter 15 - Static Analysis and Auditing</a></h1>
 <blockquote>
 <p><em>“The compiler is your first auditor. Make it work harder.”</em></p>
 </blockquote>
-<p>Static analysis examines code without executing it, finding potential vulnerabilities through pattern matching, data flow analysis, and formal methods. Rust’s compiler already performs more static analysis than C compilers, but additional tools can catch subtler issues—especially in <code>unsafe</code> code and dependency management.</p>
+<p>Static analysis examines code without executing it, finding potential vulnerabilities through pattern matching, data flow analysis, and formal methods. Rust’s compiler already performs more static analysis than C compilers, but additional tools can catch subtler issues, especially in <code>unsafe</code> code and dependency management.</p>
 <h2 id="151-compiler-warnings-as-security-tools"><a class="header" href="#151-compiler-warnings-as-security-tools">15.1 Compiler Warnings as Security Tools</a></h2>
 <h3 id="1511-essential-warning-flags"><a class="header" href="#1511-essential-warning-flags">15.1.1 Essential Warning Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml
@@ -196,7 +196,7 @@ rustflags = [
     "-D", "unused",                      # Unused code = dead code = potential confusion
 ]
 
-# Note: Clippy lints cannot be set via rustflags — they only work with `cargo clippy`.
+# Note: Clippy lints cannot be set via rustflags, they only work with `cargo clippy`.
 # Use a CI step or Makefile target instead:
 #   cargo clippy -- -W clippy::all -W clippy::pedantic
 </code></pre>
@@ -319,7 +319,7 @@ Solution: upgrade to a reviewed fixed release
 <pre><code class="language-bash">cargo audit --json &gt; audit.json
 </code></pre>
 <p>Parse the JSON in your pipeline if you need to gate on specific severities, archive reviewed exceptions with the rest of the build artifacts, or convert findings into SARIF for GitHub Code Scanning and similar dashboards.</p>
-<h3 id="1532-cargo-geiger--counting-unsafe-code"><a class="header" href="#1532-cargo-geiger--counting-unsafe-code">15.3.2 <code>cargo geiger</code> — Counting Unsafe Code</a></h3>
+<h3 id="1532-cargo-geiger---counting-unsafe-code"><a class="header" href="#1532-cargo-geiger---counting-unsafe-code">15.3.2 <code>cargo geiger</code> - Counting Unsafe Code</a></h3>
 <pre><code class="language-bash">cargo install cargo-geiger --version 0.13.0 --locked
 cargo geiger --all-features
 </code></pre>
@@ -342,7 +342,7 @@ Functions  Expressions  Impls  Traits  Methods  Dependency
 <li>Custom allocators</li>
 </ul>
 <p>⚠️ <strong>Tooling note</strong>: <code>cargo-geiger</code> is useful, but it can lag the newest compiler releases. Pin the version you rely on in CI and keep a manual fallback such as <code>rg -n "\\bunsafe\\b"</code> for quick inventory work.</p>
-<h3 id="1533-cargo-crev--community-code-review"><a class="header" href="#1533-cargo-crev--community-code-review">15.3.3 <code>cargo crev</code> — Community Code Review</a></h3>
+<h3 id="1533-cargo-crev---community-code-review"><a class="header" href="#1533-cargo-crev---community-code-review">15.3.3 <code>cargo crev</code> - Community Code Review</a></h3>
 <pre><code class="language-bash">cargo install cargo-crev --version 0.26.5 --locked
 cargo crev import trust --from-url https://github.com/crev-dev/crev-proofs
 cargo crev verify
@@ -353,7 +353,7 @@ cargo crev verify
 <li>Review crates yourself and publish findings</li>
 <li>Configure trust requirements for your project</li>
 </ul>
-<h3 id="1534-cargo-vet--supply-chain-auditing"><a class="header" href="#1534-cargo-vet--supply-chain-auditing">15.3.4 <code>cargo vet</code> — Supply Chain Auditing</a></h3>
+<h3 id="1534-cargo-vet---supply-chain-auditing"><a class="header" href="#1534-cargo-vet---supply-chain-auditing">15.3.4 <code>cargo vet</code> - Supply Chain Auditing</a></h3>
 <pre><code class="language-bash">cargo install cargo-vet --version 0.10.2 --locked
 cargo vet init
 cargo vet
@@ -367,7 +367,7 @@ version = "1.2.3"
 notes = "Reviewed for memory safety, no unsafe code, constant-time operations verified"
 </code></pre>
 <h2 id="154-additional-audit-tooling"><a class="header" href="#154-additional-audit-tooling">15.4 Additional Audit Tooling</a></h2>
-<h3 id="1541-cargo-careful--extra-runtime-checking"><a class="header" href="#1541-cargo-careful--extra-runtime-checking">15.4.1 <code>cargo-careful</code> — Extra Runtime Checking</a></h3>
+<h3 id="1541-cargo-careful---extra-runtime-checking"><a class="header" href="#1541-cargo-careful---extra-runtime-checking">15.4.1 <code>cargo-careful</code> - Extra Runtime Checking</a></h3>
 <p><code>cargo-careful</code> complements Miri: it runs your normal test or binary workflow with a specially prepared standard library and extra checks enabled, but at much closer-to-native speed than an interpreter.</p>
 <pre><code class="language-bash">cargo install cargo-careful --version 0.4.10 --locked
 cargo +nightly careful test
@@ -539,7 +539,7 @@ fn safe_get(slice: &amp;[u8], idx: usize) -&gt; u8 {
 <li>Follow the code audit checklists for unsafe, crypto, error handling, and concurrency.</li>
 <li>Use Kani for bounded proofs and Prusti for contract-style verification when you need the highest assurance.</li>
 </ul>
-<p>In the next chapter, we cover supply chain security—protecting your build pipeline from tampering and compromise.</p>
+<p>In the next chapter, we cover supply chain security: protecting your build pipeline from tampering and compromise.</p>
 <h2 id="158-exercises"><a class="header" href="#158-exercises">15.8 Exercises</a></h2>
 <ol>
 <li>

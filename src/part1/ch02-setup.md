@@ -1,4 +1,4 @@
-# Chapter 2 — Setting Up Your Environment
+# Chapter 2 - Setting Up Your Environment
 
 > *"A craftsman's tools shape the quality of their work."*
 
@@ -94,7 +94,7 @@ Treat bare-metal deployment as a different threat model, not just a smaller Linu
 
 ## 2.3 Essential Security Tooling
 
-### 2.3.1 Clippy — The Linting Powerhouse
+### 2.3.1 Clippy - The Linting Powerhouse
 
 Clippy is Rust's comprehensive linter. It catches common mistakes, unsafe patterns, and style issues:
 
@@ -121,7 +121,7 @@ For security-critical code, enable strict linting in `clippy.toml` (lowercase, d
 cognitive-complexity-threshold = 30
 ```
 
-Configure Clippy linting in your CI pipeline or as a `Makefile`/`just` target — Clippy lints cannot be set via `rustflags` because `rustflags` only affects `rustc`, not `cargo clippy`:
+Configure Clippy linting in your CI pipeline or as a `Makefile`/`just` target. Clippy lints cannot be set via `rustflags` because `rustflags` only affects `rustc`, not `cargo clippy`:
 
 ```bash
 # Baseline CI gate: fail the build on compiler warnings and low-noise panic checks
@@ -143,7 +143,7 @@ cargo clippy --workspace --all-targets --all-features -- \
 
 Treat `clippy::indexing_slicing` and `clippy::arithmetic_side_effects` as review aids rather than "must be zero everywhere" policy knobs. In security-sensitive parsing code they are excellent prompts for manual review, but they are heuristic and will still warn on code that already proved bounds through surrounding checks.
 
-### 2.3.2 rustfmt — Consistent Code Formatting
+### 2.3.2 rustfmt - Consistent Code Formatting
 
 ```bash
 rustup component add rustfmt
@@ -161,7 +161,7 @@ use_field_init_shorthand = true
 newline_style = "Unix"
 ```
 
-### 2.3.3 cargo-audit — Dependency Vulnerability Scanner
+### 2.3.3 cargo-audit - Dependency Vulnerability Scanner
 
 ```bash
 cargo install cargo-audit --version 0.22.1 --locked
@@ -198,7 +198,7 @@ cargo vet
 
 `cargo-vet` records which crates and versions your team has reviewed, making dependency trust decisions explicit rather than tribal knowledge.
 
-### 2.3.4 cargo-deny — Policy Enforcement
+### 2.3.4 cargo-deny - Policy Enforcement
 
 ```bash
 cargo install cargo-deny --version 0.19.0 --locked
@@ -235,7 +235,7 @@ unknown-git = "deny"
 allow-registry = ["sparse+https://index.crates.io/"]
 ```
 
-### 2.3.5 cargo-geiger — Unsafe Code Inventory
+### 2.3.5 cargo-geiger - Unsafe Code Inventory
 
 ```bash
 cargo install cargo-geiger --version 0.13.0 --locked
@@ -244,7 +244,7 @@ cargo geiger --all-features
 
 `cargo-geiger` does not prove a crate is unsafe, but it quickly shows where manual review effort should go. Use it to inventory `unsafe` code in your direct and transitive dependencies before you trust them in security-sensitive deployments.
 
-### 2.3.6 cargo-outdated — Dependency Freshness
+### 2.3.6 cargo-outdated - Dependency Freshness
 
 ```bash
 cargo install cargo-outdated --version 0.18.0 --locked
@@ -269,7 +269,7 @@ rustflags = [
 ```
 
 ```toml
-# Cargo.toml — profile settings must go here, not in .cargo/config.toml
+# Cargo.toml - profile settings must go here, not in .cargo/config.toml
 [profile.release]
 # Security-relevant profile settings
 overflow-checks = true       # Enable integer overflow checks even in release
@@ -317,7 +317,7 @@ Configure for your editor:
 
 ### Inlay Hints and Diagnostics
 
-Enable inlay hints for type information—this is invaluable during security review:
+Enable inlay hints for type information, this is invaluable during security review:
 
 ```json
 // VS Code settings.json
@@ -431,7 +431,7 @@ Pin third-party GitHub Actions to full commit SHAs and install reviewed crate ve
 - Configure a CI pipeline that enforces linting, testing, book verification, and dependency auditing.
 - Use `rust-analyzer` for IDE integration with security-relevant diagnostics.
 
-In the next chapter, we dive into Rust's ownership model—the foundation of its memory safety guarantees.
+In the next chapter, we dive into Rust's ownership model, the foundation of its memory safety guarantees.
 
 ## 2.9 Exercises
 

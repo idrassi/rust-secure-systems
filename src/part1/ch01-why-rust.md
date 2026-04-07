@@ -1,4 +1,4 @@
-# Chapter 1 — Why Rust for Secure Systems
+# Chapter 1 , Why Rust for Secure Systems
 
 > *"The best way to write secure code is to make insecure code impossible to write."*
 
@@ -60,9 +60,9 @@ The compiler rejects this code. In C, this would be a potential use-after-free i
 Rust's type system is rich and expressive. It uses:
 
 - **Algebraic data types** (`enum` and `struct`) that make illegal states unrepresentable.
-- **Pattern matching** that is exhaustive—the compiler ensures all cases are handled.
-- **No implicit nulls**—the `Option<T>` type explicitly represents the presence or absence of a value.
-- **No implicit conversions**—you must be explicit about type changes.
+- **Pattern matching** that is exhaustive,the compiler ensures all cases are handled.
+- **No implicit nulls**,the `Option<T>` type explicitly represents the presence or absence of a value.
+- **No implicit conversions**,you must be explicit about type changes.
 
 ```rust
 #[derive(Debug)]
@@ -179,7 +179,7 @@ Go provides memory safety through garbage collection, but it does not prevent da
 
 - Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.
 - The ownership model, type system, and concurrency guarantees work together to make insecure patterns impossible to express in safe code.
-- Rust does not protect against logic errors, side channels, or misuse of `unsafe` code—defense in depth is still required.
+- Rust does not protect against logic errors, side channels, or misuse of `unsafe` code,defense in depth is still required.
 - Rust is being adopted across the security industry for critical infrastructure.
 
 In the next chapter, we will set up a development environment optimized for secure Rust development, including tooling for linting, formatting, and dependency auditing.

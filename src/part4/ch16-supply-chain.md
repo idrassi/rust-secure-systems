@@ -1,10 +1,10 @@
-# Chapter 16 — Supply Chain Security
+# Chapter 16 - Supply Chain Security
 
 > *"Your code is only as secure as your weakest dependency."*
 
 Modern software is built on layers of dependencies, each of which represents trust. A single compromised dependency can introduce a backdoor into every application that uses it. The Rust ecosystem, centered around crates.io, has experienced supply chain attacks including typo-squatting, dependency confusion, and maintainer account compromise.
 
-This chapter covers how to protect your Rust project from supply chain attacks—from dependency selection to build reproducibility.
+This chapter covers how to protect your Rust project from supply chain attacks: from dependency selection to build reproducibility.
 
 ## 16.1 The Threat Model
 
@@ -402,7 +402,7 @@ Keep dependency updates small and reviewable: enable Dependabot or Renovate for 
 - Use `cargo-deny` to enforce license, source, and ban policies.
 - Use `cargo-supply-chain` to see who publishes and maintains the crates you implicitly trust.
 - Vendor dependencies for air-gapped builds.
-- Audit `build.rs` scripts— they have full system access at build time.
+- Audit `build.rs` scripts: they have full system access at build time.
 - Build in sandboxed environments with `--frozen --offline`.
 - Generate and maintain a Software Bill of Materials (SBOM).
 - Implement supply chain security checks in CI/CD.
