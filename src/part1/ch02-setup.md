@@ -281,7 +281,7 @@ panic = "abort"              # Abort on panic (smaller binary, no unwinding)
 opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
 ```
 
-This matches the hardened release profile used later in Chapter 19. `opt-level = "z"` is more aggressive about shrinking code than `"s"`; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.
+This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep `debug = true` and `strip = false` while doing local crash analysis, then switch to the stripped production profile once you publish or deploy the binary. `opt-level = "z"` is more aggressive about shrinking code than `"s"`; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.
 
 🔒 **Critical setting**: `overflow-checks = true` in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.
 

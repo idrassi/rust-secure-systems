@@ -269,6 +269,46 @@ This gives you three useful patterns:
 
 Keep constructors for privileged sessions and capabilities private to the module that performs the actual policy decision. That way, authorization is enforced once at the boundary and then preserved by the type system.
 
+Put that rule into the module boundary, not just the naming convention:
+
+```rust
+mod auth {
+    use std::marker::PhantomData;
+
+    #[derive(Clone, Copy)]
+    pub struct UserId(pub u64);
+
+    pub struct Admin;
+    pub struct RotateKeys;
+    pub struct AuditedPolicyDecision;
+
+    pub struct Session<Role> {
+        user_id: UserId,
+        _role: PhantomData<Role>,
+    }
+
+    pub struct Capability<P>(PhantomData<P>);
+
+    pub(crate) fn admin_session(
+        user_id: UserId,
+        _decision: &AuditedPolicyDecision,
+    ) -> Session<Admin> {
+        Session {
+            user_id,
+            _role: PhantomData,
+        }
+    }
+
+    pub(crate) fn rotate_keys_capability(
+        _decision: &AuditedPolicyDecision,
+    ) -> Capability<RotateKeys> {
+        Capability(PhantomData)
+    }
+}
+```
+
+Outside `auth`, callers can pass `Session<Admin>` and `Capability<RotateKeys>` to privileged functions, but they cannot forge those values with a struct literal because the fields and constructors stay inside the policy-enforcing module.
+
 ## 4.5 Traits — Defining Shared Behavior
 
 Traits are Rust's answer to interfaces:

@@ -170,7 +170,7 @@ On Unix, broken-pipe `SIGPIPE` delivery is a classic networking footgun. For Rus
 2. **Read timeouts**: Prevents slowloris attacks (CWE-400)
 3. **Write timeouts**: Prevents blocked clients from consuming resources
 4. **Message size limits**: Prevents memory exhaustion (CWE-789)
-5. **TCP_NODELAY**: Reduces latency, prevents delayed ACK interaction
+5. **TCP_NODELAY**: Disables Nagle's algorithm, preventing the latency amplification caused by its interaction with the peer's delayed-ACK timer
 6. **Explicit framing buffer**: Correctly handles fragmented and coalesced TCP reads
 
 > **Note**: The examples above use `.unwrap()` in a few places (e.g., on `lock()` results and `join` handles) for readability. In production code, replace these with proper error handling—especially around mutex acquisition where poisoning may indicate data corruption from a panicked thread.
@@ -245,6 +245,23 @@ impl RateLimiter {
 🔒 **Security impact**: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.
 
 Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example `/64`) or authenticated/user-based limits in front of the service.
+
+For authenticated endpoints, enforce a second quota keyed by the stable account identity rather than trusting network address alone:
+
+```rust
+use std::net::IpAddr;
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct UserId(u64);
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum RateLimitKey {
+    Ip(IpAddr),
+    User(UserId),
+}
+```
+
+Check both keys after authentication succeeds. That way, an attacker who rotates source IPs still hits the per-user limit for the targeted account or API token.
 
 If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:
 

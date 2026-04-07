@@ -403,6 +403,47 @@ Regular expressions are useful for token-level validation, but they are still an
 
 When you fuzz validators, include long "almost matching" inputs. Those cases are often more valuable than obviously invalid garbage because they expose superlinear behavior, excessive backtracking, and accidental quadratic parsing paths.
 
+### 7.2.7 Compression Ratio Attacks
+
+Compressed input is still attacker-controlled input. If your service accepts gzip, brotli, zip, or similar payloads, the decompressor becomes part of your denial-of-service surface.
+
+- Stream the decompression and count produced bytes instead of trusting the compressed size.
+- Reject payloads that exceed a hard decompressed-size limit before you write them to disk or keep extending a `Vec`.
+- Bound nested archives and container recursion separately. A small outer file can still expand into many inner objects.
+- Record both compressed and decompressed sizes in metrics so unusually high expansion ratios are visible during operations.
+
+This pattern keeps the limit at the security boundary instead of after allocation has already happened:
+
+```rust
+use std::io::{self, Read};
+
+fn read_capped<R: Read>(mut reader: R, max_output: usize) -> io::Result<Vec<u8>> {
+    let mut out = Vec::new();
+    let mut chunk = [0u8; 8192];
+
+    while out.len() < max_output {
+        let cap = (max_output - out.len()).min(chunk.len());
+        let n = reader.read(&mut chunk[..cap])?;
+        if n == 0 {
+            return Ok(out);
+        }
+        out.extend_from_slice(&chunk[..n]);
+    }
+
+    let mut extra = [0u8; 1];
+    if reader.read(&mut extra)? != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "decompressed data exceeds limit",
+        ));
+    }
+
+    Ok(out)
+}
+```
+
+Use the same cap with streaming APIs such as `flate2`, `brotli`, or `zip` rather than buffering the entire output first and checking its size afterward.
+
 ## 7.3 Validation for Protocol Parsing
 
 When implementing network protocols, validation is critical at every layer:

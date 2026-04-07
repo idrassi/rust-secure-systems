@@ -207,12 +207,12 @@ unsafe impl GlobalAlloc for SecureAllocator {
     }
     
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        if !ptr.is_null() {
-            for i in 0..layout.size() {
-                unsafe { ptr.add(i).write_volatile(0); }
-            }
-            compiler_fence(Ordering::SeqCst);
+        // `GlobalAlloc::dealloc` is only called with a valid pointer that came
+        // from the paired allocator, so zeroize first and then free it.
+        for i in 0..layout.size() {
+            unsafe { ptr.add(i).write_volatile(0); }
         }
+        compiler_fence(Ordering::SeqCst);
         unsafe { System.dealloc(ptr, layout) };
     }
 }

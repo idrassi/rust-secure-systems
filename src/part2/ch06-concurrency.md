@@ -623,21 +623,33 @@ impl FramedReader {
     }
 
     /// Call after successfully processing a message returned by `read_message()`.
-    fn advance(&mut self) {
-        debug_assert!(
-            self.read_pos >= 4,
-            "advance() requires a previously buffered frame header"
-        );
-        debug_assert!(
-            self.read_pos >= 4 + self.current_message_len(),
-            "advance() requires a complete buffered frame"
-        );
-        let message_end = 4 + self.current_message_len();
+    fn advance(&mut self) -> std::io::Result<()> {
+        if self.read_pos < 4 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "advance() requires a previously buffered frame header",
+            ));
+        }
+
+        let message_end = 4usize.checked_add(self.current_message_len()).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "frame length overflow",
+            )
+        })?;
+        if self.read_pos < message_end {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "advance() requires a complete buffered frame",
+            ));
+        }
+
         let remaining = self.read_pos - message_end;
         if remaining > 0 {
             self.buffer.copy_within(message_end..self.read_pos, 0);
         }
         self.read_pos = remaining;
+        Ok(())
     }
 
     fn current_message_len(&self) -> usize {

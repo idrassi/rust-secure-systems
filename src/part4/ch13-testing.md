@@ -16,10 +16,14 @@ Rust has built-in test support:
 pub enum ParseError {
     NotANumber,
     OutOfRange(u32),
+    ReservedPortZero,
 }
 
 pub fn parse_port(input: &str) -> Result<u16, ParseError> {
     let value: u32 = input.parse().map_err(|_| ParseError::NotANumber)?;
+    if value == 0 {
+        return Err(ParseError::ReservedPortZero);
+    }
     if value > 65535 {
         return Err(ParseError::OutOfRange(value));
     }
@@ -39,7 +43,7 @@ mod tests {
     
     #[test]
     fn port_zero() {
-        assert_eq!(parse_port("0").unwrap(), 0);
+        assert!(matches!(parse_port("0"), Err(ParseError::ReservedPortZero)));
     }
     
     #[test]
@@ -70,6 +74,8 @@ mod tests {
 ```
 
 Run with: `cargo test`
+
+This parser now matches the Chapter 7 policy that reserves port 0. If your own protocol intentionally allows ephemeral-port requests, make that exception explicit in the parser and document the policy difference in the tests.
 
 Rust also gives you two pragmatic test attributes that matter in security work:
 

@@ -197,13 +197,20 @@ fn derive_key(secret: &[u8], salt: &[u8], info: &[u8]) -> [u8; 32] {
 use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+
+fn pbkdf2_iterations() -> NonZeroU32 {
+    match NonZeroU32::new(PBKDF2_ITERATION_COUNT) {
+        Some(iterations) => iterations,
+        None => unreachable!("PBKDF2 iteration count constant must be non-zero"),
+    }
+}
 
 fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
     pbkdf2::derive(
         pbkdf2::PBKDF2_HMAC_SHA256,
-        NonZeroU32::new(PBKDF2_ITERATIONS).unwrap(),
+        pbkdf2_iterations(),
         salt,
         password.as_bytes(),
         &mut key,
@@ -214,7 +221,7 @@ fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
 fn verify_password(password: &str, salt: &[u8], expected: &[u8; 32]) -> bool {
     pbkdf2::verify(
         pbkdf2::PBKDF2_HMAC_SHA256,
-        NonZeroU32::new(PBKDF2_ITERATIONS).unwrap(),
+        pbkdf2_iterations(),
         salt,
         password.as_bytes(),
         expected,
