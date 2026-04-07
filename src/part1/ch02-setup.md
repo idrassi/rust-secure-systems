@@ -291,13 +291,13 @@ A practical default matrix:
 
 | Use case | Recommended default |
 |----------|---------------------|
-| Network service or CLI where panics indicate bugs and restart is acceptable | `panic = "abort"` |
+| Network service or CLI where panics indicate bugs and restart is acceptable | `panic = "abort"` if panic paths do not rely on `Drop` for zeroization or other critical cleanup |
 | FFI exports or callbacks callable from C/C++ | `panic = "abort"` unless you fully contain unwinding at the boundary |
 | Libraries whose callers may rely on `catch_unwind` | `panic = "unwind"` |
 | Code that depends on `Drop`-driven cleanup on panic paths | `panic = "unwind"` or redesign cleanup so the panic strategy does not matter |
 | Embedded / `no_std` targets with tight size budgets | `panic = "abort"` |
 
-If you choose `panic = "abort"` for a crypto-heavy service, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic.
+If the service handles secrets, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic. When they do, keep `panic = "unwind"` or restructure the cleanup so the panic strategy does not matter.
 
 ## 2.5 IDE Setup
 

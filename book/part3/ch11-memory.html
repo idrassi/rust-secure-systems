@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
+            window.path_to_searchindex_js = "../searchindex-15e3f9e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -502,7 +502,7 @@ fn lock_memory(ptr: *const u8, len: usize) -&gt; Result&lt;(), std::io::Error&gt
 <p>⚠️ <strong>System caveat</strong>: Locking pages prevents ordinary swapping, not every persistence path. Suspend-to-disk and hibernation can still write RAM contents to disk, so disk encryption and platform sleep policy still matter for high-value secrets.</p>
 <p>🔒 <strong>Security impact</strong>: Prevents sensitive data (keys, passwords) from being written to the swap file, where they could persist after the process exits (CWE-316: Cleartext Storage of Sensitive Information).</p>
 <h2 id="115-stack-and-heap-security"><a class="header" href="#115-stack-and-heap-security">11.5 Stack and Heap Security</a></h2>
-<h3 id="1151-stack-protection"><a class="header" href="#1151-stack-protection">11.5.1 Stack Protection</a></h3>
+<h3 id="1151-stack-observability-and-protection"><a class="header" href="#1151-stack-observability-and-protection">11.5.1 Stack Observability and Protection</a></h3>
 <p>Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does <strong>not</strong> enable stack canaries for Rust code by default. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:</p>
 <pre><code class="language-toml"># .cargo/config.toml
 [build]

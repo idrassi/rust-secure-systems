@@ -285,6 +285,8 @@ struct StoredPbkdf2Hash {
 }
 ```
 
+When you raise the PBKDF2 iteration count, keep verifying each password with the parameters stored alongside that user's hash. After a successful login, immediately derive a new hash with the current policy and replace the stored record. This "rehash on login" pattern lets you migrate gradually without breaking existing accounts or silently keeping old work factors forever.
+
 For new password storage, prefer the Argon2 PHC string format shown below because it bundles the algorithm, parameters, salt, and hash into one verifier string.
 
 ### Argon2id (Recommended for Password Hashing)

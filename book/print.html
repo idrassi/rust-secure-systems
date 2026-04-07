@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c19d9d0a.js";
+            window.path_to_searchindex_js = "searchindex-15e3f9e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -303,7 +303,7 @@ fn main() {
         None =&gt; println!("User not found"),
     }
 }</code></pre>
-<p>🔒 <strong>Security impact</strong>: Eliminates CWE-476 (NULL deref) by replacing null with <code>Option&lt;T&gt;</code>. Eliminates CWE-190 (integer overflow) in debug builds with panic-on-overflow.</p>
+<p>🔒 <strong>Security impact</strong>: Eliminates CWE-476 (NULL deref) by replacing null with <code>Option&lt;T&gt;</code>. Helps eliminate CWE-190 (integer overflow): debug builds panic on overflow by default, and release builds do so when <code>overflow-checks = true</code> is enabled as recommended in Chapter 2.</p>
 <h3 id="123-fearless-concurrency"><a class="header" href="#123-fearless-concurrency">1.2.3 Fearless Concurrency</a></h3>
 <p>Rust’s ownership model extends to concurrency. The type system enforces that:</p>
 <ul>
@@ -628,7 +628,7 @@ opt-level = "z"              # Optimize for minimum size (more aggressive than "
 <tr><th>Use case</th><th>Recommended default</th></tr>
 </thead>
 <tbody>
-<tr><td>Network service or CLI where panics indicate bugs and restart is acceptable</td><td><code>panic = "abort"</code></td></tr>
+<tr><td>Network service or CLI where panics indicate bugs and restart is acceptable</td><td><code>panic = "abort"</code> if panic paths do not rely on <code>Drop</code> for zeroization or other critical cleanup</td></tr>
 <tr><td>FFI exports or callbacks callable from C/C++</td><td><code>panic = "abort"</code> unless you fully contain unwinding at the boundary</td></tr>
 <tr><td>Libraries whose callers may rely on <code>catch_unwind</code></td><td><code>panic = "unwind"</code></td></tr>
 <tr><td>Code that depends on <code>Drop</code>-driven cleanup on panic paths</td><td><code>panic = "unwind"</code> or redesign cleanup so the panic strategy does not matter</td></tr>
@@ -636,7 +636,7 @@ opt-level = "z"              # Optimize for minimum size (more aggressive than "
 </tbody>
 </table>
 </div>
-<p>If you choose <code>panic = "abort"</code> for a crypto-heavy service, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic.</p>
+<p>If the service handles secrets, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic. When they do, keep <code>panic = "unwind"</code> or restructure the cleanup so the panic strategy does not matter.</p>
 <h2 id="25-ide-setup"><a class="header" href="#25-ide-setup">2.5 IDE Setup</a></h2>
 <h3 id="rust-analyzer-recommended"><a class="header" href="#rust-analyzer-recommended">rust-analyzer (Recommended)</a></h3>
 <p><code>rust-analyzer</code> provides IDE-quality features:</p>
@@ -1594,6 +1594,7 @@ type HmacKey = FixedBuffer&lt;64&gt;;  // 512-bit key
 </span>use std::io;
 
 fn read_bytes(file: &amp;mut impl io::Read, count: usize) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    // Caller must bound `count` before calling; untrusted sizes can exhaust memory.
     let mut buffer = vec![0u8; count];
     match file.read_exact(&amp;mut buffer) {
         Ok(()) =&gt; Ok(buffer),
@@ -1602,6 +1603,7 @@ fn read_bytes(file: &amp;mut impl io::Read, count: usize) -&gt; io::Result&lt;Ve
 }
 <span class="boring">}</span></code></pre>
 <p><code>io::Result&lt;T&gt;</code> is a type alias for <code>Result&lt;T, io::Error&gt;</code>.</p>
+<p>When <code>count</code> originates from a file format, network packet, or other untrusted source, validate it against a maximum before allocating.</p>
 <h3 id="522-the--operator"><a class="header" href="#522-the--operator">5.2.2 The <code>?</code> Operator</a></h3>
 <p>The <code>?</code> operator is the idiomatic way to propagate errors. It means: “If this result is <code>Ok</code>, unwrap the value. If it’s <code>Err</code>, return it from the current function immediately.”</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3115,6 +3117,7 @@ pub fn safe_path(base: &amp;Path, user_path: &amp;str) -&gt; Result&lt;PathBuf, 
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Prevents CWE-22 (Path Traversal). The canonicalization approach handles symlinks and <code>../</code> sequences correctly.</p>
 <p>⚠️ <strong>TOCTOU warning</strong>: There is a time-of-check-to-time-of-use race between <code>canonicalize</code> and actually using the path. For maximum security, open the file immediately after validation and use the file descriptor.</p>
+<p>⚠️ <strong>Existing-path limitation</strong>: <code>canonicalize()</code> only succeeds if the final path already exists. This helper is therefore suitable for validating an existing file or directory, not for approving a brand-new destination path. For “create a new file under this trusted base” flows, canonicalize the trusted base directory first, join the untrusted relative name without canonicalizing the final component, and then use an atomic create/open API so attackers cannot swap the target between validation and use. If your policy forbids symlinks in the final component, enforce that separately.</p>
 <p>⚠️ <strong>Symlink policy matters</strong>: <code>canonicalize()</code> follows symlinks. That is correct when your rule is “the final resolved path must stay beneath this base directory.” It is <strong>not</strong> the right rule when your threat model forbids symlinks entirely. In that case, inspect components with <code>symlink_metadata</code> or directory-fd based APIs and reject symlinked components instead of resolving through them.</p>
 <p>⚠️ <strong>Temporary files</strong>: Do not build temp-file paths by hand with <code>temp_dir().join(user_controlled_name)</code>. Use an API that creates and opens the file atomically, such as the <code>tempfile</code> crate, so attackers cannot win a race by pre-creating a symlink or predictable filename.</p>
 <h3 id="724-integer-input-validation"><a class="header" href="#724-integer-input-validation">7.2.4 Integer Input Validation</a></h3>
@@ -3408,7 +3411,7 @@ where
 <p><strong>Newtype Validation Library</strong>: Create validated newtypes for <code>Email</code>, <code>Ipv4Address</code>, and <code>FilePath</code> (safe within a base directory). Each should implement <code>FromStr</code> and be impossible to construct with invalid data. Write comprehensive tests including null bytes, overlength inputs, and path traversal attempts.</p>
 </li>
 <li>
-<p><strong>Path Traversal Fuzzer</strong>: Write a function <code>safe_path(base: &amp;Path, user_input: &amp;str) -&gt; Result&lt;PathBuf&gt;</code> that canonicalizes the result and verifies it stays within <code>base</code>. Then write a <code>proptest</code> suite that generates path strings with <code>..</code>, symbolic links, mixed separators, and Unicode tricks. Verify your function rejects all escape attempts.</p>
+<p><strong>Path Traversal Fuzzer</strong>: Write a function <code>safe_path(base: &amp;Path, user_input: &amp;str) -&gt; Result&lt;PathBuf&gt;</code> that canonicalizes the result and verifies it stays within <code>base</code> for paths that already exist. Then write a <code>proptest</code> suite that generates path strings with <code>..</code>, symbolic links, mixed separators, and Unicode tricks. Verify your function rejects all escape attempts.</p>
 </li>
 <li>
 <p><strong>Serde Depth Limit</strong>: Use <code>serde_json</code> to deserialize untrusted JSON with a custom visitor that rejects nesting deeper than 10 levels. Write a test that constructs a deeply nested JSON string and verifies it is rejected. Compare memory usage of parsing a 1000-level-deep JSON with and without the limit.</p>
@@ -3680,6 +3683,7 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
     hash: [u8; 32],
 }
 <span class="boring">}</span></code></pre>
+<p>When you raise the PBKDF2 iteration count, keep verifying each password with the parameters stored alongside that user’s hash. After a successful login, immediately derive a new hash with the current policy and replace the stored record. This “rehash on login” pattern lets you migrate gradually without breaking existing accounts or silently keeping old work factors forever.</p>
 <p>For new password storage, prefer the Argon2 PHC string format shown below because it bundles the algorithm, parameters, salt, and hash into one verifier string.</p>
 <h3 id="argon2id-recommended-for-password-hashing"><a class="header" href="#argon2id-recommended-for-password-hashing">Argon2id (Recommended for Password Hashing)</a></h3>
 <p>Argon2 is the winner of the 2015 Password Hashing Competition and is recommended by OWASP over PBKDF2 because it is resistant to GPU/ASIC attacks:</p>
@@ -5360,7 +5364,7 @@ fn lock_memory(ptr: *const u8, len: usize) -&gt; Result&lt;(), std::io::Error&gt
 <p>⚠️ <strong>System caveat</strong>: Locking pages prevents ordinary swapping, not every persistence path. Suspend-to-disk and hibernation can still write RAM contents to disk, so disk encryption and platform sleep policy still matter for high-value secrets.</p>
 <p>🔒 <strong>Security impact</strong>: Prevents sensitive data (keys, passwords) from being written to the swap file, where they could persist after the process exits (CWE-316: Cleartext Storage of Sensitive Information).</p>
 <h2 id="115-stack-and-heap-security"><a class="header" href="#115-stack-and-heap-security">11.5 Stack and Heap Security</a></h2>
-<h3 id="1151-stack-protection"><a class="header" href="#1151-stack-protection">11.5.1 Stack Protection</a></h3>
+<h3 id="1151-stack-observability-and-protection"><a class="header" href="#1151-stack-observability-and-protection">11.5.1 Stack Observability and Protection</a></h3>
 <p>Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does <strong>not</strong> enable stack canaries for Rust code by default. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:</p>
 <pre><code class="language-toml"># .cargo/config.toml
 [build]

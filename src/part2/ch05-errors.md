@@ -29,6 +29,7 @@ enum Result<T, E> {
 use std::io;
 
 fn read_bytes(file: &mut impl io::Read, count: usize) -> io::Result<Vec<u8>> {
+    // Caller must bound `count` before calling; untrusted sizes can exhaust memory.
     let mut buffer = vec![0u8; count];
     match file.read_exact(&mut buffer) {
         Ok(()) => Ok(buffer),
@@ -38,6 +39,8 @@ fn read_bytes(file: &mut impl io::Read, count: usize) -> io::Result<Vec<u8>> {
 ```
 
 `io::Result<T>` is a type alias for `Result<T, io::Error>`.
+
+When `count` originates from a file format, network packet, or other untrusted source, validate it against a maximum before allocating.
 
 ### 5.2.2 The `?` Operator
 

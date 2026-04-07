@@ -320,6 +320,8 @@ pub fn safe_path(base: &Path, user_path: &str) -> Result<PathBuf, ValidationErro
 
 ⚠️ **TOCTOU warning**: There is a time-of-check-to-time-of-use race between `canonicalize` and actually using the path. For maximum security, open the file immediately after validation and use the file descriptor.
 
+⚠️ **Existing-path limitation**: `canonicalize()` only succeeds if the final path already exists. This helper is therefore suitable for validating an existing file or directory, not for approving a brand-new destination path. For "create a new file under this trusted base" flows, canonicalize the trusted base directory first, join the untrusted relative name without canonicalizing the final component, and then use an atomic create/open API so attackers cannot swap the target between validation and use. If your policy forbids symlinks in the final component, enforce that separately.
+
 ⚠️ **Symlink policy matters**: `canonicalize()` follows symlinks. That is correct when your rule is "the final resolved path must stay beneath this base directory." It is **not** the right rule when your threat model forbids symlinks entirely. In that case, inspect components with `symlink_metadata` or directory-fd based APIs and reject symlinked components instead of resolving through them.
 
 ⚠️ **Temporary files**: Do not build temp-file paths by hand with `temp_dir().join(user_controlled_name)`. Use an API that creates and opens the file atomically, such as the `tempfile` crate, so attackers cannot win a race by pre-creating a symlink or predictable filename.
@@ -625,7 +627,7 @@ In the next chapter, we cover cryptography and secrets management: how to safely
 
 1. **Newtype Validation Library**: Create validated newtypes for `Email`, `Ipv4Address`, and `FilePath` (safe within a base directory). Each should implement `FromStr` and be impossible to construct with invalid data. Write comprehensive tests including null bytes, overlength inputs, and path traversal attempts.
 
-2. **Path Traversal Fuzzer**: Write a function `safe_path(base: &Path, user_input: &str) -> Result<PathBuf>` that canonicalizes the result and verifies it stays within `base`. Then write a `proptest` suite that generates path strings with `..`, symbolic links, mixed separators, and Unicode tricks. Verify your function rejects all escape attempts.
+2. **Path Traversal Fuzzer**: Write a function `safe_path(base: &Path, user_input: &str) -> Result<PathBuf>` that canonicalizes the result and verifies it stays within `base` for paths that already exist. Then write a `proptest` suite that generates path strings with `..`, symbolic links, mixed separators, and Unicode tricks. Verify your function rejects all escape attempts.
 
 3. **Serde Depth Limit**: Use `serde_json` to deserialize untrusted JSON with a custom visitor that rejects nesting deeper than 10 levels. Write a test that constructs a deeply nested JSON string and verifies it is rejected. Compare memory usage of parsing a 1000-level-deep JSON with and without the limit.
 

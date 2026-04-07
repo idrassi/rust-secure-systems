@@ -86,7 +86,7 @@ fn main() {
 }
 ```
 
-🔒 **Security impact**: Eliminates CWE-476 (NULL deref) by replacing null with `Option<T>`. Eliminates CWE-190 (integer overflow) in debug builds with panic-on-overflow.
+🔒 **Security impact**: Eliminates CWE-476 (NULL deref) by replacing null with `Option<T>`. Helps eliminate CWE-190 (integer overflow): debug builds panic on overflow by default, and release builds do so when `overflow-checks = true` is enabled as recommended in Chapter 2.
 
 ### 1.2.3 Fearless Concurrency
 

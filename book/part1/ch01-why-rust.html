@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
+            window.path_to_searchindex_js = "../searchindex-15e3f9e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -258,7 +258,7 @@ fn main() {
         None =&gt; println!("User not found"),
     }
 }</code></pre>
-<p>🔒 <strong>Security impact</strong>: Eliminates CWE-476 (NULL deref) by replacing null with <code>Option&lt;T&gt;</code>. Eliminates CWE-190 (integer overflow) in debug builds with panic-on-overflow.</p>
+<p>🔒 <strong>Security impact</strong>: Eliminates CWE-476 (NULL deref) by replacing null with <code>Option&lt;T&gt;</code>. Helps eliminate CWE-190 (integer overflow): debug builds panic on overflow by default, and release builds do so when <code>overflow-checks = true</code> is enabled as recommended in Chapter 2.</p>
 <h3 id="123-fearless-concurrency"><a class="header" href="#123-fearless-concurrency">1.2.3 Fearless Concurrency</a></h3>
 <p>Rust’s ownership model extends to concurrency. The type system enforces that:</p>
 <ul>

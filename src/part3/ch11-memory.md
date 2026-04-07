@@ -358,7 +358,7 @@ fn lock_memory(ptr: *const u8, len: usize) -> Result<(), std::io::Error> {
 
 ## 11.5 Stack and Heap Security
 
-### 11.5.1 Stack Protection
+### 11.5.1 Stack Observability and Protection
 
 Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does **not** enable stack canaries for Rust code by default. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:
 

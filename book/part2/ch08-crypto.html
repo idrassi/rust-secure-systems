@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
+            window.path_to_searchindex_js = "../searchindex-15e3f9e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -443,6 +443,7 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
     hash: [u8; 32],
 }
 <span class="boring">}</span></code></pre>
+<p>When you raise the PBKDF2 iteration count, keep verifying each password with the parameters stored alongside that user’s hash. After a successful login, immediately derive a new hash with the current policy and replace the stored record. This “rehash on login” pattern lets you migrate gradually without breaking existing accounts or silently keeping old work factors forever.</p>
 <p>For new password storage, prefer the Argon2 PHC string format shown below because it bundles the algorithm, parameters, salt, and hash into one verifier string.</p>
 <h3 id="argon2id-recommended-for-password-hashing"><a class="header" href="#argon2id-recommended-for-password-hashing">Argon2id (Recommended for Password Hashing)</a></h3>
 <p>Argon2 is the winner of the 2015 Password Hashing Competition and is recommended by OWASP over PBKDF2 because it is resistant to GPU/ASIC attacks:</p>

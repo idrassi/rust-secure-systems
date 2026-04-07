@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
+            window.path_to_searchindex_js = "../searchindex-15e3f9e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -215,6 +215,7 @@
 </span>use std::io;
 
 fn read_bytes(file: &amp;mut impl io::Read, count: usize) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    // Caller must bound `count` before calling; untrusted sizes can exhaust memory.
     let mut buffer = vec![0u8; count];
     match file.read_exact(&amp;mut buffer) {
         Ok(()) =&gt; Ok(buffer),
@@ -223,6 +224,7 @@ fn read_bytes(file: &amp;mut impl io::Read, count: usize) -&gt; io::Result&lt;Ve
 }
 <span class="boring">}</span></code></pre>
 <p><code>io::Result&lt;T&gt;</code> is a type alias for <code>Result&lt;T, io::Error&gt;</code>.</p>
+<p>When <code>count</code> originates from a file format, network packet, or other untrusted source, validate it against a maximum before allocating.</p>
 <h3 id="522-the--operator"><a class="header" href="#522-the--operator">5.2.2 The <code>?</code> Operator</a></h3>
 <p>The <code>?</code> operator is the idiomatic way to propagate errors. It means: “If this result is <code>Ok</code>, unwrap the value. If it’s <code>Err</code>, return it from the current function immediately.”</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c19d9d0a.js";
+            window.path_to_searchindex_js = "../searchindex-15e3f9e1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -396,7 +396,7 @@ opt-level = "z"              # Optimize for minimum size (more aggressive than "
 <tr><th>Use case</th><th>Recommended default</th></tr>
 </thead>
 <tbody>
-<tr><td>Network service or CLI where panics indicate bugs and restart is acceptable</td><td><code>panic = "abort"</code></td></tr>
+<tr><td>Network service or CLI where panics indicate bugs and restart is acceptable</td><td><code>panic = "abort"</code> if panic paths do not rely on <code>Drop</code> for zeroization or other critical cleanup</td></tr>
 <tr><td>FFI exports or callbacks callable from C/C++</td><td><code>panic = "abort"</code> unless you fully contain unwinding at the boundary</td></tr>
 <tr><td>Libraries whose callers may rely on <code>catch_unwind</code></td><td><code>panic = "unwind"</code></td></tr>
 <tr><td>Code that depends on <code>Drop</code>-driven cleanup on panic paths</td><td><code>panic = "unwind"</code> or redesign cleanup so the panic strategy does not matter</td></tr>
@@ -404,7 +404,7 @@ opt-level = "z"              # Optimize for minimum size (more aggressive than "
 </tbody>
 </table>
 </div>
-<p>If you choose <code>panic = "abort"</code> for a crypto-heavy service, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic.</p>
+<p>If the service handles secrets, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic. When they do, keep <code>panic = "unwind"</code> or restructure the cleanup so the panic strategy does not matter.</p>
 <h2 id="25-ide-setup"><a class="header" href="#25-ide-setup">2.5 IDE Setup</a></h2>
 <h3 id="rust-analyzer-recommended"><a class="header" href="#rust-analyzer-recommended">rust-analyzer (Recommended)</a></h3>
 <p><code>rust-analyzer</code> provides IDE-quality features:</p>
