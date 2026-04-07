@@ -167,6 +167,7 @@ pub enum AuthError {
     RateLimited,
 }
 
+#[allow(unreachable_patterns)] // Keep the wildcard to model downstream matching requirements.
 fn handle_error(err: AuthError) {
     match err {
         AuthError::InvalidCredentials => println!("Bad credentials"),
@@ -174,13 +175,14 @@ fn handle_error(err: AuthError) {
         AuthError::TokenExpired => println!("Token expired"),
         AuthError::RateLimited => println!("Rate limited"),
         // Downstream crates matching a public `#[non_exhaustive]` enum
-        // must include a wildcard arm for future variants.
+        // must include a wildcard arm for future variants. Inside this
+        // crate, the compiler already knows the current variants.
         _ => println!("Unknown auth error"),
     }
 }
 ```
 
-Inside the crate that defines `AuthError`, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point. The `#[non_exhaustive]` guarantee matters at the public API boundary: downstream crates importing `AuthError` must include a fallback arm.
+Inside the crate that defines `AuthError`, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point and may trigger an `unreachable_patterns` warning. The `#[non_exhaustive]` guarantee matters at the public API boundary: downstream crates importing `AuthError` must include a fallback arm. If you keep the wildcard in the defining crate as documentation, add `#[allow(unreachable_patterns)]` with a comment explaining why it is there.
 
 🔒 **Security pattern**: Use `#[non_exhaustive]` on public enums in library APIs. If you add a new error variant (e.g., `CertificateRevoked`), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without `#[non_exhaustive]`, adding a variant is a breaking change: downstream `match` expressions without a wildcard fail to compile, while matches that already use `_` continue compiling and may route the new case through a generic fallback path.
 

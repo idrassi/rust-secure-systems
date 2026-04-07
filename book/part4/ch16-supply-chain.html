@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -472,6 +472,7 @@ jobs:
           cargo install cargo-cyclonedx --version 0.5.9 --locked
           cargo cyclonedx
 </code></pre>
+<p>SBOM generation is inventory, not analysis. Add a follow-up CI gate that scans the generated CycloneDX document with your artifact scanner (for example, <code>grype</code> or <code>trivy</code>) and fails the build on newly introduced advisories. That matters when downstream packaging pulls in native libraries, OS packages, or other release metadata that is easier to reason about from the SBOM than from Cargo metadata alone.</p>
 <p>Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.</p>
 <p>For release artifacts, pair SBOM generation with binary metadata or provenance. <code>cargo auditable</code>, Sigstore signing, and SLSA-style attestations strengthen the link between the reviewed source tree and the artifact you actually ship.</p>
 <h3 id="1681-trusted-publishing-for-cratesio"><a class="header" href="#1681-trusted-publishing-for-cratesio">16.8.1 Trusted Publishing for crates.io</a></h3>

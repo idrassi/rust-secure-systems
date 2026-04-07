@@ -287,6 +287,18 @@ This is the audit-friendly variant of the hardened release profile used later in
 
 ⚠️ **Trade-off**: `panic = "abort"` skips `Drop` during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use `Result` for attacker-controlled failures and reserve `panic = "abort"` for codebases where that trade-off is explicit.
 
+A practical default matrix:
+
+| Use case | Recommended default |
+|----------|---------------------|
+| Network service or CLI where panics indicate bugs and restart is acceptable | `panic = "abort"` |
+| FFI exports or callbacks callable from C/C++ | `panic = "abort"` unless you fully contain unwinding at the boundary |
+| Libraries whose callers may rely on `catch_unwind` | `panic = "unwind"` |
+| Code that depends on `Drop`-driven cleanup on panic paths | `panic = "unwind"` or redesign cleanup so the panic strategy does not matter |
+| Embedded / `no_std` targets with tight size budgets | `panic = "abort"` |
+
+If you choose `panic = "abort"` for a crypto-heavy service, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic.
+
 ## 2.5 IDE Setup
 
 ### rust-analyzer (Recommended)

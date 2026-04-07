@@ -304,9 +304,11 @@ Or integrate into `build.rs`:
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::cbindgen as cbindgen;
+# use std::{env, path::PathBuf};
 // build.rs
 fn main() {
-    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("my_lib.h");
     
     let config = cbindgen::Config::from_file("cbindgen.toml")
         .expect("Unable to read cbindgen.toml");
@@ -316,11 +318,11 @@ fn main() {
         .with_config(config)
         .generate()
         .expect("Unable to generate C bindings")
-        .write_to_file("target/my_lib.h");
+        .write_to_file(out_path);
 }
 ```
 
-🔒 **Security practice**: Use `cbindgen` instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary.
+🔒 **Security practice**: Use `cbindgen` instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary. Write generated artifacts to `OUT_DIR` (or another explicit build output path), not a hardcoded `target/` path that breaks custom target directories and cross-compilation setups.
 
 ## 10.4 Dangerous C Patterns
 

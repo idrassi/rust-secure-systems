@@ -511,13 +511,9 @@ Prefer a reviewed resolver configuration over ad hoc plaintext DNS for services 
 ### 12.3.3 Preventing Amplification Attacks
 
 ```rust,no_run
-// BAD: unbounded response to small request
-# fn generate_large_response(query: &[u8]) -> Vec<u8> {
-#     vec![0u8; query.len().saturating_mul(64).max(1)]
-# }
+// BAD: a 100-byte query can trigger a 6.4 KiB response (64x amplification)
 async fn handle_query_unbounded(query: &[u8]) -> Vec<u8> {
-    // An attacker sends a tiny query that generates a huge response
-    generate_large_response(query)  // Amplification!
+    vec![0u8; query.len().saturating_mul(64)]
 }
 
 // GOOD: limit response size

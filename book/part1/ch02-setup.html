@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -386,9 +386,25 @@ codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
 opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
 </code></pre>
-<p>This matches the hardened release profile used later in Chapter 19. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
+<p>This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep <code>debug = true</code> and <code>strip = false</code> while doing local crash analysis, then switch to the stripped production profile once you publish or deploy the binary. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
 <p>🔒 <strong>Critical setting</strong>: <code>overflow-checks = true</code> in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.</p>
 <p>⚠️ <strong>Trade-off</strong>: <code>panic = "abort"</code> skips <code>Drop</code> during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use <code>Result</code> for attacker-controlled failures and reserve <code>panic = "abort"</code> for codebases where that trade-off is explicit.</p>
+<p>A practical default matrix:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Use case</th><th>Recommended default</th></tr>
+</thead>
+<tbody>
+<tr><td>Network service or CLI where panics indicate bugs and restart is acceptable</td><td><code>panic = "abort"</code></td></tr>
+<tr><td>FFI exports or callbacks callable from C/C++</td><td><code>panic = "abort"</code> unless you fully contain unwinding at the boundary</td></tr>
+<tr><td>Libraries whose callers may rely on <code>catch_unwind</code></td><td><code>panic = "unwind"</code></td></tr>
+<tr><td>Code that depends on <code>Drop</code>-driven cleanup on panic paths</td><td><code>panic = "unwind"</code> or redesign cleanup so the panic strategy does not matter</td></tr>
+<tr><td>Embedded / <code>no_std</code> targets with tight size budgets</td><td><code>panic = "abort"</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>If you choose <code>panic = "abort"</code> for a crypto-heavy service, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic.</p>
 <h2 id="25-ide-setup"><a class="header" href="#25-ide-setup">2.5 IDE Setup</a></h2>
 <h3 id="rust-analyzer-recommended"><a class="header" href="#rust-analyzer-recommended">rust-analyzer (Recommended)</a></h3>
 <p><code>rust-analyzer</code> provides IDE-quality features:</p>

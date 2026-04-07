@@ -198,19 +198,16 @@ use ring::pbkdf2;
 use std::num::NonZeroU32;
 
 const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
-
-fn pbkdf2_iterations() -> NonZeroU32 {
-    match NonZeroU32::new(PBKDF2_ITERATION_COUNT) {
-        Some(iterations) => iterations,
-        None => unreachable!("PBKDF2 iteration count constant must be non-zero"),
-    }
-}
+const PBKDF2_ITERATIONS: NonZeroU32 = match NonZeroU32::new(PBKDF2_ITERATION_COUNT) {
+    Some(iterations) => iterations,
+    None => panic!("PBKDF2 iteration count constant must be non-zero"),
+};
 
 fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0u8; 32];
     pbkdf2::derive(
         pbkdf2::PBKDF2_HMAC_SHA256,
-        pbkdf2_iterations(),
+        PBKDF2_ITERATIONS,
         salt,
         password.as_bytes(),
         &mut key,
@@ -221,7 +218,7 @@ fn derive_key_from_password(password: &str, salt: &[u8]) -> [u8; 32] {
 fn verify_password(password: &str, salt: &[u8], expected: &[u8; 32]) -> bool {
     pbkdf2::verify(
         pbkdf2::PBKDF2_HMAC_SHA256,
-        pbkdf2_iterations(),
+        PBKDF2_ITERATIONS,
         salt,
         password.as_bytes(),
         expected,
@@ -232,6 +229,7 @@ fn verify_password(password: &str, salt: &[u8], expected: &[u8; 32]) -> bool {
 🔒 **Security notes**:
 - `ring::pbkdf2::verify` uses constant-time comparison internally.
 - The `600_000` example matches OWASP's current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.
+- Keeping the typed `NonZeroU32` as a `const` turns an accidental zero into a compile-time failure instead of a panic on first use.
 - Prefer **Argon2id** for new systems and general password storage.
 - Keep **PBKDF2-HMAC-SHA256** for FIPS-constrained environments or legacy interoperability where Argon2id is not an option.
 - Use a unique 16+ byte random salt per password.

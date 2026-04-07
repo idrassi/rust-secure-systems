@@ -22,12 +22,14 @@ strip = "symbols"            # Strip debug symbols from release binary
 opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
 
 # Optional alternative for crash analysis:
-# debug = 1                  # Use this only when shipping an unstripped artifact
+# debug = 1                  # Smaller than full debug info; useful for post-mortem builds
 ```
 
 `panic = "abort"` is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips `Drop` on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.
 
 Be precise about `strip`: `strip = true` means `debuginfo`, not full symbol stripping. Use `strip = "symbols"` when you intentionally want the more aggressive setting shown here.
+
+Chapter 2 intentionally uses `debug = true` because that profile is for local crash analysis and interactive debugging. Here, `debug = 1` is the smaller compromise for hardened release artifacts that still need some post-mortem symbol information. If you only need filename and line-number backtraces, `debug = "line-tables-only"` is smaller still.
 
 ### 19.1.2 Linker Hardening Flags
 

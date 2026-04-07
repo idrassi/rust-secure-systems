@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -452,9 +452,11 @@ cbindgen --config cbindgen.toml --crate my-lib --output my_lib.h
 <p>Or integrate into <code>build.rs</code>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::cbindgen as cbindgen;
+</span><span class="boring">use std::{env, path::PathBuf};
 </span>// build.rs
 fn main() {
-    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("my_lib.h");
     
     let config = cbindgen::Config::from_file("cbindgen.toml")
         .expect("Unable to read cbindgen.toml");
@@ -464,9 +466,9 @@ fn main() {
         .with_config(config)
         .generate()
         .expect("Unable to generate C bindings")
-        .write_to_file("target/my_lib.h");
+        .write_to_file(out_path);
 }</code></pre>
-<p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary.</p>
+<p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary. Write generated artifacts to <code>OUT_DIR</code> (or another explicit build output path), not a hardcoded <code>target/</code> path that breaks custom target directories and cross-compilation setups.</p>
 <h2 id="104-dangerous-c-patterns"><a class="header" href="#104-dangerous-c-patterns">10.4 Dangerous C Patterns</a></h2>
 <h3 id="1041-longjmp-and-c-exceptions"><a class="header" href="#1041-longjmp-and-c-exceptions">10.4.1 <code>longjmp</code> and C++ Exceptions</a></h3>
 <p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior — it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>

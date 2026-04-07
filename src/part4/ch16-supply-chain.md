@@ -357,6 +357,8 @@ jobs:
           cargo cyclonedx
 ```
 
+SBOM generation is inventory, not analysis. Add a follow-up CI gate that scans the generated CycloneDX document with your artifact scanner (for example, `grype` or `trivy`) and fails the build on newly introduced advisories. That matters when downstream packaging pulls in native libraries, OS packages, or other release metadata that is easier to reason about from the SBOM than from Cargo metadata alone.
+
 Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.
 
 For release artifacts, pair SBOM generation with binary metadata or provenance. `cargo auditable`, Sigstore signing, and SLSA-style attestations strengthen the link between the reviewed source tree and the artifact you actually ship.

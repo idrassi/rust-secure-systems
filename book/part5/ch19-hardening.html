@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -200,10 +200,11 @@ strip = "symbols"            # Strip debug symbols from release binary
 opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
 
 # Optional alternative for crash analysis:
-# debug = 1                  # Use this only when shipping an unstripped artifact
+# debug = 1                  # Smaller than full debug info; useful for post-mortem builds
 </code></pre>
 <p><code>panic = "abort"</code> is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips <code>Drop</code> on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.</p>
 <p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
+<p>Chapter 2 intentionally uses <code>debug = true</code> because that profile is for local crash analysis and interactive debugging. Here, <code>debug = 1</code> is the smaller compromise for hardened release artifacts that still need some post-mortem symbol information. If you only need filename and line-number backtraces, <code>debug = "line-tables-only"</code> is smaller still.</p>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
 [build]

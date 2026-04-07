@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -326,6 +326,7 @@ pub enum AuthError {
     RateLimited,
 }
 
+#[allow(unreachable_patterns)] // Keep the wildcard to model downstream matching requirements.
 fn handle_error(err: AuthError) {
     match err {
         AuthError::InvalidCredentials =&gt; println!("Bad credentials"),
@@ -333,12 +334,13 @@ fn handle_error(err: AuthError) {
         AuthError::TokenExpired =&gt; println!("Token expired"),
         AuthError::RateLimited =&gt; println!("Rate limited"),
         // Downstream crates matching a public `#[non_exhaustive]` enum
-        // must include a wildcard arm for future variants.
+        // must include a wildcard arm for future variants. Inside this
+        // crate, the compiler already knows the current variants.
         _ =&gt; println!("Unknown auth error"),
     }
 }
 <span class="boring">}</span></code></pre>
-<p>Inside the crate that defines <code>AuthError</code>, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point. The <code>#[non_exhaustive]</code> guarantee matters at the public API boundary: downstream crates importing <code>AuthError</code> must include a fallback arm.</p>
+<p>Inside the crate that defines <code>AuthError</code>, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point and may trigger an <code>unreachable_patterns</code> warning. The <code>#[non_exhaustive]</code> guarantee matters at the public API boundary: downstream crates importing <code>AuthError</code> must include a fallback arm. If you keep the wildcard in the defining crate as documentation, add <code>#[allow(unreachable_patterns)]</code> with a comment explaining why it is there.</p>
 <p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change: downstream <code>match</code> expressions without a wildcard fail to compile, while matches that already use <code>_</code> continue compiling and may route the new case through a generic fallback path.</p>
 <h2 id="44-structs-and-tuples"><a class="header" href="#44-structs-and-tuples">4.4 Structs and Tuples</a></h2>
 <h3 id="structs"><a class="header" href="#structs">Structs</a></h3>
@@ -418,6 +420,44 @@ fn rotate_signing_key(_cap: &amp;Capability&lt;RotateKeys&gt;) {}
 <li><strong>Confused deputy defense</strong>: helpers can only exercise the authority they were explicitly handed, which is safer than reaching into ambient global state or reusing the caller’s full identity.</li>
 </ul>
 <p>Keep constructors for privileged sessions and capabilities private to the module that performs the actual policy decision. That way, authorization is enforced once at the boundary and then preserved by the type system.</p>
+<p>Put that rule into the module boundary, not just the naming convention:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>mod auth {
+    use std::marker::PhantomData;
+
+    #[derive(Clone, Copy)]
+    pub struct UserId(pub u64);
+
+    pub struct Admin;
+    pub struct RotateKeys;
+    pub struct AuditedPolicyDecision;
+
+    pub struct Session&lt;Role&gt; {
+        user_id: UserId,
+        _role: PhantomData&lt;Role&gt;,
+    }
+
+    pub struct Capability&lt;P&gt;(PhantomData&lt;P&gt;);
+
+    pub(crate) fn admin_session(
+        user_id: UserId,
+        _decision: &amp;AuditedPolicyDecision,
+    ) -&gt; Session&lt;Admin&gt; {
+        Session {
+            user_id,
+            _role: PhantomData,
+        }
+    }
+
+    pub(crate) fn rotate_keys_capability(
+        _decision: &amp;AuditedPolicyDecision,
+    ) -&gt; Capability&lt;RotateKeys&gt; {
+        Capability(PhantomData)
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Outside <code>auth</code>, callers can pass <code>Session&lt;Admin&gt;</code> and <code>Capability&lt;RotateKeys&gt;</code> to privileged functions, but they cannot forge those values with a struct literal because the fields and constructors stay inside the policy-enforcing module.</p>
 <h2 id="45-traits--defining-shared-behavior"><a class="header" href="#45-traits--defining-shared-behavior">4.5 Traits — Defining Shared Behavior</a></h2>
 <p>Traits are Rust’s answer to interfaces:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

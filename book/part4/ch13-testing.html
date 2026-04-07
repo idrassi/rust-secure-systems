@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -196,10 +196,14 @@
 pub enum ParseError {
     NotANumber,
     OutOfRange(u32),
+    ReservedPortZero,
 }
 
 pub fn parse_port(input: &amp;str) -&gt; Result&lt;u16, ParseError&gt; {
     let value: u32 = input.parse().map_err(|_| ParseError::NotANumber)?;
+    if value == 0 {
+        return Err(ParseError::ReservedPortZero);
+    }
     if value &gt; 65535 {
         return Err(ParseError::OutOfRange(value));
     }
@@ -219,7 +223,7 @@ mod tests {
     
     #[test]
     fn port_zero() {
-        assert_eq!(parse_port("0").unwrap(), 0);
+        assert!(matches!(parse_port("0"), Err(ParseError::ReservedPortZero)));
     }
     
     #[test]
@@ -249,6 +253,7 @@ mod tests {
 }
 <span class="boring">}</span></code></pre>
 <p>Run with: <code>cargo test</code></p>
+<p>This parser now matches the Chapter 7 policy that reserves port 0. If your own protocol intentionally allows ephemeral-port requests, make that exception explicit in the parser and document the policy difference in the tests.</p>
 <p>Rust also gives you two pragmatic test attributes that matter in security work:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

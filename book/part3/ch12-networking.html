@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -342,7 +342,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
 <li><strong>Read timeouts</strong>: Prevents slowloris attacks (CWE-400)</li>
 <li><strong>Write timeouts</strong>: Prevents blocked clients from consuming resources</li>
 <li><strong>Message size limits</strong>: Prevents memory exhaustion (CWE-789)</li>
-<li><strong>TCP_NODELAY</strong>: Reduces latency, prevents delayed ACK interaction</li>
+<li><strong>TCP_NODELAY</strong>: Disables Nagle’s algorithm, preventing the latency amplification caused by its interaction with the peer’s delayed-ACK timer</li>
 <li><strong>Explicit framing buffer</strong>: Correctly handles fragmented and coalesced TCP reads</li>
 </ol>
 <blockquote>
@@ -416,6 +416,21 @@ impl RateLimiter {
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
 <p>Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example <code>/64</code>) or authenticated/user-based limits in front of the service.</p>
+<p>For authenticated endpoints, enforce a second quota keyed by the stable account identity rather than trusting network address alone:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::net::IpAddr;
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct UserId(u64);
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum RateLimitKey {
+    Ip(IpAddr),
+    User(UserId),
+}
+<span class="boring">}</span></code></pre>
+<p>Check both keys after authentication succeeds. That way, an attacker who rotates source IPs still hits the per-user limit for the targeted account or API token.</p>
 <p>If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -638,13 +653,9 @@ let ips = resolver.lookup_ip("api.example.com.").await?;</code></pre>
 <h3 id="1233-preventing-amplification-attacks"><a class="header" href="#1233-preventing-amplification-attacks">12.3.3 Preventing Amplification Attacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// BAD: unbounded response to small request
-<span class="boring">fn generate_large_response(query: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-</span><span class="boring">    vec![0u8; query.len().saturating_mul(64).max(1)]
-</span><span class="boring">}
-</span>async fn handle_query_unbounded(query: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-    // An attacker sends a tiny query that generates a huge response
-    generate_large_response(query)  // Amplification!
+</span>// BAD: a 100-byte query can trigger a 6.4 KiB response (64x amplification)
+async fn handle_query_unbounded(query: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+    vec![0u8; query.len().saturating_mul(64)]
 }
 
 // GOOD: limit response size

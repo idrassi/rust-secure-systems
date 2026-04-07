@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8e63d631.js"></script>
@@ -618,9 +618,25 @@ codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
 opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
 </code></pre>
-<p>This matches the hardened release profile used later in Chapter 19. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
+<p>This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep <code>debug = true</code> and <code>strip = false</code> while doing local crash analysis, then switch to the stripped production profile once you publish or deploy the binary. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
 <p>🔒 <strong>Critical setting</strong>: <code>overflow-checks = true</code> in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.</p>
 <p>⚠️ <strong>Trade-off</strong>: <code>panic = "abort"</code> skips <code>Drop</code> during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use <code>Result</code> for attacker-controlled failures and reserve <code>panic = "abort"</code> for codebases where that trade-off is explicit.</p>
+<p>A practical default matrix:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Use case</th><th>Recommended default</th></tr>
+</thead>
+<tbody>
+<tr><td>Network service or CLI where panics indicate bugs and restart is acceptable</td><td><code>panic = "abort"</code></td></tr>
+<tr><td>FFI exports or callbacks callable from C/C++</td><td><code>panic = "abort"</code> unless you fully contain unwinding at the boundary</td></tr>
+<tr><td>Libraries whose callers may rely on <code>catch_unwind</code></td><td><code>panic = "unwind"</code></td></tr>
+<tr><td>Code that depends on <code>Drop</code>-driven cleanup on panic paths</td><td><code>panic = "unwind"</code> or redesign cleanup so the panic strategy does not matter</td></tr>
+<tr><td>Embedded / <code>no_std</code> targets with tight size budgets</td><td><code>panic = "abort"</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>If you choose <code>panic = "abort"</code> for a crypto-heavy service, verify that zeroization and other cleanup do not rely solely on destructor execution after a panic.</p>
 <h2 id="25-ide-setup"><a class="header" href="#25-ide-setup">2.5 IDE Setup</a></h2>
 <h3 id="rust-analyzer-recommended"><a class="header" href="#rust-analyzer-recommended">rust-analyzer (Recommended)</a></h3>
 <p><code>rust-analyzer</code> provides IDE-quality features:</p>
@@ -1201,6 +1217,7 @@ pub enum AuthError {
     RateLimited,
 }
 
+#[allow(unreachable_patterns)] // Keep the wildcard to model downstream matching requirements.
 fn handle_error(err: AuthError) {
     match err {
         AuthError::InvalidCredentials =&gt; println!("Bad credentials"),
@@ -1208,12 +1225,13 @@ fn handle_error(err: AuthError) {
         AuthError::TokenExpired =&gt; println!("Token expired"),
         AuthError::RateLimited =&gt; println!("Rate limited"),
         // Downstream crates matching a public `#[non_exhaustive]` enum
-        // must include a wildcard arm for future variants.
+        // must include a wildcard arm for future variants. Inside this
+        // crate, the compiler already knows the current variants.
         _ =&gt; println!("Unknown auth error"),
     }
 }
 <span class="boring">}</span></code></pre>
-<p>Inside the crate that defines <code>AuthError</code>, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point. The <code>#[non_exhaustive]</code> guarantee matters at the public API boundary: downstream crates importing <code>AuthError</code> must include a fallback arm.</p>
+<p>Inside the crate that defines <code>AuthError</code>, the compiler still knows every current variant, so the wildcard above is a style choice rather than an enforcement point and may trigger an <code>unreachable_patterns</code> warning. The <code>#[non_exhaustive]</code> guarantee matters at the public API boundary: downstream crates importing <code>AuthError</code> must include a fallback arm. If you keep the wildcard in the defining crate as documentation, add <code>#[allow(unreachable_patterns)]</code> with a comment explaining why it is there.</p>
 <p>🔒 <strong>Security pattern</strong>: Use <code>#[non_exhaustive]</code> on public enums in library APIs. If you add a new error variant (e.g., <code>CertificateRevoked</code>), downstream code that already has a wildcard arm can continue compiling and handle the new case conservatively. Without <code>#[non_exhaustive]</code>, adding a variant is a breaking change: downstream <code>match</code> expressions without a wildcard fail to compile, while matches that already use <code>_</code> continue compiling and may route the new case through a generic fallback path.</p>
 <h2 id="44-structs-and-tuples"><a class="header" href="#44-structs-and-tuples">4.4 Structs and Tuples</a></h2>
 <h3 id="structs"><a class="header" href="#structs">Structs</a></h3>
@@ -1293,6 +1311,44 @@ fn rotate_signing_key(_cap: &amp;Capability&lt;RotateKeys&gt;) {}
 <li><strong>Confused deputy defense</strong>: helpers can only exercise the authority they were explicitly handed, which is safer than reaching into ambient global state or reusing the caller’s full identity.</li>
 </ul>
 <p>Keep constructors for privileged sessions and capabilities private to the module that performs the actual policy decision. That way, authorization is enforced once at the boundary and then preserved by the type system.</p>
+<p>Put that rule into the module boundary, not just the naming convention:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>mod auth {
+    use std::marker::PhantomData;
+
+    #[derive(Clone, Copy)]
+    pub struct UserId(pub u64);
+
+    pub struct Admin;
+    pub struct RotateKeys;
+    pub struct AuditedPolicyDecision;
+
+    pub struct Session&lt;Role&gt; {
+        user_id: UserId,
+        _role: PhantomData&lt;Role&gt;,
+    }
+
+    pub struct Capability&lt;P&gt;(PhantomData&lt;P&gt;);
+
+    pub(crate) fn admin_session(
+        user_id: UserId,
+        _decision: &amp;AuditedPolicyDecision,
+    ) -&gt; Session&lt;Admin&gt; {
+        Session {
+            user_id,
+            _role: PhantomData,
+        }
+    }
+
+    pub(crate) fn rotate_keys_capability(
+        _decision: &amp;AuditedPolicyDecision,
+    ) -&gt; Capability&lt;RotateKeys&gt; {
+        Capability(PhantomData)
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Outside <code>auth</code>, callers can pass <code>Session&lt;Admin&gt;</code> and <code>Capability&lt;RotateKeys&gt;</code> to privileged functions, but they cannot forge those values with a struct literal because the fields and constructors stay inside the policy-enforcing module.</p>
 <h2 id="45-traits--defining-shared-behavior"><a class="header" href="#45-traits--defining-shared-behavior">4.5 Traits — Defining Shared Behavior</a></h2>
 <p>Traits are Rust’s answer to interfaces:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -2546,21 +2602,33 @@ impl FramedReader {
     }
 
     /// Call after successfully processing a message returned by `read_message()`.
-    fn advance(&amp;mut self) {
-        debug_assert!(
-            self.read_pos &gt;= 4,
-            "advance() requires a previously buffered frame header"
-        );
-        debug_assert!(
-            self.read_pos &gt;= 4 + self.current_message_len(),
-            "advance() requires a complete buffered frame"
-        );
-        let message_end = 4 + self.current_message_len();
+    fn advance(&amp;mut self) -&gt; std::io::Result&lt;()&gt; {
+        if self.read_pos &lt; 4 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "advance() requires a previously buffered frame header",
+            ));
+        }
+
+        let message_end = 4usize.checked_add(self.current_message_len()).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "frame length overflow",
+            )
+        })?;
+        if self.read_pos &lt; message_end {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "advance() requires a complete buffered frame",
+            ));
+        }
+
         let remaining = self.read_pos - message_end;
         if remaining &gt; 0 {
             self.buffer.copy_within(message_end..self.read_pos, 0);
         }
         self.read_pos = remaining;
+        Ok(())
     }
 
     fn current_message_len(&amp;self) -&gt; usize {
@@ -3086,6 +3154,44 @@ fn is_public_ip(ip: IpAddr) -&gt; bool {
 <li>Bound both pattern complexity and input size. For security-critical formats, prefer small token regexes or an explicit parser over one giant expression that mixes validation and parsing.</li>
 </ul>
 <p>When you fuzz validators, include long “almost matching” inputs. Those cases are often more valuable than obviously invalid garbage because they expose superlinear behavior, excessive backtracking, and accidental quadratic parsing paths.</p>
+<h3 id="727-compression-ratio-attacks"><a class="header" href="#727-compression-ratio-attacks">7.2.7 Compression Ratio Attacks</a></h3>
+<p>Compressed input is still attacker-controlled input. If your service accepts gzip, brotli, zip, or similar payloads, the decompressor becomes part of your denial-of-service surface.</p>
+<ul>
+<li>Stream the decompression and count produced bytes instead of trusting the compressed size.</li>
+<li>Reject payloads that exceed a hard decompressed-size limit before you write them to disk or keep extending a <code>Vec</code>.</li>
+<li>Bound nested archives and container recursion separately. A small outer file can still expand into many inner objects.</li>
+<li>Record both compressed and decompressed sizes in metrics so unusually high expansion ratios are visible during operations.</li>
+</ul>
+<p>This pattern keeps the limit at the security boundary instead of after allocation has already happened:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::io::{self, Read};
+
+fn read_capped&lt;R: Read&gt;(mut reader: R, max_output: usize) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut out = Vec::new();
+    let mut chunk = [0u8; 8192];
+
+    while out.len() &lt; max_output {
+        let cap = (max_output - out.len()).min(chunk.len());
+        let n = reader.read(&amp;mut chunk[..cap])?;
+        if n == 0 {
+            return Ok(out);
+        }
+        out.extend_from_slice(&amp;chunk[..n]);
+    }
+
+    let mut extra = [0u8; 1];
+    if reader.read(&amp;mut extra)? != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "decompressed data exceeds limit",
+        ));
+    }
+
+    Ok(out)
+}
+<span class="boring">}</span></code></pre>
+<p>Use the same cap with streaming APIs such as <code>flate2</code>, <code>brotli</code>, or <code>zip</code> rather than buffering the entire output first and checking its size afterward.</p>
 <h2 id="73-validation-for-protocol-parsing"><a class="header" href="#73-validation-for-protocol-parsing">7.3 Validation for Protocol Parsing</a></h2>
 <p>When implementing network protocols, validation is critical at every layer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3450,13 +3556,17 @@ fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32
 </span>use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATIONS: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+const PBKDF2_ITERATIONS: NonZeroU32 = match NonZeroU32::new(PBKDF2_ITERATION_COUNT) {
+    Some(iterations) =&gt; iterations,
+    None =&gt; panic!("PBKDF2 iteration count constant must be non-zero"),
+};
 
 fn derive_key_from_password(password: &amp;str, salt: &amp;[u8]) -&gt; [u8; 32] {
     let mut key = [0u8; 32];
     pbkdf2::derive(
         pbkdf2::PBKDF2_HMAC_SHA256,
-        NonZeroU32::new(PBKDF2_ITERATIONS).unwrap(),
+        PBKDF2_ITERATIONS,
         salt,
         password.as_bytes(),
         &amp;mut key,
@@ -3467,7 +3577,7 @@ fn derive_key_from_password(password: &amp;str, salt: &amp;[u8]) -&gt; [u8; 32] 
 fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32]) -&gt; bool {
     pbkdf2::verify(
         pbkdf2::PBKDF2_HMAC_SHA256,
-        NonZeroU32::new(PBKDF2_ITERATIONS).unwrap(),
+        PBKDF2_ITERATIONS,
         salt,
         password.as_bytes(),
         expected,
@@ -3478,6 +3588,7 @@ fn verify_password(password: &amp;str, salt: &amp;[u8], expected: &amp;[u8; 32])
 <ul>
 <li><code>ring::pbkdf2::verify</code> uses constant-time comparison internally.</li>
 <li>The <code>600_000</code> example matches OWASP’s current PBKDF2-HMAC-SHA256 baseline at the time of writing. NIST SP 800-132 is older and more general: it recommends choosing the count as large as acceptable for users, with 1,000 as a historical minimum. Treat iteration counts as a time-sensitive policy knob, not a timeless constant from a book.</li>
+<li>Keeping the typed <code>NonZeroU32</code> as a <code>const</code> turns an accidental zero into a compile-time failure instead of a panic on first use.</li>
 <li>Prefer <strong>Argon2id</strong> for new systems and general password storage.</li>
 <li>Keep <strong>PBKDF2-HMAC-SHA256</strong> for FIPS-constrained environments or legacy interoperability where Argon2id is not an option.</li>
 <li>Use a unique 16+ byte random salt per password.</li>
@@ -4673,9 +4784,11 @@ cbindgen --config cbindgen.toml --crate my-lib --output my_lib.h
 <p>Or integrate into <code>build.rs</code>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::cbindgen as cbindgen;
+</span><span class="boring">use std::{env, path::PathBuf};
 </span>// build.rs
 fn main() {
-    let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("my_lib.h");
     
     let config = cbindgen::Config::from_file("cbindgen.toml")
         .expect("Unable to read cbindgen.toml");
@@ -4685,9 +4798,9 @@ fn main() {
         .with_config(config)
         .generate()
         .expect("Unable to generate C bindings")
-        .write_to_file("target/my_lib.h");
+        .write_to_file(out_path);
 }</code></pre>
-<p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary.</p>
+<p>🔒 <strong>Security practice</strong>: Use <code>cbindgen</code> instead of writing headers manually. Manual headers can drift from the actual Rust function signatures, leading to type mismatches that cause undefined behavior at the FFI boundary. Write generated artifacts to <code>OUT_DIR</code> (or another explicit build output path), not a hardcoded <code>target/</code> path that breaks custom target directories and cross-compilation setups.</p>
 <h2 id="104-dangerous-c-patterns"><a class="header" href="#104-dangerous-c-patterns">10.4 Dangerous C Patterns</a></h2>
 <h3 id="1041-longjmp-and-c-exceptions"><a class="header" href="#1041-longjmp-and-c-exceptions">10.4.1 <code>longjmp</code> and C++ Exceptions</a></h3>
 <p>⚠️ <strong>Critical</strong>: Never let <code>longjmp</code> (C) or C++ exceptions cross the Rust/C boundary. Doing so is undefined behavior — it bypasses Rust destructors, leaking resources and potentially corrupting the program state:</p>
@@ -5037,12 +5150,12 @@ unsafe impl GlobalAlloc for SecureAllocator {
     }
     
     unsafe fn dealloc(&amp;self, ptr: *mut u8, layout: Layout) {
-        if !ptr.is_null() {
-            for i in 0..layout.size() {
-                unsafe { ptr.add(i).write_volatile(0); }
-            }
-            compiler_fence(Ordering::SeqCst);
+        // `GlobalAlloc::dealloc` is only called with a valid pointer that came
+        // from the paired allocator, so zeroize first and then free it.
+        for i in 0..layout.size() {
+            unsafe { ptr.add(i).write_volatile(0); }
         }
+        compiler_fence(Ordering::SeqCst);
         unsafe { System.dealloc(ptr, layout) };
     }
 }
@@ -5158,6 +5271,8 @@ fn lock_memory(ptr: *const u8, len: usize) -&gt; Result&lt;(), std::io::Error&gt
     Ok(())
 }
 <span class="boring">}</span></code></pre>
+<p>⚠️ <strong>Operational caveat</strong>: Treat memory locking as a deployment requirement, not a best-effort hint. On Linux, a successful <code>mlock</code> means the whole covered range is locked; failures such as <code>EAGAIN</code>, <code>ENOMEM</code>, or <code>EPERM</code> should be handled as hard failures. In practice, unprivileged processes are constrained by <code>RLIMIT_MEMLOCK</code> and sometimes <code>CAP_IPC_LOCK</code>. On Windows, <code>VirtualLock</code> is limited by the process working-set size.</p>
+<p>⚠️ <strong>System caveat</strong>: Locking pages prevents ordinary swapping, not every persistence path. Suspend-to-disk and hibernation can still write RAM contents to disk, so disk encryption and platform sleep policy still matter for high-value secrets.</p>
 <p>🔒 <strong>Security impact</strong>: Prevents sensitive data (keys, passwords) from being written to the swap file, where they could persist after the process exits (CWE-316: Cleartext Storage of Sensitive Information).</p>
 <h2 id="115-stack-and-heap-security"><a class="header" href="#115-stack-and-heap-security">11.5 Stack and Heap Security</a></h2>
 <h3 id="1151-stack-protection"><a class="header" href="#1151-stack-protection">11.5.1 Stack Protection</a></h3>
@@ -5359,7 +5474,7 @@ fn build_frame(payload: &amp;[u8]) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
 <li><strong>Read timeouts</strong>: Prevents slowloris attacks (CWE-400)</li>
 <li><strong>Write timeouts</strong>: Prevents blocked clients from consuming resources</li>
 <li><strong>Message size limits</strong>: Prevents memory exhaustion (CWE-789)</li>
-<li><strong>TCP_NODELAY</strong>: Reduces latency, prevents delayed ACK interaction</li>
+<li><strong>TCP_NODELAY</strong>: Disables Nagle’s algorithm, preventing the latency amplification caused by its interaction with the peer’s delayed-ACK timer</li>
 <li><strong>Explicit framing buffer</strong>: Correctly handles fragmented and coalesced TCP reads</li>
 </ol>
 <blockquote>
@@ -5433,6 +5548,21 @@ impl RateLimiter {
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
 <p>Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example <code>/64</code>) or authenticated/user-based limits in front of the service.</p>
+<p>For authenticated endpoints, enforce a second quota keyed by the stable account identity rather than trusting network address alone:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::net::IpAddr;
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct UserId(u64);
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+enum RateLimitKey {
+    Ip(IpAddr),
+    User(UserId),
+}
+<span class="boring">}</span></code></pre>
+<p>Check both keys after authentication succeeds. That way, an attacker who rotates source IPs still hits the per-user limit for the targeted account or API token.</p>
 <p>If you keep per-client state in memory, schedule cleanup rather than leaving the helper unused:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -5655,13 +5785,9 @@ let ips = resolver.lookup_ip("api.example.com.").await?;</code></pre>
 <h3 id="1233-preventing-amplification-attacks"><a class="header" href="#1233-preventing-amplification-attacks">12.3.3 Preventing Amplification Attacks</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// BAD: unbounded response to small request
-<span class="boring">fn generate_large_response(query: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-</span><span class="boring">    vec![0u8; query.len().saturating_mul(64).max(1)]
-</span><span class="boring">}
-</span>async fn handle_query_unbounded(query: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
-    // An attacker sends a tiny query that generates a huge response
-    generate_large_response(query)  // Amplification!
+</span>// BAD: a 100-byte query can trigger a 6.4 KiB response (64x amplification)
+async fn handle_query_unbounded(query: &amp;[u8]) -&gt; Vec&lt;u8&gt; {
+    vec![0u8; query.len().saturating_mul(64)]
 }
 
 // GOOD: limit response size
@@ -5801,10 +5927,14 @@ fn log_security_event(event: &amp;SecurityEvent) {
 pub enum ParseError {
     NotANumber,
     OutOfRange(u32),
+    ReservedPortZero,
 }
 
 pub fn parse_port(input: &amp;str) -&gt; Result&lt;u16, ParseError&gt; {
     let value: u32 = input.parse().map_err(|_| ParseError::NotANumber)?;
+    if value == 0 {
+        return Err(ParseError::ReservedPortZero);
+    }
     if value &gt; 65535 {
         return Err(ParseError::OutOfRange(value));
     }
@@ -5824,7 +5954,7 @@ mod tests {
     
     #[test]
     fn port_zero() {
-        assert_eq!(parse_port("0").unwrap(), 0);
+        assert!(matches!(parse_port("0"), Err(ParseError::ReservedPortZero)));
     }
     
     #[test]
@@ -5854,6 +5984,7 @@ mod tests {
 }
 <span class="boring">}</span></code></pre>
 <p>Run with: <code>cargo test</code></p>
+<p>This parser now matches the Chapter 7 policy that reserves port 0. If your own protocol intentionally allows ephemeral-port requests, make that exception explicit in the parser and document the policy difference in the tests.</p>
 <p>Rust also gives you two pragmatic test attributes that matter in security work:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -6555,7 +6686,7 @@ jobs:
         run: cargo +nightly fuzz run parse_packet -- -max_total_time=600
 </code></pre>
 <ol start="6">
-<li><strong>Probe algorithmic complexity, not just crashes</strong>: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard <code>regex</code> crate avoids classic catastrophic backtracking for its supported syntax, but backtracking engines such as <code>fancy-regex</code> and custom parsers can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.</li>
+<li><strong>Probe algorithmic complexity, not just crashes</strong>: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard <code>regex</code> crate avoids classic catastrophic backtracking for its supported syntax, but that does not make regex processing free on attacker-controlled data: worst-case searches still scale with both pattern size and input size. Keep the input caps from Chapter 7 even when you use <code>regex</code>, and treat backtracking engines such as <code>fancy-regex</code> and custom parsers as higher-risk code paths that can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.</li>
 </ol>
 <h3 id="1425-differential-fuzzing"><a class="header" href="#1425-differential-fuzzing">14.2.5 Differential Fuzzing</a></h3>
 <p>When you have two implementations of the same format or algorithm, fuzz them against each other. This is especially valuable during rewrites, parser hardening, or “safe Rust replacement for legacy C” projects:</p>
@@ -7389,6 +7520,7 @@ jobs:
           cargo install cargo-cyclonedx --version 0.5.9 --locked
           cargo cyclonedx
 </code></pre>
+<p>SBOM generation is inventory, not analysis. Add a follow-up CI gate that scans the generated CycloneDX document with your artifact scanner (for example, <code>grype</code> or <code>trivy</code>) and fails the build on newly introduced advisories. That matters when downstream packaging pulls in native libraries, OS packages, or other release metadata that is easier to reason about from the SBOM than from Cargo metadata alone.</p>
 <p>Treat CI tooling the same way you treat application dependencies: pin GitHub Actions to reviewed SHAs, pin Cargo-installed tools to reviewed versions, and refresh those pins deliberately.</p>
 <p>For release artifacts, pair SBOM generation with binary metadata or provenance. <code>cargo auditable</code>, Sigstore signing, and SLSA-style attestations strengthen the link between the reviewed source tree and the artifact you actually ship.</p>
 <h3 id="1681-trusted-publishing-for-cratesio"><a class="header" href="#1681-trusted-publishing-for-cratesio">16.8.1 Trusted Publishing for crates.io</a></h3>
@@ -8759,10 +8891,11 @@ strip = "symbols"            # Strip debug symbols from release binary
 opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
 
 # Optional alternative for crash analysis:
-# debug = 1                  # Use this only when shipping an unstripped artifact
+# debug = 1                  # Smaller than full debug info; useful for post-mortem builds
 </code></pre>
 <p><code>panic = "abort"</code> is a tradeoff, not a universal default. It reduces unwinding machinery, but it also skips <code>Drop</code> on panic paths. If your cleanup or zeroization strategy relies on destructors, verify that an aborting build is acceptable or ship a separate unwinding/debug artifact for those operational needs.</p>
 <p>Be precise about <code>strip</code>: <code>strip = true</code> means <code>debuginfo</code>, not full symbol stripping. Use <code>strip = "symbols"</code> when you intentionally want the more aggressive setting shown here.</p>
+<p>Chapter 2 intentionally uses <code>debug = true</code> because that profile is for local crash analysis and interactive debugging. Here, <code>debug = 1</code> is the smaller compromise for hardened release artifacts that still need some post-mortem symbol information. If you only need filename and line-number backtraces, <code>debug = "line-tables-only"</code> is smaller still.</p>
 <h3 id="1912-linker-hardening-flags"><a class="header" href="#1912-linker-hardening-flags">19.1.2 Linker Hardening Flags</a></h3>
 <pre><code class="language-toml"># .cargo/config.toml (Linux)
 [build]

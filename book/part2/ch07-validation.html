@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -548,6 +548,44 @@ fn is_public_ip(ip: IpAddr) -&gt; bool {
 <li>Bound both pattern complexity and input size. For security-critical formats, prefer small token regexes or an explicit parser over one giant expression that mixes validation and parsing.</li>
 </ul>
 <p>When you fuzz validators, include long “almost matching” inputs. Those cases are often more valuable than obviously invalid garbage because they expose superlinear behavior, excessive backtracking, and accidental quadratic parsing paths.</p>
+<h3 id="727-compression-ratio-attacks"><a class="header" href="#727-compression-ratio-attacks">7.2.7 Compression Ratio Attacks</a></h3>
+<p>Compressed input is still attacker-controlled input. If your service accepts gzip, brotli, zip, or similar payloads, the decompressor becomes part of your denial-of-service surface.</p>
+<ul>
+<li>Stream the decompression and count produced bytes instead of trusting the compressed size.</li>
+<li>Reject payloads that exceed a hard decompressed-size limit before you write them to disk or keep extending a <code>Vec</code>.</li>
+<li>Bound nested archives and container recursion separately. A small outer file can still expand into many inner objects.</li>
+<li>Record both compressed and decompressed sizes in metrics so unusually high expansion ratios are visible during operations.</li>
+</ul>
+<p>This pattern keeps the limit at the security boundary instead of after allocation has already happened:</p>
+<pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span>use std::io::{self, Read};
+
+fn read_capped&lt;R: Read&gt;(mut reader: R, max_output: usize) -&gt; io::Result&lt;Vec&lt;u8&gt;&gt; {
+    let mut out = Vec::new();
+    let mut chunk = [0u8; 8192];
+
+    while out.len() &lt; max_output {
+        let cap = (max_output - out.len()).min(chunk.len());
+        let n = reader.read(&amp;mut chunk[..cap])?;
+        if n == 0 {
+            return Ok(out);
+        }
+        out.extend_from_slice(&amp;chunk[..n]);
+    }
+
+    let mut extra = [0u8; 1];
+    if reader.read(&amp;mut extra)? != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "decompressed data exceeds limit",
+        ));
+    }
+
+    Ok(out)
+}
+<span class="boring">}</span></code></pre>
+<p>Use the same cap with streaming APIs such as <code>flate2</code>, <code>brotli</code>, or <code>zip</code> rather than buffering the entire output first and checking its size afterward.</p>
 <h2 id="73-validation-for-protocol-parsing"><a class="header" href="#73-validation-for-protocol-parsing">7.3 Validation for Protocol Parsing</a></h2>
 <p>When implementing network protocols, validation is critical at every layer:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

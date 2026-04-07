@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e0d16163.js";
+            window.path_to_searchindex_js = "../searchindex-7e9b88b0.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8e63d631.js"></script>
@@ -457,7 +457,7 @@ jobs:
         run: cargo +nightly fuzz run parse_packet -- -max_total_time=600
 </code></pre>
 <ol start="6">
-<li><strong>Probe algorithmic complexity, not just crashes</strong>: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard <code>regex</code> crate avoids classic catastrophic backtracking for its supported syntax, but backtracking engines such as <code>fancy-regex</code> and custom parsers can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.</li>
+<li><strong>Probe algorithmic complexity, not just crashes</strong>: Regex validators, recursive parsers, and decompression logic can fail by becoming too slow rather than by panicking. The standard <code>regex</code> crate avoids classic catastrophic backtracking for its supported syntax, but that does not make regex processing free on attacker-controlled data: worst-case searches still scale with both pattern size and input size. Keep the input caps from Chapter 7 even when you use <code>regex</code>, and treat backtracking engines such as <code>fancy-regex</code> and custom parsers as higher-risk code paths that can still go superlinear. Add long, nearly-matching inputs to your corpus and keep dedicated timing or iteration-count tests for suspicious code paths.</li>
 </ol>
 <h3 id="1425-differential-fuzzing"><a class="header" href="#1425-differential-fuzzing">14.2.5 Differential Fuzzing</a></h3>
 <p>When you have two implementations of the same format or algorithm, fuzz them against each other. This is especially valuable during rewrites, parser hardening, or “safe Rust replacement for legacy C” projects:</p>

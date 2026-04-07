@@ -339,6 +339,10 @@ fn lock_memory(ptr: *const u8, len: usize) -> Result<(), std::io::Error> {
 }
 ```
 
+⚠️ **Operational caveat**: Treat memory locking as a deployment requirement, not a best-effort hint. On Linux, a successful `mlock` means the whole covered range is locked; failures such as `EAGAIN`, `ENOMEM`, or `EPERM` should be handled as hard failures. In practice, unprivileged processes are constrained by `RLIMIT_MEMLOCK` and sometimes `CAP_IPC_LOCK`. On Windows, `VirtualLock` is limited by the process working-set size.
+
+⚠️ **System caveat**: Locking pages prevents ordinary swapping, not every persistence path. Suspend-to-disk and hibernation can still write RAM contents to disk, so disk encryption and platform sleep policy still matter for high-value secrets.
+
 🔒 **Security impact**: Prevents sensitive data (keys, passwords) from being written to the swap file, where they could persist after the process exits (CWE-316: Cleartext Storage of Sensitive Information).
 
 ## 11.5 Stack and Heap Security
