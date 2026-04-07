@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-39b9ec4d.js";
+            window.path_to_searchindex_js = "../searchindex-f5c611d8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -840,7 +840,7 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
 <p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
 <p>If you also compile with <code>panic = "abort"</code>, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.</p>
-<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux, and in containerized deployments they often surface through orchestration metadata such as <code>docker inspect</code>. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services.</p>
+<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux, and in containerized deployments they often surface through orchestration metadata such as <code>docker inspect</code>. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code> because the environment is unsynchronized process-global state: another thread may read it through <code>getenv</code> or equivalent while you mutate it. That makes “read then delete” a poor secret-management pattern for multithreaded services.</p>
 <p>Prefer runtime secret injection instead:</p>
 <ul>
 <li>Vault / cloud secret-manager SDKs that fetch secrets on demand</li>
@@ -852,6 +852,10 @@ can write its entire address space to disk, including keys, passwords, or
 tokens that are still live and have not reached their zeroization path yet.
 Disable core dumps in production unless you operate a tightly controlled,
 encrypted, access-restricted crash-dump pipeline.</p>
+<p>Outside systemd, apply the same policy before launch with <code>ulimit -c 0</code>. In
+containers, use the runtime equivalent such as <code>docker run --ulimit core=0</code>.
+When core dumps are enabled at all, review the host’s <code>kernel.core_pattern</code>
+too, because it controls where those memory snapshots land.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -996,6 +1000,8 @@ host firewall rules. Address-family filtering alone is not a port-level control.
 process memory at crash time. Without it, a crash can persist live key material
 or tokens to disk even when the application uses <code>zeroize</code> on normal drop
 paths.</p>
+<p>If you launch the same binary outside systemd, enforce the equivalent policy
+with <code>ulimit -c 0</code> or the container runtime’s core-limit setting before <code>exec</code>.</p>
 <p>🔒 <strong>Security features</strong>:</p>
 <ol>
 <li><strong>NoNewPrivileges</strong>: Prevents the process from gaining additional privileges via setuid/setgid.</li>
@@ -1112,6 +1118,14 @@ aa-genprof /usr/local/bin/secure-server
 <li><input disabled="" type="checkbox"> Incident response plan in place</li>
 <li><input disabled="" type="checkbox"> Dependency list (SBOM) generated and archived</li>
 </ul>
+<p>To satisfy the SBOM item above, a practical default is CycloneDX’s Cargo
+plugin:</p>
+<pre><code class="language-bash">cargo install cargo-cyclonedx
+cargo cyclonedx
+</code></pre>
+<p>Archive the generated CycloneDX file or files with the release artifacts. Like
+other Cargo-based inspection tools, do not run it on untrusted source trees,
+because it invokes Cargo internally.</p>
 <h2 id="198-summary"><a class="header" href="#198-summary">19.8 Summary</a></h2>
 <ul>
 <li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>

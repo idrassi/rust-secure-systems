@@ -430,7 +430,7 @@ async fn handle_connection(
 - Use `std::sync::Mutex` when the critical section is short and CPU-bound.
 - Use `tokio::sync::Mutex` when you need to hold the lock across `.await` points.
 
-🔒 **Security note**: `tokio::sync::Mutex` does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.
+🔒 **Security note**: `tokio::sync::Mutex` is not poisoned. If a task panics while holding it, the next acquirer gets whatever partially-updated state was left behind, with no built-in signal that anything went wrong. For security-critical state, prefer designs that avoid shared mutable data across `.await` points, such as a single owner task behind a channel. If the critical section is short and CPU-bound, `std::sync::Mutex` keeps the lock synchronous and gives you poison detection.
 
 ### 6.4.1 `async fn` in Traits
 

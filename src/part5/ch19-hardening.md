@@ -727,7 +727,7 @@ For long-lived secrets such as TLS private keys, pair zeroization with page lock
 
 If you also compile with `panic = "abort"`, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.
 
-⚠️ **Limitation**: Environment variables are visible in `/proc/<pid>/environ` on Linux, and in containerized deployments they often surface through orchestration metadata such as `docker inspect`. In Edition 2024, mutating the process environment with `std::env::set_var` or `std::env::remove_var` is `unsafe`, so "read then delete" is not a robust secret-management pattern for multithreaded services.
+⚠️ **Limitation**: Environment variables are visible in `/proc/<pid>/environ` on Linux, and in containerized deployments they often surface through orchestration metadata such as `docker inspect`. In Edition 2024, mutating the process environment with `std::env::set_var` or `std::env::remove_var` is `unsafe` because the environment is unsynchronized process-global state: another thread may read it through `getenv` or equivalent while you mutate it. That makes "read then delete" a poor secret-management pattern for multithreaded services.
 
 Prefer runtime secret injection instead:
 
@@ -740,6 +740,11 @@ can write its entire address space to disk, including keys, passwords, or
 tokens that are still live and have not reached their zeroization path yet.
 Disable core dumps in production unless you operate a tightly controlled,
 encrypted, access-restricted crash-dump pipeline.
+
+Outside systemd, apply the same policy before launch with `ulimit -c 0`. In
+containers, use the runtime equivalent such as `docker run --ulimit core=0`.
+When core dumps are enabled at all, review the host's `kernel.core_pattern`
+too, because it controls where those memory snapshots land.
 
 ### 19.5.2 Files with Restricted Permissions
 
@@ -902,6 +907,9 @@ process memory at crash time. Without it, a crash can persist live key material
 or tokens to disk even when the application uses `zeroize` on normal drop
 paths.
 
+If you launch the same binary outside systemd, enforce the equivalent policy
+with `ulimit -c 0` or the container runtime's core-limit setting before `exec`.
+
 🔒 **Security features**:
 1. **NoNewPrivileges**: Prevents the process from gaining additional privileges via setuid/setgid.
 2. **ProtectSystem=strict**: Makes the entire filesystem read-only except explicitly listed paths.
@@ -1030,6 +1038,18 @@ Before deploying a Rust application to production:
 - [ ] Threat model documented
 - [ ] Incident response plan in place
 - [ ] Dependency list (SBOM) generated and archived
+
+To satisfy the SBOM item above, a practical default is CycloneDX's Cargo
+plugin:
+
+```bash
+cargo install cargo-cyclonedx
+cargo cyclonedx
+```
+
+Archive the generated CycloneDX file or files with the release artifacts. Like
+other Cargo-based inspection tools, do not run it on untrusted source trees,
+because it invokes Cargo internally.
 
 ## 19.8 Summary
 

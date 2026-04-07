@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-39b9ec4d.js";
+            window.path_to_searchindex_js = "../searchindex-f5c611d8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -554,7 +554,7 @@ async fn handle_connection(
 <li>Use <code>std::sync::Mutex</code> when the critical section is short and CPU-bound.</li>
 <li>Use <code>tokio::sync::Mutex</code> when you need to hold the lock across <code>.await</code> points.</li>
 </ul>
-<p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
+<p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> is not poisoned. If a task panics while holding it, the next acquirer gets whatever partially-updated state was left behind, with no built-in signal that anything went wrong. For security-critical state, prefer designs that avoid shared mutable data across <code>.await</code> points, such as a single owner task behind a channel. If the critical section is short and CPU-bound, <code>std::sync::Mutex</code> keeps the lock synchronous and gives you poison detection.</p>
 <h3 id="641-async-fn-in-traits"><a class="header" href="#641-async-fn-in-traits">6.4.1 <code>async fn</code> in Traits</a></h3>
 <p>Rust 1.75 stabilized <code>async fn</code> in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:</p>
 <p>Quick syntax recap: a trait normally declares behavior as methods such as <code>fn authenticate(&amp;self, ...) -&gt; Result&lt;...&gt;</code>. Writing <code>async fn</code> in the trait keeps the same shape, but the method now returns a future that the caller <code>.await</code>s.</p>

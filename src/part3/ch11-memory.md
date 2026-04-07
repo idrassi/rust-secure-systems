@@ -360,7 +360,7 @@ fn lock_memory(ptr: *const u8, len: usize) -> Result<(), std::io::Error> {
 
 ### 11.5.1 Stack Observability and Protection
 
-Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does **not** enable stack canaries for Rust code by default. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:
+Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does **not** enable stack canaries for Rust code by default. That is less alarming than it sounds for safe Rust because the compiler rules out the classic out-of-bounds stack writes that canaries were designed to catch. The concern returns once you add `unsafe` code, inline assembly, or C/C++ objects to the same binary. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:
 
 ```toml
 # .cargo/config.toml

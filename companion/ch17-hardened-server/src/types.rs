@@ -6,6 +6,7 @@ pub const READ_TIMEOUT_SECS: u64 = 30;
 pub const WRITE_TIMEOUT_SECS: u64 = 10;
 pub const TLS_HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 pub const MAX_SESSION_SECS: u64 = 300;
+pub const SHUTDOWN_GRACE_SECS: u64 = 30;
 pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
 pub const RATE_LIMIT: usize = 60;
 pub const MAX_TRACKED_CLIENTS: usize = 8192;

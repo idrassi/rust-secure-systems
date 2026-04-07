@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-39b9ec4d.js";
+            window.path_to_searchindex_js = "../searchindex-f5c611d8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -503,7 +503,7 @@ fn lock_memory(ptr: *const u8, len: usize) -&gt; Result&lt;(), std::io::Error&gt
 <p>🔒 <strong>Security impact</strong>: Prevents sensitive data (keys, passwords) from being written to the swap file, where they could persist after the process exits (CWE-316: Cleartext Storage of Sensitive Information).</p>
 <h2 id="115-stack-and-heap-security"><a class="header" href="#115-stack-and-heap-security">11.5 Stack and Heap Security</a></h2>
 <h3 id="1151-stack-observability-and-protection"><a class="header" href="#1151-stack-observability-and-protection">11.5.1 Stack Observability and Protection</a></h3>
-<p>Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does <strong>not</strong> enable stack canaries for Rust code by default. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:</p>
+<p>Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does <strong>not</strong> enable stack canaries for Rust code by default. That is less alarming than it sounds for safe Rust because the compiler rules out the classic out-of-bounds stack writes that canaries were designed to catch. The concern returns once you add <code>unsafe</code> code, inline assembly, or C/C++ objects to the same binary. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:</p>
 <pre><code class="language-toml"># .cargo/config.toml
 [build]
 rustflags = ["-C", "force-frame-pointers=yes"]

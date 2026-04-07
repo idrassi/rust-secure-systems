@@ -161,7 +161,7 @@ Use AAD for metadata that must remain in the clear but still be authenticated: p
 ⚠️ **Nonce API caveat**: `Nonce::assume_unique_for_key()` does **not** verify uniqueness. It is a promise by the caller to `ring`. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.
 
 🔒 **Critical rules for nonce management**:
-1. **Never reuse a nonce** with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does **not** directly reveal the AES key, but it is still catastrophic.
+1. **Never reuse a nonce** with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and undermines every subsequent use of that key: the attacker can recover the internal GHASH key and make later forgeries trivial. It does **not** directly reveal the AES key, but you should still treat any reuse as a key-compromise event: rotate the key immediately and reject both messages.
 2. For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.
 3. For counter-based nonces, track the counter securely and never reset it.
 
@@ -663,7 +663,7 @@ fn create_tls_client_config() -> ClientConfig {
 }
 ```
 
-**Revocation note**: `with_root_certificates(...)` loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default.
+**Revocation note**: `with_root_certificates(...)` loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default for ordinary service fleets, but they are not a substitute for revocation in high-assurance environments where one compromised key could unlock a fleet or a critical trust domain.
 
 ### 8.8.1 Certificate Pinning for Internal Services
 

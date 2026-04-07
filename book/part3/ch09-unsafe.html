@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-39b9ec4d.js";
+            window.path_to_searchindex_js = "../searchindex-f5c611d8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -330,10 +330,16 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
             .map_err(|_| RawVecError::LayoutOverflow)?;
         
         let new_ptr = if self.cap == 0 {
+            // SAFETY: `new_layout` came from `Layout::array::&lt;T&gt;` for a
+            // non-zero-sized `T`, so it describes a valid fresh allocation.
             unsafe { std::alloc::alloc(new_layout) }
         } else {
             let old_layout = std::alloc::Layout::array::&lt;T&gt;(self.cap)
                 .map_err(|_| RawVecError::LayoutOverflow)?;
+            // SAFETY: `self.ptr` came from the current allocation with
+            // `old_layout`, and `&amp;mut self` guarantees exclusive access while
+            // `realloc` may move or free the old pointer. No alias can observe
+            // the pre-reallocation pointer after this call returns.
             unsafe { std::alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size()) }
         };
         

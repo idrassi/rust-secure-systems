@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-39b9ec4d.js";
+            window.path_to_searchindex_js = "../searchindex-f5c611d8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -327,7 +327,7 @@ fn decrypt_from_storage(
 <p>⚠️ <strong>Nonce API caveat</strong>: <code>Nonce::assume_unique_for_key()</code> does <strong>not</strong> verify uniqueness. It is a promise by the caller to <code>ring</code>. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
-<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</li>
+<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and undermines every subsequent use of that key: the attacker can recover the internal GHASH key and make later forgeries trivial. It does <strong>not</strong> directly reveal the AES key, but you should still treat any reuse as a key-compromise event: rotate the key immediately and reject both messages.</li>
 <li>For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.</li>
 <li>For counter-based nonces, track the counter securely and never reset it.</li>
 </ol>
@@ -768,7 +768,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
         .with_no_client_auth()
 }
 <span class="boring">}</span></code></pre>
-<p><strong>Revocation note</strong>: <code>with_root_certificates(...)</code> loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default.</p>
+<p><strong>Revocation note</strong>: <code>with_root_certificates(...)</code> loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default for ordinary service fleets, but they are not a substitute for revocation in high-assurance environments where one compromised key could unlock a fleet or a critical trust domain.</p>
 <h3 id="881-certificate-pinning-for-internal-services"><a class="header" href="#881-certificate-pinning-for-internal-services">8.8.1 Certificate Pinning for Internal Services</a></h3>
 <p>For private APIs, control planes, and service-to-service calls, CA validation alone may be too broad. Certificate pinning adds an application-controlled trust decision on top of normal PKI validation:</p>
 <ul>

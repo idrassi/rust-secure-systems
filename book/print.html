@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-39b9ec4d.js";
+            window.path_to_searchindex_js = "searchindex-f5c611d8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -2431,7 +2431,7 @@ async fn handle_connection(
 <li>Use <code>std::sync::Mutex</code> when the critical section is short and CPU-bound.</li>
 <li>Use <code>tokio::sync::Mutex</code> when you need to hold the lock across <code>.await</code> points.</li>
 </ul>
-<p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> does not get poisoned on panic. This means corrupted state might continue to be used. For security-critical data, validate state after acquiring the lock.</p>
+<p>🔒 <strong>Security note</strong>: <code>tokio::sync::Mutex</code> is not poisoned. If a task panics while holding it, the next acquirer gets whatever partially-updated state was left behind, with no built-in signal that anything went wrong. For security-critical state, prefer designs that avoid shared mutable data across <code>.await</code> points, such as a single owner task behind a channel. If the critical section is short and CPU-bound, <code>std::sync::Mutex</code> keeps the lock synchronous and gives you poison detection.</p>
 <h3 id="641-async-fn-in-traits"><a class="header" href="#641-async-fn-in-traits">6.4.1 <code>async fn</code> in Traits</a></h3>
 <p>Rust 1.75 stabilized <code>async fn</code> in traits, which matters for security interfaces such as authenticators, audit sinks, key stores, and policy engines:</p>
 <p>Quick syntax recap: a trait normally declares behavior as methods such as <code>fn authenticate(&amp;self, ...) -&gt; Result&lt;...&gt;</code>. Writing <code>async fn</code> in the trait keeps the same shape, but the method now returns a future that the caller <code>.await</code>s.</p>
@@ -3567,7 +3567,7 @@ fn decrypt_from_storage(
 <p>⚠️ <strong>Nonce API caveat</strong>: <code>Nonce::assume_unique_for_key()</code> does <strong>not</strong> verify uniqueness. It is a promise by the caller to <code>ring</code>. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.</p>
 <p>🔒 <strong>Critical rules for nonce management</strong>:</p>
 <ol>
-<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and leaks the GHASH authentication subkey, enabling message forgery. It does <strong>not</strong> directly reveal the AES key, but it is still catastrophic.</li>
+<li><strong>Never reuse a nonce</strong> with the same key. AES-GCM nonce reuse reveals the XOR of plaintexts and undermines every subsequent use of that key: the attacker can recover the internal GHASH key and make later forgeries trivial. It does <strong>not</strong> directly reveal the AES key, but you should still treat any reuse as a key-compromise event: rotate the key immediately and reject both messages.</li>
 <li>For random nonces, use a cryptographically secure random number generator and limit to 2^32 encryptions per key.</li>
 <li>For counter-based nonces, track the counter securely and never reset it.</li>
 </ol>
@@ -4008,7 +4008,7 @@ fn create_tls_client_config() -&gt; ClientConfig {
         .with_no_client_auth()
 }
 <span class="boring">}</span></code></pre>
-<p><strong>Revocation note</strong>: <code>with_root_certificates(...)</code> loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default.</p>
+<p><strong>Revocation note</strong>: <code>with_root_certificates(...)</code> loads trust anchors, but it does not configure a CRL or OCSP policy by itself. If certificate revocation matters in your environment, add an explicit verifier configuration or terminate TLS in infrastructure that enforces revocation; short-lived certificates are usually easier to operate than revocation-by-default for ordinary service fleets, but they are not a substitute for revocation in high-assurance environments where one compromised key could unlock a fleet or a critical trust domain.</p>
 <h3 id="881-certificate-pinning-for-internal-services"><a class="header" href="#881-certificate-pinning-for-internal-services">8.8.1 Certificate Pinning for Internal Services</a></h3>
 <p>For private APIs, control planes, and service-to-service calls, CA validation alone may be too broad. Certificate pinning adds an application-controlled trust decision on top of normal PKI validation:</p>
 <ul>
@@ -4245,10 +4245,16 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
             .map_err(|_| RawVecError::LayoutOverflow)?;
         
         let new_ptr = if self.cap == 0 {
+            // SAFETY: `new_layout` came from `Layout::array::&lt;T&gt;` for a
+            // non-zero-sized `T`, so it describes a valid fresh allocation.
             unsafe { std::alloc::alloc(new_layout) }
         } else {
             let old_layout = std::alloc::Layout::array::&lt;T&gt;(self.cap)
                 .map_err(|_| RawVecError::LayoutOverflow)?;
+            // SAFETY: `self.ptr` came from the current allocation with
+            // `old_layout`, and `&amp;mut self` guarantees exclusive access while
+            // `realloc` may move or free the old pointer. No alias can observe
+            // the pre-reallocation pointer after this call returns.
             unsafe { std::alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size()) }
         };
         
@@ -5365,7 +5371,7 @@ fn lock_memory(ptr: *const u8, len: usize) -&gt; Result&lt;(), std::io::Error&gt
 <p>🔒 <strong>Security impact</strong>: Prevents sensitive data (keys, passwords) from being written to the swap file, where they could persist after the process exits (CWE-316: Cleartext Storage of Sensitive Information).</p>
 <h2 id="115-stack-and-heap-security"><a class="header" href="#115-stack-and-heap-security">11.5 Stack and Heap Security</a></h2>
 <h3 id="1151-stack-observability-and-protection"><a class="header" href="#1151-stack-observability-and-protection">11.5.1 Stack Observability and Protection</a></h3>
-<p>Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does <strong>not</strong> enable stack canaries for Rust code by default. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:</p>
+<p>Rust already enables stack probing/stack-clash protection on mainstream targets, but stable Rust does <strong>not</strong> enable stack canaries for Rust code by default. That is less alarming than it sounds for safe Rust because the compiler rules out the classic out-of-bounds stack writes that canaries were designed to catch. The concern returns once you add <code>unsafe</code> code, inline assembly, or C/C++ objects to the same binary. Keep frame pointers for profiling and post-mortem analysis, and treat C/C++ stack canaries as a separate hardening step for any non-Rust objects you compile:</p>
 <pre><code class="language-toml"># .cargo/config.toml
 [build]
 rustflags = ["-C", "force-frame-pointers=yes"]
@@ -7774,6 +7780,9 @@ pub const TLS_HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 /// Maximum session duration in seconds
 pub const MAX_SESSION_SECS: u64 = 300;
 
+/// Grace period for in-flight connections during shutdown
+pub const SHUTDOWN_GRACE_SECS: u64 = 30;
+
 /// Rate limit: max connection attempts per minute per IP
 pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
 
@@ -8218,6 +8227,8 @@ impl ConnectionHandler {
 use ch17_hardened_server::{handler::ConnectionHandler, rate_limiter::RateLimiter, tls, types};
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::sync::watch;
+use tokio::task::JoinSet;
 use tokio::time::{timeout, Duration};
 
 #[tokio::main]
@@ -8254,60 +8265,134 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
     let listener = TcpListener::bind("0.0.0.0:8443").await?;
     log::info!("Server listening on 0.0.0.0:8443 with TLS enabled");
     
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let mut tasks = JoinSet::new();
+
     // Periodic cleanup task
     let cleanup_admission_limiter = Arc::clone(&amp;admission_limiter);
     let cleanup_request_limiter = Arc::clone(&amp;request_limiter);
-    tokio::spawn(async move {
+    let mut cleanup_shutdown = shutdown_rx.clone();
+    tasks.spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
-            interval.tick().await;
-            cleanup_admission_limiter.cleanup();
-            cleanup_request_limiter.cleanup();
+            tokio::select! {
+                _ = interval.tick() =&gt; {
+                    cleanup_admission_limiter.cleanup();
+                    cleanup_request_limiter.cleanup();
+                }
+                changed = cleanup_shutdown.changed() =&gt; {
+                    if changed.is_err() || *cleanup_shutdown.borrow() {
+                        break;
+                    }
+                }
+            }
         }
     });
+
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
     
     loop {
-        let (stream, addr) = listener.accept().await?;
-        if let Err(e) = stream.set_nodelay(true) {
-            log::warn!("Failed to configure TCP_NODELAY for {}: {}", addr, e);
-            continue;
-        }
+        tokio::select! {
+            biased;
 
-        let Some(permit) = handler.try_admit(addr) else {
-            continue;
-        };
-
-        let handler = Arc::clone(&amp;handler);
-        let tls_acceptor = tls_acceptor.clone();
-        
-        tokio::spawn(async move {
-            let tls_stream = match timeout(
-                Duration::from_secs(types::TLS_HANDSHAKE_TIMEOUT_SECS),
-                tls_acceptor.accept(stream),
-            ).await {
-                Ok(Ok(tls_stream)) =&gt; {
-                    log::info!("TLS handshake completed for {}", addr);
-                    tls_stream
-                }
-                Ok(Err(e)) =&gt; {
-                    log::error!("TLS handshake failed for {}: {}", addr, e);
-                    return;
-                }
-                Err(_) =&gt; {
-                    log::warn!("TLS handshake timeout for {}", addr);
-                    return;
-                }
-            };
-            
-            let result = handler.handle(tls_stream, addr, permit).await;
-            
-            if let Err(e) = result {
-                log::error!("Fatal error for {}: {}", addr, e);
+            result = &amp;mut shutdown =&gt; {
+                result?;
+                log::info!("Shutdown signal received; stopping new accepts");
+                break;
             }
-            // `permit` was moved into `handle`; it is dropped when `handle`
-            // returns, decrementing the connection count on every exit path.
-        });
+
+            accepted = listener.accept() =&gt; {
+                let (stream, addr) = accepted?;
+                if let Err(e) = stream.set_nodelay(true) {
+                    log::warn!("Failed to configure TCP_NODELAY for {}: {}", addr, e);
+                    continue;
+                }
+
+                let Some(permit) = handler.try_admit(addr) else {
+                    continue;
+                };
+
+                let handler = Arc::clone(&amp;handler);
+                let tls_acceptor = tls_acceptor.clone();
+                
+                tasks.spawn(async move {
+                    let tls_stream = match timeout(
+                        Duration::from_secs(types::TLS_HANDSHAKE_TIMEOUT_SECS),
+                        tls_acceptor.accept(stream),
+                    ).await {
+                        Ok(Ok(tls_stream)) =&gt; {
+                            log::info!("TLS handshake completed for {}", addr);
+                            tls_stream
+                        }
+                        Ok(Err(e)) =&gt; {
+                            log::error!("TLS handshake failed for {}: {}", addr, e);
+                            return;
+                        }
+                        Err(_) =&gt; {
+                            log::warn!("TLS handshake timeout for {}", addr);
+                            return;
+                        }
+                    };
+                    
+                    if let Err(e) = handler.handle(tls_stream, addr, permit).await {
+                        log::error!("Fatal error for {}: {}", addr, e);
+                    }
+                    // `permit` was moved into `handle`; it is dropped when
+                    // `handle` returns, decrementing the connection count on
+                    // every exit path.
+                });
+            }
+        }
     }
+
+    drop(listener);
+    let _ = shutdown_tx.send(true);
+
+    match timeout(
+        Duration::from_secs(types::SHUTDOWN_GRACE_SECS),
+        wait_for_tasks(&amp;mut tasks),
+    ).await {
+        Ok(()) =&gt; log::info!("Shutdown completed cleanly"),
+        Err(_) =&gt; {
+            log::warn!(
+                "Graceful shutdown timed out after {}s; aborting remaining tasks",
+                types::SHUTDOWN_GRACE_SECS
+            );
+            tasks.abort_all();
+            wait_for_tasks(&amp;mut tasks).await;
+        }
+    }
+
+    Ok(())
+}
+
+async fn wait_for_tasks(tasks: &amp;mut JoinSet&lt;()&gt;) {
+    while let Some(result) = tasks.join_next().await {
+        if let Err(e) = result {
+            if e.is_cancelled() {
+                log::info!("Task cancelled during shutdown");
+            } else {
+                log::error!("Task failed during shutdown: {}", e);
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+async fn shutdown_signal() -&gt; std::io::Result&lt;()&gt; {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut terminate = signal(SignalKind::terminate())?;
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() =&gt; Ok(()),
+        _ = terminate.recv() =&gt; Ok(()),
+    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() -&gt; std::io::Result&lt;()&gt; {
+    tokio::signal::ctrl_c().await
 }</code></pre>
 <p>⚠️ <strong>Security note</strong>: <code>0.0.0.0</code> is intentional here because this example represents the externally reachable production service. For local development bind <code>127.0.0.1</code>; in production prefer the specific interface, socket-activation unit, or load-balancer path you actually intend to expose.</p>
 <p>If the production service must accept both IPv4 and IPv6, do not assume this listener is enough. An explicit IPv4 bind keeps the example simple and portable, but real deployments often need either a second IPv6 listener or a deliberate <code>[::]:8443</code> socket after verifying the target platform’s <code>IPV6_V6ONLY</code> behavior.</p>
@@ -8315,7 +8400,7 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 <blockquote>
 <p><strong>Note</strong>: The handler already accepts any <code>AsyncRead + AsyncWrite + Unpin</code> stream, so the same code works with <code>TcpStream</code>, <code>tokio_rustls::server::TlsStream&lt;TcpStream&gt;</code>, and test doubles.</p>
 </blockquote>
-<p>Production shutdown is part of hardening too. The usual pattern is: listen for <code>SIGTERM</code> (or Ctrl+C during development), stop accepting new sockets, wait a bounded amount of time for in-flight connections to finish, then abort anything still running and exit cleanly. That avoids half-written responses, leaked permits, and the operational habit of using <code>SIGKILL</code> for routine restarts.</p>
+<p>Production shutdown is part of hardening too. The <code>main</code> loop above implements the bounded-drain pattern directly: listen for <code>SIGTERM</code> (or Ctrl+C during development), stop accepting new sockets, notify the housekeeping task, wait up to <code>SHUTDOWN_GRACE_SECS</code> for in-flight connections, then abort anything still running. That avoids half-written responses, leaked permits, and the operational habit of using <code>SIGKILL</code> for routine restarts.</p>
 <h2 id="178-tests"><a class="header" href="#178-tests">17.8 Tests</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -9629,7 +9714,7 @@ fn load_secret(key: &amp;str) -&gt; Result&lt;Vec&lt;u8&gt;, SecretError&gt; {
 <p>The companion implementation uses this exact pattern in <code>companion/ch19-hardening/src/secrets.rs</code>, so the secret buffer is zeroized on both success and decode failure.</p>
 <p>For long-lived secrets such as TLS private keys, pair zeroization with page locking (<code>mlock</code>/<code>VirtualLock</code>) when the platform allows it so the secret is less likely to be swapped to disk.</p>
 <p>If you also compile with <code>panic = "abort"</code>, remember that these cleanup hooks still run on normal return paths but not on panic paths. Do not make panic-driven cleanup part of your secret-handling design.</p>
-<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux, and in containerized deployments they often surface through orchestration metadata such as <code>docker inspect</code>. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code>, so “read then delete” is not a robust secret-management pattern for multithreaded services.</p>
+<p>⚠️ <strong>Limitation</strong>: Environment variables are visible in <code>/proc/&lt;pid&gt;/environ</code> on Linux, and in containerized deployments they often surface through orchestration metadata such as <code>docker inspect</code>. In Edition 2024, mutating the process environment with <code>std::env::set_var</code> or <code>std::env::remove_var</code> is <code>unsafe</code> because the environment is unsynchronized process-global state: another thread may read it through <code>getenv</code> or equivalent while you mutate it. That makes “read then delete” a poor secret-management pattern for multithreaded services.</p>
 <p>Prefer runtime secret injection instead:</p>
 <ul>
 <li>Vault / cloud secret-manager SDKs that fetch secrets on demand</li>
@@ -9641,6 +9726,10 @@ can write its entire address space to disk, including keys, passwords, or
 tokens that are still live and have not reached their zeroization path yet.
 Disable core dumps in production unless you operate a tightly controlled,
 encrypted, access-restricted crash-dump pipeline.</p>
+<p>Outside systemd, apply the same policy before launch with <code>ulimit -c 0</code>. In
+containers, use the runtime equivalent such as <code>docker run --ulimit core=0</code>.
+When core dumps are enabled at all, review the host’s <code>kernel.core_pattern</code>
+too, because it controls where those memory snapshots land.</p>
 <h3 id="1952-files-with-restricted-permissions"><a class="header" href="#1952-files-with-restricted-permissions">19.5.2 Files with Restricted Permissions</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -9785,6 +9874,8 @@ host firewall rules. Address-family filtering alone is not a port-level control.
 process memory at crash time. Without it, a crash can persist live key material
 or tokens to disk even when the application uses <code>zeroize</code> on normal drop
 paths.</p>
+<p>If you launch the same binary outside systemd, enforce the equivalent policy
+with <code>ulimit -c 0</code> or the container runtime’s core-limit setting before <code>exec</code>.</p>
 <p>🔒 <strong>Security features</strong>:</p>
 <ol>
 <li><strong>NoNewPrivileges</strong>: Prevents the process from gaining additional privileges via setuid/setgid.</li>
@@ -9901,6 +9992,14 @@ aa-genprof /usr/local/bin/secure-server
 <li><input disabled="" type="checkbox"> Incident response plan in place</li>
 <li><input disabled="" type="checkbox"> Dependency list (SBOM) generated and archived</li>
 </ul>
+<p>To satisfy the SBOM item above, a practical default is CycloneDX’s Cargo
+plugin:</p>
+<pre><code class="language-bash">cargo install cargo-cyclonedx
+cargo cyclonedx
+</code></pre>
+<p>Archive the generated CycloneDX file or files with the release artifacts. Like
+other Cargo-based inspection tools, do not run it on untrusted source trees,
+because it invokes Cargo internally.</p>
 <h2 id="198-summary"><a class="header" href="#198-summary">19.8 Summary</a></h2>
 <ul>
 <li>Enable all available stable binary hardening: NX, ASLR, RELRO, CFG where supported, and stack canaries for any C/C++ objects you compile.</li>

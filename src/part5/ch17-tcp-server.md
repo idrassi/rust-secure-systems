@@ -104,6 +104,9 @@ pub const TLS_HANDSHAKE_TIMEOUT_SECS: u64 = 10;
 /// Maximum session duration in seconds
 pub const MAX_SESSION_SECS: u64 = 300;
 
+/// Grace period for in-flight connections during shutdown
+pub const SHUTDOWN_GRACE_SECS: u64 = 30;
+
 /// Rate limit: max connection attempts per minute per IP
 pub const CONNECTION_ATTEMPT_RATE_LIMIT: usize = 60;
 
@@ -559,6 +562,8 @@ impl ConnectionHandler {
 use ch17_hardened_server::{handler::ConnectionHandler, rate_limiter::RateLimiter, tls, types};
 use std::sync::Arc;
 use tokio::net::TcpListener;
+use tokio::sync::watch;
+use tokio::task::JoinSet;
 use tokio::time::{timeout, Duration};
 
 #[tokio::main]
@@ -595,60 +600,134 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind("0.0.0.0:8443").await?;
     log::info!("Server listening on 0.0.0.0:8443 with TLS enabled");
     
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    let mut tasks = JoinSet::new();
+
     // Periodic cleanup task
     let cleanup_admission_limiter = Arc::clone(&admission_limiter);
     let cleanup_request_limiter = Arc::clone(&request_limiter);
-    tokio::spawn(async move {
+    let mut cleanup_shutdown = shutdown_rx.clone();
+    tasks.spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
         loop {
-            interval.tick().await;
-            cleanup_admission_limiter.cleanup();
-            cleanup_request_limiter.cleanup();
+            tokio::select! {
+                _ = interval.tick() => {
+                    cleanup_admission_limiter.cleanup();
+                    cleanup_request_limiter.cleanup();
+                }
+                changed = cleanup_shutdown.changed() => {
+                    if changed.is_err() || *cleanup_shutdown.borrow() {
+                        break;
+                    }
+                }
+            }
         }
     });
+
+    let shutdown = shutdown_signal();
+    tokio::pin!(shutdown);
     
     loop {
-        let (stream, addr) = listener.accept().await?;
-        if let Err(e) = stream.set_nodelay(true) {
-            log::warn!("Failed to configure TCP_NODELAY for {}: {}", addr, e);
-            continue;
-        }
+        tokio::select! {
+            biased;
 
-        let Some(permit) = handler.try_admit(addr) else {
-            continue;
-        };
-
-        let handler = Arc::clone(&handler);
-        let tls_acceptor = tls_acceptor.clone();
-        
-        tokio::spawn(async move {
-            let tls_stream = match timeout(
-                Duration::from_secs(types::TLS_HANDSHAKE_TIMEOUT_SECS),
-                tls_acceptor.accept(stream),
-            ).await {
-                Ok(Ok(tls_stream)) => {
-                    log::info!("TLS handshake completed for {}", addr);
-                    tls_stream
-                }
-                Ok(Err(e)) => {
-                    log::error!("TLS handshake failed for {}: {}", addr, e);
-                    return;
-                }
-                Err(_) => {
-                    log::warn!("TLS handshake timeout for {}", addr);
-                    return;
-                }
-            };
-            
-            let result = handler.handle(tls_stream, addr, permit).await;
-            
-            if let Err(e) = result {
-                log::error!("Fatal error for {}: {}", addr, e);
+            result = &mut shutdown => {
+                result?;
+                log::info!("Shutdown signal received; stopping new accepts");
+                break;
             }
-            // `permit` was moved into `handle`; it is dropped when `handle`
-            // returns, decrementing the connection count on every exit path.
-        });
+
+            accepted = listener.accept() => {
+                let (stream, addr) = accepted?;
+                if let Err(e) = stream.set_nodelay(true) {
+                    log::warn!("Failed to configure TCP_NODELAY for {}: {}", addr, e);
+                    continue;
+                }
+
+                let Some(permit) = handler.try_admit(addr) else {
+                    continue;
+                };
+
+                let handler = Arc::clone(&handler);
+                let tls_acceptor = tls_acceptor.clone();
+                
+                tasks.spawn(async move {
+                    let tls_stream = match timeout(
+                        Duration::from_secs(types::TLS_HANDSHAKE_TIMEOUT_SECS),
+                        tls_acceptor.accept(stream),
+                    ).await {
+                        Ok(Ok(tls_stream)) => {
+                            log::info!("TLS handshake completed for {}", addr);
+                            tls_stream
+                        }
+                        Ok(Err(e)) => {
+                            log::error!("TLS handshake failed for {}: {}", addr, e);
+                            return;
+                        }
+                        Err(_) => {
+                            log::warn!("TLS handshake timeout for {}", addr);
+                            return;
+                        }
+                    };
+                    
+                    if let Err(e) = handler.handle(tls_stream, addr, permit).await {
+                        log::error!("Fatal error for {}: {}", addr, e);
+                    }
+                    // `permit` was moved into `handle`; it is dropped when
+                    // `handle` returns, decrementing the connection count on
+                    // every exit path.
+                });
+            }
+        }
     }
+
+    drop(listener);
+    let _ = shutdown_tx.send(true);
+
+    match timeout(
+        Duration::from_secs(types::SHUTDOWN_GRACE_SECS),
+        wait_for_tasks(&mut tasks),
+    ).await {
+        Ok(()) => log::info!("Shutdown completed cleanly"),
+        Err(_) => {
+            log::warn!(
+                "Graceful shutdown timed out after {}s; aborting remaining tasks",
+                types::SHUTDOWN_GRACE_SECS
+            );
+            tasks.abort_all();
+            wait_for_tasks(&mut tasks).await;
+        }
+    }
+
+    Ok(())
+}
+
+async fn wait_for_tasks(tasks: &mut JoinSet<()>) {
+    while let Some(result) = tasks.join_next().await {
+        if let Err(e) = result {
+            if e.is_cancelled() {
+                log::info!("Task cancelled during shutdown");
+            } else {
+                log::error!("Task failed during shutdown: {}", e);
+            }
+        }
+    }
+}
+
+#[cfg(unix)]
+async fn shutdown_signal() -> std::io::Result<()> {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut terminate = signal(SignalKind::terminate())?;
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => Ok(()),
+        _ = terminate.recv() => Ok(()),
+    }
+}
+
+#[cfg(not(unix))]
+async fn shutdown_signal() -> std::io::Result<()> {
+    tokio::signal::ctrl_c().await
 }
 ```
 
@@ -660,7 +739,7 @@ Admission control happens before `tls_acceptor.accept()`, so connection floods c
 
 > **Note**: The handler already accepts any `AsyncRead + AsyncWrite + Unpin` stream, so the same code works with `TcpStream`, `tokio_rustls::server::TlsStream<TcpStream>`, and test doubles.
 
-Production shutdown is part of hardening too. The usual pattern is: listen for `SIGTERM` (or Ctrl+C during development), stop accepting new sockets, wait a bounded amount of time for in-flight connections to finish, then abort anything still running and exit cleanly. That avoids half-written responses, leaked permits, and the operational habit of using `SIGKILL` for routine restarts.
+Production shutdown is part of hardening too. The `main` loop above implements the bounded-drain pattern directly: listen for `SIGTERM` (or Ctrl+C during development), stop accepting new sockets, notify the housekeeping task, wait up to `SHUTDOWN_GRACE_SECS` for in-flight connections, then abort anything still running. That avoids half-written responses, leaked permits, and the operational habit of using `SIGKILL` for routine restarts.
 
 ## 17.8 Tests
 

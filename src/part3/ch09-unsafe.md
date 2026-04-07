@@ -162,10 +162,16 @@ impl<T> RawVec<T> {
             .map_err(|_| RawVecError::LayoutOverflow)?;
         
         let new_ptr = if self.cap == 0 {
+            // SAFETY: `new_layout` came from `Layout::array::<T>` for a
+            // non-zero-sized `T`, so it describes a valid fresh allocation.
             unsafe { std::alloc::alloc(new_layout) }
         } else {
             let old_layout = std::alloc::Layout::array::<T>(self.cap)
                 .map_err(|_| RawVecError::LayoutOverflow)?;
+            // SAFETY: `self.ptr` came from the current allocation with
+            // `old_layout`, and `&mut self` guarantees exclusive access while
+            // `realloc` may move or free the old pointer. No alias can observe
+            // the pre-reallocation pointer after this call returns.
             unsafe { std::alloc::realloc(self.ptr.as_ptr() as *mut u8, old_layout, new_layout.size()) }
         };
         
