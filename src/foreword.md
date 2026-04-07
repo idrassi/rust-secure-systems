@@ -3,7 +3,7 @@
 <section class="book-masthead">
   <p class="book-masthead__eyebrow">Rust for Secure Systems Programming</p>
   <p class="book-masthead__author">By <strong>Mounir IDRASSI</strong></p>
-  <p class="book-masthead__meta">Book version 1.0.2 | April 6, 2026 | <a href="https://amcrypto.jp">amcrypto.jp</a></p>
+  <p class="book-masthead__meta">Book version 1.0.3 | April 7, 2026 | <a href="https://amcrypto.jp">amcrypto.jp</a></p>
 </section>
 
 If you are reading this book, you likely already know the landscape: buffer overflows, use-after-free bugs, integer overflows, race conditions, and injection flaws remain the dominant vulnerability classes in systems software. Despite decades of effort—static analyzers, sanitizers, coding standards, and security review—C and C++ codebases continue to produce critical vulnerabilities at an alarming rate. The fundamental problem is that C and C++ give the programmer *too much power* with *too little guidance*.
