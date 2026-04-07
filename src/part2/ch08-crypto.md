@@ -118,7 +118,45 @@ If you are storing or transmitting the result, make the nonce part of the serial
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::ring as ring;
+# use ring::aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM};
 # use ring::rand::{SecureRandom, SystemRandom};
+# fn encrypt(
+#     key: &[u8; 32],
+#     nonce_bytes: &[u8; 12],
+#     aad: &[u8],
+#     plaintext: &[u8],
+# ) -> Vec<u8> {
+#     let unbound_key = UnboundKey::new(&AES_256_GCM, key).unwrap();
+#     let key = LessSafeKey::new(unbound_key);
+#     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
+# 
+#     let mut in_out = plaintext.to_vec();
+#     let tag = key
+#         .seal_in_place_separate_tag(nonce, Aad::from(aad), &mut in_out)
+#         .unwrap();
+# 
+#     let mut result = in_out;
+#     result.extend_from_slice(tag.as_ref());
+#     result
+# }
+# fn decrypt(
+#     key: &[u8; 32],
+#     nonce_bytes: &[u8; 12],
+#     aad: &[u8],
+#     ciphertext_and_tag: &[u8],
+# ) -> Option<Vec<u8>> {
+#     let unbound_key = UnboundKey::new(&AES_256_GCM, key).unwrap();
+#     let key = LessSafeKey::new(unbound_key);
+#     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
+# 
+#     let mut in_out = ciphertext_and_tag.to_vec();
+#     let plaintext_len = key
+#         .open_in_place(nonce, Aad::from(aad), &mut in_out)
+#         .ok()?
+#         .len();
+# 
+#     Some(in_out[..plaintext_len].to_vec())
+# }
 fn generate_nonce() -> [u8; 12] {
     let rng = SystemRandom::new();
     let mut nonce = [0u8; 12];
@@ -729,7 +767,7 @@ If you need JWT ecosystem interoperability, crates such as `jsonwebtoken` are co
 - Treat token verification as cryptography plus policy: pin algorithms, verify signatures, and validate claims.
 - Use `SystemRandom` for all cryptographic random number generation.
 
-In the next chapter, we enter the world of `unsafe` Rustwhere the compiler's safety guarantees are manually maintained.
+In the next chapter, we enter the world of `unsafe` Rust, where the compiler's safety guarantees are manually maintained.
 
 ## 8.11 Exercises
 
