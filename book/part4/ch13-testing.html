@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -305,6 +305,7 @@ fn test_authentication_flow() {
     └── mod.rs               # Shared test utilities
 </code></pre>
 <h2 id="132-security-specific-test-patterns"><a class="header" href="#132-security-specific-test-patterns">13.2 Security-Specific Test Patterns</a></h2>
+<p>The larger examples in this section are marked <code>rust,ignore</code> because they rely on surrounding helpers, constants, or fixtures that are not repeated in every excerpt. In a real codebase, prefer ordinary runnable tests over permanently ignored ones.</p>
 <h3 id="1321-boundary-value-testing"><a class="header" href="#1321-boundary-value-testing">13.2.1 Boundary Value Testing</a></h3>
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod boundary_tests {
@@ -329,11 +330,8 @@ mod boundary_tests {
     
     #[test]
     fn buffer_max_usize() {
-        // Test that we don't overflow on size calculations
-        let result = std::panic::catch_unwind(|| {
-            allocate_buffer(usize::MAX)
-        });
-        assert!(result.is_err() || result.unwrap().is_err());
+        // User-input-sized allocations should fail through `Result`, not panic.
+        assert!(try_allocate_buffer(usize::MAX).is_err());
     }
     
     #[test]
@@ -344,6 +342,7 @@ mod boundary_tests {
         assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), Some(u64::MAX));
     }
 }</code></pre>
+<p>If you are explicitly testing a panic-only invariant, use <code>#[should_panic]</code> as in §13.1.1. Reserve <code>catch_unwind</code> for FFI containment and other boundary cases from Chapter 5, not for ordinary attacker-controlled input paths.</p>
 <h3 id="1322-negative-testing---testing-failure-modes"><a class="header" href="#1322-negative-testing---testing-failure-modes">13.2.2 Negative Testing - Testing Failure Modes</a></h3>
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod negative_tests {

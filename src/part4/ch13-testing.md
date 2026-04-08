@@ -136,6 +136,8 @@ tests/
 
 ## 13.2 Security-Specific Test Patterns
 
+The larger examples in this section are marked `rust,ignore` because they rely on surrounding helpers, constants, or fixtures that are not repeated in every excerpt. In a real codebase, prefer ordinary runnable tests over permanently ignored ones.
+
 ### 13.2.1 Boundary Value Testing
 
 ```rust,ignore
@@ -162,11 +164,8 @@ mod boundary_tests {
     
     #[test]
     fn buffer_max_usize() {
-        // Test that we don't overflow on size calculations
-        let result = std::panic::catch_unwind(|| {
-            allocate_buffer(usize::MAX)
-        });
-        assert!(result.is_err() || result.unwrap().is_err());
+        // User-input-sized allocations should fail through `Result`, not panic.
+        assert!(try_allocate_buffer(usize::MAX).is_err());
     }
     
     #[test]
@@ -178,6 +177,8 @@ mod boundary_tests {
     }
 }
 ```
+
+If you are explicitly testing a panic-only invariant, use `#[should_panic]` as in §13.1.1. Reserve `catch_unwind` for FFI containment and other boundary cases from Chapter 5, not for ordinary attacker-controlled input paths.
 
 ### 13.2.2 Negative Testing - Testing Failure Modes
 

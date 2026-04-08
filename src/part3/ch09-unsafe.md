@@ -201,11 +201,9 @@ impl<T> Drop for RawVec<T> {
         if self.cap > 0 && std::mem::size_of::<T>() > 0 {
             let layout = match std::alloc::Layout::array::<T>(self.cap) {
                 Ok(layout) => layout,
-                Err(_) => unsafe {
-                    // SAFETY: `cap` came from a successful allocation path for `T`,
-                    // so recomputing the same layout during `Drop` cannot overflow.
-                    std::hint::unreachable_unchecked()
-                },
+                Err(_) => unreachable!(
+                    "RawVec invariant violated: drop recomputed an impossible layout overflow"
+                ),
             };
             unsafe {
                 std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
@@ -215,7 +213,7 @@ impl<T> Drop for RawVec<T> {
 }
 ```
 
-This version turns size arithmetic failures into normal errors. It still mirrors the standard library's usual OOM behavior by delegating null allocations to `handle_alloc_error`; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18's `try_reserve_exact` example.
+This version turns size arithmetic failures into normal errors. It still mirrors the standard library's usual OOM behavior by delegating null allocations to `handle_alloc_error`; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18's `try_reserve_exact` example. In teaching examples, prefer a detectable panic over `unreachable_unchecked()`: if an invariant is ever broken, you want a crash you can investigate, not silent undefined behavior.
 
 ### 9.3.4 `UnsafeCell<T>` Is the Foundation of Interior Mutability
 

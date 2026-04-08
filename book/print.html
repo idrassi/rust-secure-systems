@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-df55a967.js";
+            window.path_to_searchindex_js = "searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -219,7 +219,7 @@
 <ul>
 <li>Code examples use <strong>Rust Edition 2024</strong> unless noted otherwise. Edition 2024 stabilized in <strong>Rust 1.85.0</strong>, so install <strong>Rust 1.85.0 or later</strong> before working through the chapters. If <code>rustc --version</code> reports an older toolchain, run <code>rustup update stable</code> first. Nightly-only features are called out explicitly when they appear.</li>
 <li>Standalone Rust snippets are written to be <code>mdbook test</code> friendly whenever practical. Multi-file, async-runtime, or external-crate examples that stay marked <code>ignore</code> are illustrative excerpts; their tested counterparts live in the companion crates under <code>companion/</code>.</li>
-<li>CI verifies the companion code with <code>cargo clippy --workspace --all-targets --all-features -- -D warnings</code>, <code>cargo test --workspace</code>, <code>mdbook build</code>, a fresh <code>cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check</code>, and <code>mdbook test -L target/book-snippets-check/debug/deps</code>.</li>
+<li>CI verifies the companion code with <code>cargo clippy --workspace --all-targets --all-features -- -D warnings</code>, <code>cargo test --workspace</code>, <code>mdbook build</code>, and a fresh host-specific snippet-helper build before running <code>mdbook test -L .../debug/deps</code>.</li>
 <li>Security-relevant tips are marked with a 🔒 icon.</li>
 <li>Common pitfalls are marked with a ⚠️ icon.</li>
 <li>CWE references are provided where relevant, e.g., <code>CWE-119</code> for buffer overflows.</li>
@@ -462,6 +462,7 @@ cargo +nightly install cargo-fuzz --version 0.13.1 --locked
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Treat Rust compiler updates as security patches. New releases often include improved lints and security-relevant diagnostics.</p>
 <h3 id="221-no_std-and-embedded-targets"><a class="header" href="#221-no_std-and-embedded-targets">2.2.1 <code>no_std</code> and Embedded Targets</a></h3>
+<p>One Edition 2024 change is easy to miss during upgrades: <code>std::env::set_var</code> and <code>std::env::remove_var</code> are now <code>unsafe</code>. Reading environment variables with <code>std::env::var</code> is still safe, but mutating the process environment is no longer something to do casually inside multithreaded services.</p>
 <p>If your “systems programming” work includes firmware, kernels, bootloaders, or other bare-metal targets, the setup changes in security-relevant ways:</p>
 <ul>
 <li><code>#![no_std]</code> removes the standard library. If you still need heap allocation, pull in <code>alloc</code> explicitly and keep allocations bounded.</li>
@@ -710,13 +711,12 @@ jobs:
       - name: Build book
         run: mdbook build
 
-      - name: Build snippet helper crate
-        run: |
-          rm -rf target/book-snippets-check
-          cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
-
       - name: Test book snippets
-        run: mdbook test -L target/book-snippets-check/debug/deps
+        run: |
+          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
+          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
+          cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
+          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
 
       - name: Audit dependencies
         run: |
@@ -1674,7 +1674,12 @@ impl From&lt;ParseIntError&gt; for AppError {
 }
 
 fn parse_port_number(s: &amp;str) -&gt; Result&lt;u16, AppError&gt; {
+    // This example follows the book's default network-service policy:
+    // port 0 is reserved rather than silently accepted.
     let port: u32 = s.parse()?;           // ParseIntError → AppError via From
+    if port == 0 {
+        return Err(AppError::InvalidData("Port 0 is reserved".to_string()));
+    }
     if port &gt; 65535 {
         return Err(AppError::InvalidData(format!("Port {} out of range", port)));
     }
@@ -1695,7 +1700,7 @@ pub enum SecurityError {
     /// Authorization denied
     AccessDenied { user_id: u64, resource: String, required_role: String },
     /// Input validation failure
-    ValidationFailed { field: String, value: String, constraint: String },
+    ValidationFailed { field: String, constraint: String },
     /// Rate limit exceeded
     RateLimited { client_ip: std::net::IpAddr, retry_after: std::time::Duration },
     /// Cryptographic operation failed
@@ -1711,12 +1716,12 @@ impl fmt::Display for SecurityError {
                 write!(f, "Authentication failed for '{}': {}", username, reason)
             }
             SecurityError::AccessDenied { user_id, resource, required_role } =&gt; {
-                write!(f, "User {} denied access to '{}' (requires {})", 
+                write!(f, "User {} denied access to '{}' (requires {})",
                        user_id, resource, required_role)
             }
-            SecurityError::ValidationFailed { field, value, constraint } =&gt; {
-                write!(f, "Validation failed for '{}': {} (constraint: {})", 
-                       field, value, constraint)
+            SecurityError::ValidationFailed { field, constraint } =&gt; {
+                write!(f, "Validation failed for '{}' (constraint: {})",
+                       field, constraint)
             }
             SecurityError::RateLimited { client_ip, retry_after } =&gt; {
                 write!(f, "Rate limited {}: retry after {:?}", client_ip, retry_after)
@@ -1735,6 +1740,7 @@ impl std::error::Error for SecurityError {}
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Never include sensitive data (passwords, tokens, raw keys) in error messages. Error strings may be logged, displayed, or leaked to attackers. Note in the example above, <code>username</code> is logged but passwords are never included.</p>
 <h2 id="54-the-thiserror-and-anyhow-crates"><a class="header" href="#54-the-thiserror-and-anyhow-crates">5.4 The <code>thiserror</code> and <code>anyhow</code> Crates</a></h2>
+<p>Treat the raw rejected value as separate from the user-facing error. Report which field failed and which constraint it violated; if operators need the original value for investigation, log it separately on a sanitized internal channel.</p>
 <h3 id="thiserror---derive-error-for-libraries"><a class="header" href="#thiserror---derive-error-for-libraries"><code>thiserror</code> - Derive Error for Libraries</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -1845,7 +1851,7 @@ extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
 </span><span class="boring">enum SecurityError {
 </span><span class="boring">    AuthenticationFailed { username: String, reason: String },
 </span><span class="boring">    AccessDenied { user_id: u64, resource: String, required_role: String },
-</span><span class="boring">    ValidationFailed { field: String, value: String, constraint: String },
+</span><span class="boring">    ValidationFailed { field: String, constraint: String },
 </span><span class="boring">}
 </span><span class="boring">
 </span>#[derive(Debug)]
@@ -1924,7 +1930,6 @@ fn validate_input(body: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, SecurityError&
     if body.is_empty() {
         Err(SecurityError::ValidationFailed {
             field: "body".to_string(),
-            value: String::new(),
             constraint: "must not be empty".to_string(),
         })
     } else {
@@ -1941,7 +1946,7 @@ fn execute(_user: &amp;User, _validated: &amp;[u8]) -&gt; Result&lt;String, Secu
 </span><span class="boring">fn main() {
 </span>#[derive(Debug)]
 enum SecurityError {
-    ValidationFailed { field: String, value: String, constraint: String },
+    ValidationFailed { field: String, constraint: String },
 }
 
 fn parse_env_port(env_var: String) -&gt; Result&lt;u16, SecurityError&gt; {
@@ -1951,7 +1956,6 @@ fn parse_env_port(env_var: String) -&gt; Result&lt;u16, SecurityError&gt; {
     env_var.parse()
         .map_err(|_| SecurityError::ValidationFailed {
             field: "PORT".to_string(),
-            value: env_var.clone(),
             constraint: "must be a valid u16".to_string(),
         })
 }
@@ -1963,7 +1967,7 @@ fn parse_env_port(env_var: String) -&gt; Result&lt;u16, SecurityError&gt; {
 </span><span class="boring">enum SecurityError {
 </span><span class="boring">    AuthenticationFailed { username: String, reason: String },
 </span><span class="boring">    AccessDenied { user_id: u64, resource: String, required_role: String },
-</span><span class="boring">    ValidationFailed { field: String, value: String, constraint: String },
+</span><span class="boring">    ValidationFailed { field: String, constraint: String },
 </span><span class="boring">}
 </span><span class="boring">
 </span>mod log {
@@ -3490,19 +3494,18 @@ fn encrypt(
     nonce_bytes: &amp;[u8; 12],
     aad: &amp;[u8],
     plaintext: &amp;[u8],
-) -&gt; Vec&lt;u8&gt; {
-    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
+) -&gt; Result&lt;Vec&lt;u8&gt;, ring::error::Unspecified&gt; {
+    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key)?;
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = plaintext.to_vec();
-    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &amp;mut in_out)
-        .unwrap();
+    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &amp;mut in_out)?;
     
     // Append authentication tag to ciphertext
     let mut result = in_out;
     result.extend_from_slice(tag.as_ref());
-    result
+    Ok(result)
 }
 
 fn decrypt(
@@ -3510,19 +3513,20 @@ fn decrypt(
     nonce_bytes: &amp;[u8; 12],
     aad: &amp;[u8],
     ciphertext_and_tag: &amp;[u8],
-) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
-    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
+) -&gt; Result&lt;Vec&lt;u8&gt;, ring::error::Unspecified&gt; {
+    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key)?;
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = ciphertext_and_tag.to_vec();
-    let plaintext_len = key.open_in_place(nonce, Aad::from(aad), &amp;mut in_out)
-        .ok()?
+    let plaintext_len = key
+        .open_in_place(nonce, Aad::from(aad), &amp;mut in_out)?
         .len();
     
-    Some(in_out[..plaintext_len].to_vec())
+    Ok(in_out[..plaintext_len].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>Returning <code>Result</code> keeps crypto helpers aligned with Chapter 5’s “fail explicitly” rule. The fixed-size <code>[u8; 32]</code> key type still documents the intended AES-256 key length, but the API no longer teaches panic-based error handling as the default pattern.</p>
 <p>If you are storing or transmitting the result, make the nonce part of the serialized format instead of expecting the caller to remember it out of band. A common layout is <code>nonce || ciphertext || tag</code>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -3535,37 +3539,35 @@ fn decrypt(
 </span><span class="boring">    nonce_bytes: &amp;[u8; 12],
 </span><span class="boring">    aad: &amp;[u8],
 </span><span class="boring">    plaintext: &amp;[u8],
-</span><span class="boring">) -&gt; Vec&lt;u8&gt; {
-</span><span class="boring">    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
+</span><span class="boring">) -&gt; Result&lt;Vec&lt;u8&gt;, ring::error::Unspecified&gt; {
+</span><span class="boring">    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key)?;
 </span><span class="boring">    let key = LessSafeKey::new(unbound_key);
 </span><span class="boring">    let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
 </span><span class="boring">
 </span><span class="boring">    let mut in_out = plaintext.to_vec();
-</span><span class="boring">    let tag = key
-</span><span class="boring">        .seal_in_place_separate_tag(nonce, Aad::from(aad), &amp;mut in_out)
-</span><span class="boring">        .unwrap();
+</span><span class="boring">    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &amp;mut in_out)?;
 </span><span class="boring">
 </span><span class="boring">    let mut result = in_out;
 </span><span class="boring">    result.extend_from_slice(tag.as_ref());
-</span><span class="boring">    result
+</span><span class="boring">    Ok(result)
 </span><span class="boring">}
 </span><span class="boring">fn decrypt(
 </span><span class="boring">    key: &amp;[u8; 32],
 </span><span class="boring">    nonce_bytes: &amp;[u8; 12],
 </span><span class="boring">    aad: &amp;[u8],
 </span><span class="boring">    ciphertext_and_tag: &amp;[u8],
-</span><span class="boring">) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
-</span><span class="boring">    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key).unwrap();
+</span><span class="boring">) -&gt; Result&lt;Vec&lt;u8&gt;, ring::error::Unspecified&gt; {
+</span><span class="boring">    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, key)?;
 </span><span class="boring">    let key = LessSafeKey::new(unbound_key);
 </span><span class="boring">    let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
 </span><span class="boring">
 </span><span class="boring">    let mut in_out = ciphertext_and_tag.to_vec();
 </span><span class="boring">    let plaintext_len = key
 </span><span class="boring">        .open_in_place(nonce, Aad::from(aad), &amp;mut in_out)
-</span><span class="boring">        .ok()?
+</span><span class="boring">        ?
 </span><span class="boring">        .len();
 </span><span class="boring">
-</span><span class="boring">    Some(in_out[..plaintext_len].to_vec())
+</span><span class="boring">    Ok(in_out[..plaintext_len].to_vec())
 </span><span class="boring">}
 </span>fn generate_nonce() -&gt; [u8; 12] {
     let rng = SystemRandom::new();
@@ -3574,34 +3576,43 @@ fn decrypt(
     nonce
 }
 
+#[derive(Debug)]
+enum StoredCiphertextError {
+    Truncated,
+    Crypto(ring::error::Unspecified),
+}
+
 fn encrypt_for_storage(
     key: &amp;[u8; 32],
     aad: &amp;[u8],
     plaintext: &amp;[u8],
-) -&gt; Vec&lt;u8&gt; {
+) -&gt; Result&lt;Vec&lt;u8&gt;, ring::error::Unspecified&gt; {
     let nonce = generate_nonce();
-    let ciphertext_and_tag = encrypt(key, &amp;nonce, aad, plaintext);
+    let ciphertext_and_tag = encrypt(key, &amp;nonce, aad, plaintext)?;
 
     let mut packed = nonce.to_vec();
     packed.extend_from_slice(&amp;ciphertext_and_tag);
-    packed
+    Ok(packed)
 }
 
 fn decrypt_from_storage(
     key: &amp;[u8; 32],
     aad: &amp;[u8],
     packed: &amp;[u8],
-) -&gt; Option&lt;Vec&lt;u8&gt;&gt; {
+) -&gt; Result&lt;Vec&lt;u8&gt;, StoredCiphertextError&gt; {
     if packed.len() &lt; 12 {
-        return None;
+        return Err(StoredCiphertextError::Truncated);
     }
 
     let (nonce_bytes, ciphertext_and_tag) = packed.split_at(12);
-    let nonce: [u8; 12] = nonce_bytes.try_into().ok()?;
-    decrypt(key, &amp;nonce, aad, ciphertext_and_tag)
+    let nonce: [u8; 12] = nonce_bytes
+        .try_into()
+        .map_err(|_| StoredCiphertextError::Truncated)?;
+    decrypt(key, &amp;nonce, aad, ciphertext_and_tag).map_err(StoredCiphertextError::Crypto)
 }
 <span class="boring">}</span></code></pre>
 <p>Here, <code>expect("OS CSPRNG failure")</code> is intentional: if the operating system cannot provide cryptographic randomness, fail closed instead of continuing with weaker entropy.</p>
+<p>The storage wrapper now distinguishes a malformed serialized record (<code>Truncated</code>) from an AEAD authentication failure (<code>Crypto(_)</code>) instead of collapsing both cases into <code>None</code>.</p>
 <p>Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.</p>
 <p>⚠️ <strong>API note</strong>: <code>LessSafeKey</code> is acceptable for focused examples, but it does not enforce nonce sequencing. In production, prefer a <code>BoundKey</code> plus a <code>NonceSequence</code> when one component owns nonce generation.</p>
 <p>⚠️ <strong>Nonce API caveat</strong>: <code>Nonce::assume_unique_for_key()</code> does <strong>not</strong> verify uniqueness. It is a promise by the caller to <code>ring</code>. Back it with a durable counter, a carefully designed random-nonce scheme, or a nonce-sequence type that centralizes generation.</p>
@@ -3618,8 +3629,10 @@ fn decrypt_from_storage(
 </span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
 </span>use ring::aead::{UnboundKey, CHACHA20_POLY1305};
 
-fn create_chacha20_key(key_bytes: &amp;[u8; 32]) -&gt; UnboundKey {
-    UnboundKey::new(&amp;CHACHA20_POLY1305, key_bytes).unwrap()
+fn create_chacha20_key(
+    key_bytes: &amp;[u8; 32],
+) -&gt; Result&lt;UnboundKey, ring::error::Unspecified&gt; {
+    UnboundKey::new(&amp;CHACHA20_POLY1305, key_bytes)
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>When to prefer ChaCha20-Poly1305</strong>: On platforms without AES hardware acceleration, ChaCha20 is faster and constant-time. On modern x86/ARM with AES-NI, AES-GCM is typically faster.</p>
@@ -3658,15 +3671,19 @@ impl ring::hkdf::KeyType for KeyBytes {
     }
 }
 
-fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32] {
+fn derive_key(
+    secret: &amp;[u8],
+    salt: &amp;[u8],
+    info: &amp;[u8],
+) -&gt; Result&lt;[u8; 32], ring::error::Unspecified&gt; {
     let salt = Salt::new(HKDF_SHA256, salt);
     let prk = salt.extract(secret);
     
     let mut key = [0u8; 32];
     let binding = [info];
-    let okm = prk.expand(&amp;binding, KeyBytes).unwrap();
-    okm.fill(&amp;mut key).unwrap();
-    key
+    let okm = prk.expand(&amp;binding, KeyBytes)?;
+    okm.fill(&amp;mut key)?;
+    Ok(key)
 }
 <span class="boring">}</span></code></pre>
 <h3 id="pbkdf2-or-argon2-for-deriving-keys-from-passwords"><a class="header" href="#pbkdf2-or-argon2-for-deriving-keys-from-passwords">PBKDF2 or Argon2 (for deriving keys from passwords)</a></h3>
@@ -3750,15 +3767,20 @@ fn hash_password(password: &amp;str) -&gt; Result&lt;String, password_hash::erro
     Ok(hash.to_string())
 }
 
-fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
-    let parsed = match PasswordHash::new(hash) {
-        Ok(h) =&gt; h,
-        Err(_) =&gt; return false,
-    };
-    Argon2::default().verify_password(password.as_bytes(), &amp;parsed).is_ok()
+fn parse_password_hash(
+    hash: &amp;str,
+) -&gt; Result&lt;PasswordHash&lt;'_&gt;, password_hash::errors::Error&gt; {
+    PasswordHash::new(hash)
+}
+
+fn verify_password(password: &amp;str, parsed_hash: &amp;PasswordHash&lt;'_&gt;) -&gt; bool {
+    Argon2::default()
+        .verify_password(password.as_bytes(), parsed_hash)
+        .is_ok()
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Authentication timing pitfall</strong>: Constant-time byte comparison is not enough if your surrounding control flow still leaks information. If a login path returns immediately for “user not found” but runs Argon2 for “wrong password”, an attacker can distinguish the two cases from latency. For username/password authentication, always run the password check against either the real stored hash or a fixed dummy Argon2 hash, then return the same external error in both cases.</p>
+<p>Parse and validate PHC strings when you load or migrate account records, not inside the hot authentication path. A malformed stored hash is an internal integrity problem to alert on, not a second externally visible login outcome.</p>
 <p>🔒 <strong>Argon2 parameters</strong> (per OWASP recommendations):</p>
 <ul>
 <li><strong>Memory</strong>: 19 MiB (19,456 KiB) minimum</li>
@@ -3766,6 +3788,7 @@ fn verify_password(password: &amp;str, hash: &amp;str) -&gt; bool {
 <li><strong>Parallelism</strong>: 1 degree of parallelism minimum</li>
 <li>Adjust upward based on your hardware and acceptable verification latency</li>
 </ul>
+<p>At the time of writing, <code>Argon2::default()</code> in the <code>argon2</code> 0.5 crate maps to <strong>Argon2id v19</strong> with those same baseline parameters: <code>m=19*1024 KiB</code>, <code>t=2</code>, <code>p=1</code>. When parameter reviewability matters, spell them out explicitly instead of relying on a default.</p>
 <p>⚠️ <strong>Legacy migration note</strong>: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.</p>
 <h2 id="84-digital-signatures"><a class="header" href="#84-digital-signatures">8.4 Digital Signatures</a></h2>
 <h3 id="ed25519-signatures"><a class="header" href="#ed25519-signatures">Ed25519 Signatures</a></h3>
@@ -3826,20 +3849,20 @@ fn sign_example() {
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
 };
 
-fn key_exchange_pipeline() {
+fn key_exchange_pipeline() -&gt; Result&lt;(), ring::error::Unspecified&gt; {
     // 1. Each party generates an ephemeral key pair
     let rng = ring::rand::SystemRandom::new();
-    let alice_private = agreement::EphemeralPrivateKey::generate(&amp;X25519, &amp;rng).unwrap();
-    let alice_public = alice_private.compute_public_key().unwrap();
+    let alice_private = agreement::EphemeralPrivateKey::generate(&amp;X25519, &amp;rng)?;
+    let alice_public = alice_private.compute_public_key()?;
     
-    let bob_private = agreement::EphemeralPrivateKey::generate(&amp;X25519, &amp;rng).unwrap();
-    let bob_public = bob_private.compute_public_key().unwrap();
+    let bob_private = agreement::EphemeralPrivateKey::generate(&amp;X25519, &amp;rng)?;
+    let bob_public = bob_private.compute_public_key()?;
     
     // 2. Key agreement - both parties derive the same shared secret
     let alice_shared = agreement::agree_ephemeral(
         alice_private,
         &amp;UnparsedPublicKey::new(&amp;X25519, bob_public.as_ref()),
-        |shared_secret| {
+        |shared_secret| -&gt; Result&lt;[u8; 32], ring::error::Unspecified&gt; {
             // 3. Derive encryption key from shared secret using HKDF
             let salt = Salt::new(HKDF_SHA256, b"session-salt");
             let prk = salt.extract(shared_secret);
@@ -3850,15 +3873,17 @@ fn key_exchange_pipeline() {
             }
             
             let mut key_bytes = [0u8; 32];
-            prk.expand(&amp;[b"encryption-key"], KeyLen).unwrap().fill(&amp;mut key_bytes).unwrap();
-            key_bytes
+            prk.expand(&amp;[b"encryption-key"], KeyLen)?
+                .fill(&amp;mut key_bytes)?;
+            Ok::&lt;[u8; 32], ring::error::Unspecified&gt;(key_bytes)
         },
-    ).unwrap();
+    )??;
     
     // 4. Encrypt with the derived key
-    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, &amp;alice_shared).unwrap();
+    let unbound_key = UnboundKey::new(&amp;AES_256_GCM, &amp;alice_shared)?;
     let key = LessSafeKey::new(unbound_key);
     // ... use key.seal_in_place_separate_tag / open_in_place
+    Ok(())
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Key exchange security</strong>:</p>
@@ -4325,11 +4350,9 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
         if self.cap &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() &gt; 0 {
             let layout = match std::alloc::Layout::array::&lt;T&gt;(self.cap) {
                 Ok(layout) =&gt; layout,
-                Err(_) =&gt; unsafe {
-                    // SAFETY: `cap` came from a successful allocation path for `T`,
-                    // so recomputing the same layout during `Drop` cannot overflow.
-                    std::hint::unreachable_unchecked()
-                },
+                Err(_) =&gt; unreachable!(
+                    "RawVec invariant violated: drop recomputed an impossible layout overflow"
+                ),
             };
             unsafe {
                 std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
@@ -4338,7 +4361,7 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>This version turns size arithmetic failures into normal errors. It still mirrors the standard library’s usual OOM behavior by delegating null allocations to <code>handle_alloc_error</code>; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18’s <code>try_reserve_exact</code> example.</p>
+<p>This version turns size arithmetic failures into normal errors. It still mirrors the standard library’s usual OOM behavior by delegating null allocations to <code>handle_alloc_error</code>; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18’s <code>try_reserve_exact</code> example. In teaching examples, prefer a detectable panic over <code>unreachable_unchecked()</code>: if an invariant is ever broken, you want a crash you can investigate, not silent undefined behavior.</p>
 <h3 id="934-unsafecellt-is-the-foundation-of-interior-mutability"><a class="header" href="#934-unsafecellt-is-the-foundation-of-interior-mutability">9.3.4 <code>UnsafeCell&lt;T&gt;</code> Is the Foundation of Interior Mutability</a></h3>
 <p>If shared state can be mutated through a shared reference, the storage must live inside <code>UnsafeCell&lt;T&gt;</code> (or a safe abstraction built on top of it, such as <code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>, or atomics):</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -5065,12 +5088,26 @@ type Callback = extern "C" fn(i32, *const u8, usize) -&gt; i32;
 
 static GLOBAL_CALLBACK: Mutex&lt;Option&lt;Callback&gt;&gt; = Mutex::new(None);
 
+#[unsafe(no_mangle)]
+pub extern "C" fn register_callback(cb: Option&lt;Callback&gt;) -&gt; i32 {
+    std::panic::catch_unwind(|| register_callback_safe(cb)).unwrap_or(-2)
+}
+
 fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
-    let mut guard = GLOBAL_CALLBACK.lock().expect("callback mutex poisoned");
-    *guard = cb;
-    0
+    match GLOBAL_CALLBACK.lock() {
+        Ok(mut guard) =&gt; {
+            *guard = cb;
+            0
+        }
+        Err(poisoned) =&gt; {
+            let mut guard = poisoned.into_inner();
+            *guard = None;
+            -1
+        }
+    }
 }
 <span class="boring">}</span></code></pre>
+<p>If shared callback state is poisoned, clear it and return an error instead of calling <code>.expect(...)</code> and panicking across the FFI boundary.</p>
 <h2 id="107-summary"><a class="header" href="#107-summary">10.7 Summary</a></h2>
 <ul>
 <li>FFI is inherently unsafe: every boundary crossing requires careful validation.</li>
@@ -5378,14 +5415,13 @@ impl PacketBuffer {
     }
     
     fn read_header(&amp;self) -&gt; &amp;[u8; 4] {
-        // `&amp;raw const` creates a pointer without creating a reference,
-        // which is safe even if the struct has uninitialized fields
-        let header_ptr = &amp;raw const self.header;
-        unsafe { &amp;*header_ptr }
+        // `header` is always initialized, so a normal shared reference is fine.
+        &amp;self.header
     }
 }
 <span class="boring">}</span></code></pre>
 <p>The older macros still work and are useful in older code or macro-heavy contexts, but <code>&amp;raw const</code> / <code>&amp;raw mut</code> is the modern direct form.</p>
+<p>In this example, <code>&amp;raw mut self.payload</code> is the important operation because <code>payload</code> is the maybe-uninitialized field. You do <strong>not</strong> need <code>&amp;raw</code> for every other initialized field in the same struct.</p>
 <p>🔒 <strong>Security practice</strong>: Prefer <code>&amp;raw const</code> / <code>&amp;raw mut</code> (or <code>addr_of!</code> / <code>addr_of_mut!</code> in older code) over <code>&amp;self.field</code> or <code>&amp;mut self.field</code> when the struct may contain uninitialized data. Creating a reference to uninitialized memory is instant UB, even if you never read through it.</p>
 <h3 id="1144-memory-locking-prevent-swapping"><a class="header" href="#1144-memory-locking-prevent-swapping">11.4.4 Memory Locking (Prevent Swapping)</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -5731,28 +5767,24 @@ use std::time::Duration;
 <pre><code class="language-toml">[dependencies]
 tokio-rustls = "0.26"
 rustls = "0.23"
-rustls-pemfile = "2"
 </code></pre>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
-</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-</span>use rustls::ServerConfig;
+</span>use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
 
 fn create_tls_config(
     cert_path: &amp;str,
     key_path: &amp;str,
 ) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-    let cert_file = std::fs::File::open(cert_path)?;
-    let key_file = std::fs::File::open(key_path)?;
-    
-    let certs: Vec&lt;_&gt; = rustls_pemfile::certs(&amp;mut std::io::BufReader::new(cert_file))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
-    
-    let key = rustls_pemfile::private_key(&amp;mut std::io::BufReader::new(key_file))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
     
     let config = ServerConfig::builder()
         .with_no_client_auth()
@@ -5770,6 +5802,7 @@ fn create_tls_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p>Current <code>rustls</code> exposes PEM parsing through <code>rustls::pki_types::pem::PemObject</code>, so you do not need a separate <code>rustls-pemfile</code> dependency for this pattern.</p>
 <p>The config object is only half the story. You still need to wrap accepted TCP streams with <code>tokio-rustls</code>:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
@@ -5834,9 +5867,10 @@ loop {
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
-</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-</span>use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
-use std::io::BufReader;
+</span>use rustls::{
+    RootCertStore, ServerConfig, server::WebPkiClientVerifier,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
 
 fn create_mtls_config(
@@ -5844,13 +5878,12 @@ fn create_mtls_config(
     key_path: &amp;str,
     client_ca_path: &amp;str,
 ) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-    let certs = rustls_pemfile::certs(&amp;mut BufReader::new(std::fs::File::open(cert_path)?))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
-    let key = rustls_pemfile::private_key(&amp;mut BufReader::new(std::fs::File::open(key_path)?))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
 
     let mut client_roots = RootCertStore::empty();
-    for cert in rustls_pemfile::certs(&amp;mut BufReader::new(std::fs::File::open(client_ca_path)?)) {
+    for cert in CertificateDer::pem_file_iter(client_ca_path)? {
         client_roots.add(cert?)?;
     }
 
@@ -6188,6 +6221,7 @@ fn test_authentication_flow() {
     └── mod.rs               # Shared test utilities
 </code></pre>
 <h2 id="132-security-specific-test-patterns"><a class="header" href="#132-security-specific-test-patterns">13.2 Security-Specific Test Patterns</a></h2>
+<p>The larger examples in this section are marked <code>rust,ignore</code> because they rely on surrounding helpers, constants, or fixtures that are not repeated in every excerpt. In a real codebase, prefer ordinary runnable tests over permanently ignored ones.</p>
 <h3 id="1321-boundary-value-testing"><a class="header" href="#1321-boundary-value-testing">13.2.1 Boundary Value Testing</a></h3>
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod boundary_tests {
@@ -6212,11 +6246,8 @@ mod boundary_tests {
     
     #[test]
     fn buffer_max_usize() {
-        // Test that we don't overflow on size calculations
-        let result = std::panic::catch_unwind(|| {
-            allocate_buffer(usize::MAX)
-        });
-        assert!(result.is_err() || result.unwrap().is_err());
+        // User-input-sized allocations should fail through `Result`, not panic.
+        assert!(try_allocate_buffer(usize::MAX).is_err());
     }
     
     #[test]
@@ -6227,6 +6258,7 @@ mod boundary_tests {
         assert_eq!(safe_add(u64::MAX / 2, u64::MAX / 2 + 1), Some(u64::MAX));
     }
 }</code></pre>
+<p>If you are explicitly testing a panic-only invariant, use <code>#[should_panic]</code> as in §13.1.1. Reserve <code>catch_unwind</code> for FFI containment and other boundary cases from Chapter 5, not for ordinary attacker-controlled input paths.</p>
 <h3 id="1322-negative-testing---testing-failure-modes"><a class="header" href="#1322-negative-testing---testing-failure-modes">13.2.2 Negative Testing - Testing Failure Modes</a></h3>
 <pre><code class="language-rust ignore">#[cfg(test)]
 mod negative_tests {
@@ -7737,7 +7769,7 @@ jobs:
 <blockquote>
 <p><em>“Theory without practice is empty. Practice without theory is blind.”</em></p>
 </blockquote>
-<p>This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We’ll build a secure echo server with TLS, rate limiting, connection management, and comprehensive logging. Every design decision will reference the security principles covered earlier in the book.</p>
+<p>This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We’ll build a secure echo server with TLS, rate limiting, connection management, and security-relevant logging. Every design decision will reference the security principles covered earlier in the book.</p>
 <p>The companion crate in this repository lives at <code>companion/ch17-hardened-server</code>. The snippets below use that package layout directly so Chapter 19 can deploy the same binary without translation.</p>
 <h2 id="171-design-and-threat-model"><a class="header" href="#171-design-and-threat-model">17.1 Design and Threat Model</a></h2>
 <h3 id="threat-model"><a class="header" href="#threat-model">Threat Model</a></h3>
@@ -7754,7 +7786,7 @@ jobs:
 <tr><td>Memory exhaustion</td><td>Bounded buffers, size limits</td><td>Ch 7</td></tr>
 <tr><td>Buffer overflows</td><td>Rust’s memory safety</td><td>Ch 3</td></tr>
 <tr><td>Data races</td><td>Rust’s concurrency model</td><td>Ch 6</td></tr>
-<tr><td>Information disclosure</td><td>Structured logging, no secret leaks</td><td>Ch 5</td></tr>
+<tr><td>Information disclosure</td><td>Sanitized logging, no secret leaks</td><td>Ch 5, 19</td></tr>
 <tr><td>Dependency vulnerabilities</td><td>cargo-audit, cargo-deny</td><td>Ch 15, 16</td></tr>
 <tr><td>Panic-induced crashes</td><td><code>panic = "abort"</code>, explicit error handling, and poison recovery for shared state</td><td>Ch 5, 6</td></tr>
 </tbody>
@@ -7778,7 +7810,6 @@ edition.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
 log.workspace = true
 env_logger.workspace = true
 thiserror.workspace = true
@@ -8032,25 +8063,20 @@ impl RateLimiter {
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
-</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
 </span>// src/tls.rs
-use rustls::ServerConfig;
+use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
-use std::fs::File;
-use std::io::BufReader;
 
 pub fn create_server_config(
     cert_path: &amp;str,
     key_path: &amp;str,
 ) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-    let cert_file = File::open(cert_path)?;
-    let key_file = File::open(key_path)?;
-    
-    let certs: Vec&lt;_&gt; = rustls_pemfile::certs(&amp;mut BufReader::new(cert_file))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
-    
-    let key = rustls_pemfile::private_key(&amp;mut BufReader::new(key_file))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
     
     let config = ServerConfig::builder()
         .with_no_client_auth()
@@ -8059,6 +8085,7 @@ pub fn create_server_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p>This keeps the PEM parsing path inside <code>rustls</code> itself, which avoids carrying an extra helper crate just to load certificates and keys.</p>
 <p><strong>Operational note</strong>: This server configuration loads certificates and private keys, but revocation policy is separate. If your deployment requires CRL or OCSP enforcement, configure it explicitly in your verifier or enforce it at a proxy or service mesh; otherwise prefer short-lived certificates and deliberate rotation.</p>
 <h2 id="176-connection-handler"><a class="header" href="#176-connection-handler">17.6 Connection Handler</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -8268,6 +8295,7 @@ impl ConnectionHandler {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Passing <code>ConnectionPermit</code> by value is the RAII part of the design: explicit increment/decrement pairs are easy to miss on early returns, timeout branches, or future refactors, while <code>Drop</code> keeps the counter balanced on every normal exit path.</p>
 <h2 id="177-main-server"><a class="header" href="#177-main-server">17.7 Main Server</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::companion::ch17_hardened_server as ch17_hardened_server;
@@ -8392,7 +8420,8 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                     }
                     // `permit` was moved into `handle`; it is dropped when
                     // `handle` returns, decrementing the connection count on
-                    // every exit path.
+                    // every exit path instead of relying on a hand-written
+                    // `fetch_sub` at each return site.
                 });
             }
         }
@@ -9300,6 +9329,14 @@ fn drop_privileges(uid: u32, gid: u32) -&gt; nix::Result&lt;()&gt; {
 }</code></pre>
 <p>Call this only after binding privileged ports, opening key files, or receiving file descriptors from a privileged parent, and before accepting any untrusted input. If privilege dropping fails, abort startup rather than continuing in a half-privileged state.</p>
 <p>Enable <code>RUST_BACKTRACE=1</code> only during controlled debugging sessions, not as a standing production setting. Backtraces leak internal module names, file-system paths, and library layout details that help attackers profile the target and sometimes reveal more than the external error contract intended (CWE-209).</p>
+<h4 id="secure-ipc-for-privilege-separated-components"><a class="header" href="#secure-ipc-for-privilege-separated-components">Secure IPC for Privilege-Separated Components</a></h4>
+<p>Privilege separation only works if the boundary between the privileged helper and the unprivileged worker is hardened too. Treat local IPC exactly like a network trust boundary: authenticate the peer, bound message sizes, and minimize the authority carried over the channel.</p>
+<ul>
+<li><strong>Unix domain sockets</strong>: place pathname sockets in a directory owned by root or the service account, use restrictive mode bits, and prefer peer-credential checks such as <code>SO_PEERCRED</code> / <code>LOCAL_PEERCRED</code> before authorizing privileged actions. On Linux, remember that abstract-namespace sockets bypass filesystem permissions entirely.</li>
+<li><strong>Windows named pipes</strong>: create the pipe with an explicit DACL that grants access only to the intended users or service SIDs. Do not rely on permissive defaults for an admin or broker endpoint.</li>
+<li><strong>Shared memory and <code>memfd_create</code></strong>: prefer passing already-open handles over global names, cap the mapped size up front, validate every offset and length, and seal immutable <code>memfd</code> objects so a lower-privilege peer cannot rewrite data after validation.</li>
+</ul>
+<p>If the high-privilege side only needs to open a socket or file once, prefer passing that already-open descriptor or handle and then keeping the long-lived parser or request worker unprivileged. Do not let the privileged side become a general command dispatcher.</p>
 <h3 id="1924-seccomp-profile"><a class="header" href="#1924-seccomp-profile">19.2.4 Seccomp Profile</a></h3>
 <p>The safest default is to keep Docker or Podman’s built-in seccomp profile. Do <strong>not</strong> replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.</p>
 <p>When you do need a custom profile, derive it from the runtime default profile for the exact engine version you deploy, trace the syscalls your service actually needs, and then tighten from there. The example below is an <strong>illustrative excerpt</strong>, not a complete profile:</p>
@@ -9343,7 +9380,7 @@ cargo build --target wasm32-unknown-unknown --release
 <h4 id="sandboxed-plugin-architecture-with-wasmtime"><a class="header" href="#sandboxed-plugin-architecture-with-wasmtime">Sandboxed Plugin Architecture with Wasmtime</a></h4>
 <pre><code class="language-toml"># Cargo.toml
 [dependencies]
-wasmtime = "25"
+wasmtime = { version = "24.0.6", default-features = false, features = ["cranelift", "runtime", "std"] }
 anyhow = "1"
 </code></pre>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -9351,11 +9388,33 @@ anyhow = "1"
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::anyhow as anyhow;
 </span><span class="boring">use rust_secure_systems_book::deps::wasmtime as wasmtime;
-</span>use anyhow::Result;
+</span>use anyhow::{Context, Result, bail};
 use wasmtime::*;
 
 struct HostState {
     limits: StoreLimits,
+    max_log_bytes: usize,
+}
+
+fn checked_guest_range(
+    ptr: u32,
+    len: u32,
+    memory_len: usize,
+    max_len: usize,
+) -&gt; Result&lt;(usize, usize)&gt; {
+    let start = usize::try_from(ptr).context("guest offset does not fit usize")?;
+    let len = usize::try_from(len).context("guest length does not fit usize")?;
+
+    if len &gt; max_len {
+        bail!("guest buffer too large");
+    }
+
+    let end = start.checked_add(len).context("guest offset overflow")?;
+    if end &gt; memory_len {
+        bail!("guest range outside linear memory");
+    }
+
+    Ok((start, end))
 }
 
 fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;&gt; {
@@ -9373,42 +9432,56 @@ fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt
                 .memory_size(1 &lt;&lt; 20)
                 .instances(1)
                 .build(),
+            max_log_bytes: 256,
         },
     );
     store.limiter(|state| &amp;mut state.limits);
     store.set_fuel(10_000)?;
 
-    let log_func = Func::wrap(&amp;mut store, |ptr: u32, len: u32| {
-        println!("Plugin logged {} bytes at offset {}", len, ptr);
-    });
+    let log_func = Func::wrap(
+        &amp;mut store,
+        |mut caller: Caller&lt;'_, HostState&gt;, ptr: u32, len: u32| -&gt; Result&lt;()&gt; {
+            let memory = caller
+                .get_export("memory")
+                .and_then(|export| export.into_memory())
+                .context("module has no exported memory")?;
+            let max_log_bytes = caller.data().max_log_bytes;
+            let data = memory.data(&amp;caller);
+            let (start, end) = checked_guest_range(ptr, len, data.len(), max_log_bytes)?;
+            let message =
+                std::str::from_utf8(&amp;data[start..end]).context("plugin log was not valid UTF-8")?;
+            println!("Plugin log: {message}");
+            Ok(())
+        },
+    );
 
     let instance = Instance::new(&amp;mut store, &amp;module, &amp;[Extern::Func(log_func)])?;
-    let process = instance.get_typed_func::&lt;(u32, u32), u32&gt;(&amp;mut store, "process")?;
+    let process = instance.get_typed_func::&lt;(u32, u32), (u32, u32)&gt;(&amp;mut store, "process")?;
     let memory = instance
         .get_memory(&amp;mut store, "memory")
         .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
 
-    let mem_data = memory.data_mut(&amp;mut store);
-    if input.len() &gt; mem_data.len() / 2 {
-        return Err(anyhow::anyhow!("input too large for sandbox memory"));
-    }
-    mem_data[..input.len()].copy_from_slice(input);
+    let input_len = u32::try_from(input.len()).context("input too large for guest ABI")?;
+    let input_memory_len = memory.data(&amp;store).len();
+    let (input_start, input_end) =
+        checked_guest_range(0, input_len, input_memory_len, input_memory_len / 2)?;
+    memory.data_mut(&amp;mut store)[input_start..input_end].copy_from_slice(input);
 
-    let result = process.call(&amp;mut store, (0, input.len() as u32))?;
-    let output_len = result as usize;
-    if output_len &gt; memory.data(&amp;store).len() {
-        return Err(anyhow::anyhow!("plugin returned invalid length"));
-    }
+    let (output_ptr, output_len) = process.call(&amp;mut store, (0, input_len))?;
+    let data = memory.data(&amp;store);
+    let (output_start, output_end) =
+        checked_guest_range(output_ptr, output_len, data.len(), data.len())?;
 
-    Ok(memory.data(&amp;store)[..output_len].to_vec())
+    Ok(data[output_start..output_end].to_vec())
 }
 <span class="boring">}</span></code></pre>
+<p>The sample disables <code>wasmtime</code> default features because this sandbox only needs the basic runtime and JIT. Trimming unused cache, profiling, and component-model features reduces both dependency surface and maintenance overhead.</p>
 <p>Security properties in this design:</p>
 <ol>
 <li><strong>Fuel limiting</strong>: Prevents infinite loops and CPU exhaustion.</li>
 <li><strong>Resource limits</strong>: <code>Store::limiter</code> caps future memory and instance growth.</li>
 <li><strong>Explicit imports</strong>: The module only gets the host functions you expose.</li>
-<li><strong>Host-side validation</strong>: All lengths and offsets from module memory are checked before use.</li>
+<li><strong>Host-side validation</strong>: The same checked range helper validates imported log buffers and returned output ranges before the host dereferences guest memory.</li>
 </ol>
 <h4 id="wasm-security-considerations"><a class="header" href="#wasm-security-considerations">Wasm Security Considerations</a></h4>
 <div class="table-wrapper">
@@ -9643,12 +9716,18 @@ async fn handle_connection(
 // If you must log a field that sometimes contains secrets, mask it:
 fn mask_token(token: &amp;str) -&gt; String {
     let len = token.chars().count();
-    if len &gt; 8 {
-        let prefix: String = token.chars().take(4).collect();
-        let suffix: String = token.chars().skip(len - 4).collect();
-        format!("{prefix}****{suffix}")
-    } else {
-        "****".to_string()
+    match len {
+        0..=8 =&gt; "****".to_string(),
+        9..=16 =&gt; {
+            let prefix: String = token.chars().take(2).collect();
+            let suffix: String = token.chars().skip(len - 2).collect();
+            format!("{prefix}****{suffix}")
+        }
+        _ =&gt; {
+            let prefix: String = token.chars().take(4).collect();
+            let suffix: String = token.chars().skip(len - 4).collect();
+            format!("{prefix}****{suffix}")
+        }
     }
 }
 <span class="boring">}</span></code></pre>

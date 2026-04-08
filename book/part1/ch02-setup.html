@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -230,6 +230,7 @@ cargo +nightly install cargo-fuzz --version 0.13.1 --locked
 </code></pre>
 <p>🔒 <strong>Security practice</strong>: Treat Rust compiler updates as security patches. New releases often include improved lints and security-relevant diagnostics.</p>
 <h3 id="221-no_std-and-embedded-targets"><a class="header" href="#221-no_std-and-embedded-targets">2.2.1 <code>no_std</code> and Embedded Targets</a></h3>
+<p>One Edition 2024 change is easy to miss during upgrades: <code>std::env::set_var</code> and <code>std::env::remove_var</code> are now <code>unsafe</code>. Reading environment variables with <code>std::env::var</code> is still safe, but mutating the process environment is no longer something to do casually inside multithreaded services.</p>
 <p>If your “systems programming” work includes firmware, kernels, bootloaders, or other bare-metal targets, the setup changes in security-relevant ways:</p>
 <ul>
 <li><code>#![no_std]</code> removes the standard library. If you still need heap allocation, pull in <code>alloc</code> explicitly and keep allocations bounded.</li>
@@ -478,13 +479,12 @@ jobs:
       - name: Build book
         run: mdbook build
 
-      - name: Build snippet helper crate
-        run: |
-          rm -rf target/book-snippets-check
-          cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
-
       - name: Test book snippets
-        run: mdbook test -L target/book-snippets-check/debug/deps
+        run: |
+          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
+          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
+          cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
+          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
 
       - name: Audit dependencies
         run: |

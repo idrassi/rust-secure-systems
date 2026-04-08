@@ -220,6 +220,16 @@ Call this only after binding privileged ports, opening key files, or receiving f
 
 Enable `RUST_BACKTRACE=1` only during controlled debugging sessions, not as a standing production setting. Backtraces leak internal module names, file-system paths, and library layout details that help attackers profile the target and sometimes reveal more than the external error contract intended (CWE-209).
 
+#### Secure IPC for Privilege-Separated Components
+
+Privilege separation only works if the boundary between the privileged helper and the unprivileged worker is hardened too. Treat local IPC exactly like a network trust boundary: authenticate the peer, bound message sizes, and minimize the authority carried over the channel.
+
+- **Unix domain sockets**: place pathname sockets in a directory owned by root or the service account, use restrictive mode bits, and prefer peer-credential checks such as `SO_PEERCRED` / `LOCAL_PEERCRED` before authorizing privileged actions. On Linux, remember that abstract-namespace sockets bypass filesystem permissions entirely.
+- **Windows named pipes**: create the pipe with an explicit DACL that grants access only to the intended users or service SIDs. Do not rely on permissive defaults for an admin or broker endpoint.
+- **Shared memory and `memfd_create`**: prefer passing already-open handles over global names, cap the mapped size up front, validate every offset and length, and seal immutable `memfd` objects so a lower-privilege peer cannot rewrite data after validation.
+
+If the high-privilege side only needs to open a socket or file once, prefer passing that already-open descriptor or handle and then keeping the long-lived parser or request worker unprivileged. Do not let the privileged side become a general command dispatcher.
+
 ### 19.2.4 Seccomp Profile
 
 The safest default is to keep Docker or Podman's built-in seccomp profile. Do **not** replace it with a short denylist: that often weakens isolation by allowing more syscalls than the runtime would have permitted by default.
@@ -279,7 +289,7 @@ For production integration, prefer `wasm32-wasip2` or `wasm32-wasip1` when you n
 ```toml
 # Cargo.toml
 [dependencies]
-wasmtime = "25"
+wasmtime = { version = "24.0.6", default-features = false, features = ["cranelift", "runtime", "std"] }
 anyhow = "1"
 ```
 
@@ -287,11 +297,33 @@ anyhow = "1"
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::anyhow as anyhow;
 # use rust_secure_systems_book::deps::wasmtime as wasmtime;
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use wasmtime::*;
 
 struct HostState {
     limits: StoreLimits,
+    max_log_bytes: usize,
+}
+
+fn checked_guest_range(
+    ptr: u32,
+    len: u32,
+    memory_len: usize,
+    max_len: usize,
+) -> Result<(usize, usize)> {
+    let start = usize::try_from(ptr).context("guest offset does not fit usize")?;
+    let len = usize::try_from(len).context("guest length does not fit usize")?;
+
+    if len > max_len {
+        bail!("guest buffer too large");
+    }
+
+    let end = start.checked_add(len).context("guest offset overflow")?;
+    if end > memory_len {
+        bail!("guest range outside linear memory");
+    }
+
+    Ok((start, end))
 }
 
 fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
@@ -309,43 +341,58 @@ fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
                 .memory_size(1 << 20)
                 .instances(1)
                 .build(),
+            max_log_bytes: 256,
         },
     );
     store.limiter(|state| &mut state.limits);
     store.set_fuel(10_000)?;
 
-    let log_func = Func::wrap(&mut store, |ptr: u32, len: u32| {
-        println!("Plugin logged {} bytes at offset {}", len, ptr);
-    });
+    let log_func = Func::wrap(
+        &mut store,
+        |mut caller: Caller<'_, HostState>, ptr: u32, len: u32| -> Result<()> {
+            let memory = caller
+                .get_export("memory")
+                .and_then(|export| export.into_memory())
+                .context("module has no exported memory")?;
+            let max_log_bytes = caller.data().max_log_bytes;
+            let data = memory.data(&caller);
+            let (start, end) = checked_guest_range(ptr, len, data.len(), max_log_bytes)?;
+            let message =
+                std::str::from_utf8(&data[start..end]).context("plugin log was not valid UTF-8")?;
+            println!("Plugin log: {message}");
+            Ok(())
+        },
+    );
 
     let instance = Instance::new(&mut store, &module, &[Extern::Func(log_func)])?;
-    let process = instance.get_typed_func::<(u32, u32), u32>(&mut store, "process")?;
+    let process = instance.get_typed_func::<(u32, u32), (u32, u32)>(&mut store, "process")?;
     let memory = instance
         .get_memory(&mut store, "memory")
         .ok_or_else(|| anyhow::anyhow!("module has no exported memory"))?;
 
-    let mem_data = memory.data_mut(&mut store);
-    if input.len() > mem_data.len() / 2 {
-        return Err(anyhow::anyhow!("input too large for sandbox memory"));
-    }
-    mem_data[..input.len()].copy_from_slice(input);
+    let input_len = u32::try_from(input.len()).context("input too large for guest ABI")?;
+    let input_memory_len = memory.data(&store).len();
+    let (input_start, input_end) =
+        checked_guest_range(0, input_len, input_memory_len, input_memory_len / 2)?;
+    memory.data_mut(&mut store)[input_start..input_end].copy_from_slice(input);
 
-    let result = process.call(&mut store, (0, input.len() as u32))?;
-    let output_len = result as usize;
-    if output_len > memory.data(&store).len() {
-        return Err(anyhow::anyhow!("plugin returned invalid length"));
-    }
+    let (output_ptr, output_len) = process.call(&mut store, (0, input_len))?;
+    let data = memory.data(&store);
+    let (output_start, output_end) =
+        checked_guest_range(output_ptr, output_len, data.len(), data.len())?;
 
-    Ok(memory.data(&store)[..output_len].to_vec())
+    Ok(data[output_start..output_end].to_vec())
 }
 ```
+
+The sample disables `wasmtime` default features because this sandbox only needs the basic runtime and JIT. Trimming unused cache, profiling, and component-model features reduces both dependency surface and maintenance overhead.
 
 Security properties in this design:
 
 1. **Fuel limiting**: Prevents infinite loops and CPU exhaustion.
 2. **Resource limits**: `Store::limiter` caps future memory and instance growth.
 3. **Explicit imports**: The module only gets the host functions you expose.
-4. **Host-side validation**: All lengths and offsets from module memory are checked before use.
+4. **Host-side validation**: The same checked range helper validates imported log buffers and returned output ranges before the host dereferences guest memory.
 
 #### Wasm Security Considerations
 
@@ -593,12 +640,18 @@ If host compromise is in scope, forward security events off the box quickly or a
 // If you must log a field that sometimes contains secrets, mask it:
 fn mask_token(token: &str) -> String {
     let len = token.chars().count();
-    if len > 8 {
-        let prefix: String = token.chars().take(4).collect();
-        let suffix: String = token.chars().skip(len - 4).collect();
-        format!("{prefix}****{suffix}")
-    } else {
-        "****".to_string()
+    match len {
+        0..=8 => "****".to_string(),
+        9..=16 => {
+            let prefix: String = token.chars().take(2).collect();
+            let suffix: String = token.chars().skip(len - 2).collect();
+            format!("{prefix}****{suffix}")
+        }
+        _ => {
+            let prefix: String = token.chars().take(4).collect();
+            let suffix: String = token.chars().skip(len - 4).collect();
+            format!("{prefix}****{suffix}")
+        }
     }
 }
 ```

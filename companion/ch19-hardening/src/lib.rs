@@ -15,8 +15,12 @@ mod tests {
 
     #[test]
     fn mask_token_redacts_the_middle() {
-        assert_eq!(mask_token("abcd1234wxyz"), "abcd****wxyz");
-        assert_eq!(mask_token("åßçđ1234wxyz"), "åßçđ****wxyz");
+        assert_eq!(mask_token("abcd1234wxyz"), "ab****yz");
+        assert_eq!(
+            mask_token("\u{00E5}\u{00DF}\u{00E7}\u{0111}1234wxyz"),
+            "\u{00E5}\u{00DF}****yz"
+        );
+        assert_eq!(mask_token("longer-token-value-1234"), "long****1234");
         assert_eq!(mask_token("short"), "****");
     }
 

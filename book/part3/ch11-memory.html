@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -463,14 +463,13 @@ impl PacketBuffer {
     }
     
     fn read_header(&amp;self) -&gt; &amp;[u8; 4] {
-        // `&amp;raw const` creates a pointer without creating a reference,
-        // which is safe even if the struct has uninitialized fields
-        let header_ptr = &amp;raw const self.header;
-        unsafe { &amp;*header_ptr }
+        // `header` is always initialized, so a normal shared reference is fine.
+        &amp;self.header
     }
 }
 <span class="boring">}</span></code></pre>
 <p>The older macros still work and are useful in older code or macro-heavy contexts, but <code>&amp;raw const</code> / <code>&amp;raw mut</code> is the modern direct form.</p>
+<p>In this example, <code>&amp;raw mut self.payload</code> is the important operation because <code>payload</code> is the maybe-uninitialized field. You do <strong>not</strong> need <code>&amp;raw</code> for every other initialized field in the same struct.</p>
 <p>🔒 <strong>Security practice</strong>: Prefer <code>&amp;raw const</code> / <code>&amp;raw mut</code> (or <code>addr_of!</code> / <code>addr_of_mut!</code> in older code) over <code>&amp;self.field</code> or <code>&amp;mut self.field</code> when the struct may contain uninitialized data. Creating a reference to uninitialized memory is instant UB, even if you never read through it.</p>
 <h3 id="1144-memory-locking-prevent-swapping"><a class="header" href="#1144-memory-locking-prevent-swapping">11.4.4 Memory Locking (Prevent Swapping)</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]

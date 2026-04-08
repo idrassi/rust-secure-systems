@@ -476,12 +476,27 @@ type Callback = extern "C" fn(i32, *const u8, usize) -> i32;
 
 static GLOBAL_CALLBACK: Mutex<Option<Callback>> = Mutex::new(None);
 
+#[unsafe(no_mangle)]
+pub extern "C" fn register_callback(cb: Option<Callback>) -> i32 {
+    std::panic::catch_unwind(|| register_callback_safe(cb)).unwrap_or(-2)
+}
+
 fn register_callback_safe(cb: Option<Callback>) -> i32 {
-    let mut guard = GLOBAL_CALLBACK.lock().expect("callback mutex poisoned");
-    *guard = cb;
-    0
+    match GLOBAL_CALLBACK.lock() {
+        Ok(mut guard) => {
+            *guard = cb;
+            0
+        }
+        Err(poisoned) => {
+            let mut guard = poisoned.into_inner();
+            *guard = None;
+            -1
+        }
+    }
 }
 ```
+
+If shared callback state is poisoned, clear it and return an error instead of calling `.expect(...)` and panicking across the FFI boundary.
 
 ## 10.7 Summary
 

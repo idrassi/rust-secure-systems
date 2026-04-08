@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -295,7 +295,12 @@ impl From&lt;ParseIntError&gt; for AppError {
 }
 
 fn parse_port_number(s: &amp;str) -&gt; Result&lt;u16, AppError&gt; {
+    // This example follows the book's default network-service policy:
+    // port 0 is reserved rather than silently accepted.
     let port: u32 = s.parse()?;           // ParseIntError → AppError via From
+    if port == 0 {
+        return Err(AppError::InvalidData("Port 0 is reserved".to_string()));
+    }
     if port &gt; 65535 {
         return Err(AppError::InvalidData(format!("Port {} out of range", port)));
     }
@@ -316,7 +321,7 @@ pub enum SecurityError {
     /// Authorization denied
     AccessDenied { user_id: u64, resource: String, required_role: String },
     /// Input validation failure
-    ValidationFailed { field: String, value: String, constraint: String },
+    ValidationFailed { field: String, constraint: String },
     /// Rate limit exceeded
     RateLimited { client_ip: std::net::IpAddr, retry_after: std::time::Duration },
     /// Cryptographic operation failed
@@ -332,12 +337,12 @@ impl fmt::Display for SecurityError {
                 write!(f, "Authentication failed for '{}': {}", username, reason)
             }
             SecurityError::AccessDenied { user_id, resource, required_role } =&gt; {
-                write!(f, "User {} denied access to '{}' (requires {})", 
+                write!(f, "User {} denied access to '{}' (requires {})",
                        user_id, resource, required_role)
             }
-            SecurityError::ValidationFailed { field, value, constraint } =&gt; {
-                write!(f, "Validation failed for '{}': {} (constraint: {})", 
-                       field, value, constraint)
+            SecurityError::ValidationFailed { field, constraint } =&gt; {
+                write!(f, "Validation failed for '{}' (constraint: {})",
+                       field, constraint)
             }
             SecurityError::RateLimited { client_ip, retry_after } =&gt; {
                 write!(f, "Rate limited {}: retry after {:?}", client_ip, retry_after)
@@ -356,6 +361,7 @@ impl std::error::Error for SecurityError {}
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security practice</strong>: Never include sensitive data (passwords, tokens, raw keys) in error messages. Error strings may be logged, displayed, or leaked to attackers. Note in the example above, <code>username</code> is logged but passwords are never included.</p>
 <h2 id="54-the-thiserror-and-anyhow-crates"><a class="header" href="#54-the-thiserror-and-anyhow-crates">5.4 The <code>thiserror</code> and <code>anyhow</code> Crates</a></h2>
+<p>Treat the raw rejected value as separate from the user-facing error. Report which field failed and which constraint it violated; if operators need the original value for investigation, log it separately on a sanitized internal channel.</p>
 <h3 id="thiserror---derive-error-for-libraries"><a class="header" href="#thiserror---derive-error-for-libraries"><code>thiserror</code> - Derive Error for Libraries</a></h3>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -466,7 +472,7 @@ extern "C" fn exported_function(data: *const u8, len: usize) -&gt; i32 {
 </span><span class="boring">enum SecurityError {
 </span><span class="boring">    AuthenticationFailed { username: String, reason: String },
 </span><span class="boring">    AccessDenied { user_id: u64, resource: String, required_role: String },
-</span><span class="boring">    ValidationFailed { field: String, value: String, constraint: String },
+</span><span class="boring">    ValidationFailed { field: String, constraint: String },
 </span><span class="boring">}
 </span><span class="boring">
 </span>#[derive(Debug)]
@@ -545,7 +551,6 @@ fn validate_input(body: &amp;[u8]) -&gt; Result&lt;Vec&lt;u8&gt;, SecurityError&
     if body.is_empty() {
         Err(SecurityError::ValidationFailed {
             field: "body".to_string(),
-            value: String::new(),
             constraint: "must not be empty".to_string(),
         })
     } else {
@@ -562,7 +567,7 @@ fn execute(_user: &amp;User, _validated: &amp;[u8]) -&gt; Result&lt;String, Secu
 </span><span class="boring">fn main() {
 </span>#[derive(Debug)]
 enum SecurityError {
-    ValidationFailed { field: String, value: String, constraint: String },
+    ValidationFailed { field: String, constraint: String },
 }
 
 fn parse_env_port(env_var: String) -&gt; Result&lt;u16, SecurityError&gt; {
@@ -572,7 +577,6 @@ fn parse_env_port(env_var: String) -&gt; Result&lt;u16, SecurityError&gt; {
     env_var.parse()
         .map_err(|_| SecurityError::ValidationFailed {
             field: "PORT".to_string(),
-            value: env_var.clone(),
             constraint: "must be a valid u16".to_string(),
         })
 }
@@ -584,7 +588,7 @@ fn parse_env_port(env_var: String) -&gt; Result&lt;u16, SecurityError&gt; {
 </span><span class="boring">enum SecurityError {
 </span><span class="boring">    AuthenticationFailed { username: String, reason: String },
 </span><span class="boring">    AccessDenied { user_id: u64, resource: String, required_role: String },
-</span><span class="boring">    ValidationFailed { field: String, value: String, constraint: String },
+</span><span class="boring">    ValidationFailed { field: String, constraint: String },
 </span><span class="boring">}
 </span><span class="boring">
 </span>mod log {

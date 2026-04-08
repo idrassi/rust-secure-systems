@@ -2,7 +2,7 @@
 
 > *"Theory without practice is empty. Practice without theory is blind."*
 
-This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We'll build a secure echo server with TLS, rate limiting, connection management, and comprehensive logging. Every design decision will reference the security principles covered earlier in the book.
+This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We'll build a secure echo server with TLS, rate limiting, connection management, and security-relevant logging. Every design decision will reference the security principles covered earlier in the book.
 
 The companion crate in this repository lives at `companion/ch17-hardened-server`. The snippets below use that package layout directly so Chapter 19 can deploy the same binary without translation.
 
@@ -19,7 +19,7 @@ The companion crate in this repository lives at `companion/ch17-hardened-server`
 | Memory exhaustion | Bounded buffers, size limits | Ch 7 |
 | Buffer overflows | Rust's memory safety | Ch 3 |
 | Data races | Rust's concurrency model | Ch 6 |
-| Information disclosure | Structured logging, no secret leaks | Ch 5 |
+| Information disclosure | Sanitized logging, no secret leaks | Ch 5, 19 |
 | Dependency vulnerabilities | cargo-audit, cargo-deny | Ch 15, 16 |
 | Panic-induced crashes | `panic = "abort"`, explicit error handling, and poison recovery for shared state | Ch 5, 6 |
 
@@ -47,7 +47,6 @@ edition.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
 log.workspace = true
 env_logger.workspace = true
 thiserror.workspace = true
@@ -310,25 +309,20 @@ Bounding the map prevents untrusted clients from turning rate-limit state into a
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::rustls as rustls;
-# use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
 // src/tls.rs
-use rustls::ServerConfig;
+use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
-use std::fs::File;
-use std::io::BufReader;
 
 pub fn create_server_config(
     cert_path: &str,
     key_path: &str,
 ) -> Result<Arc<ServerConfig>, Box<dyn std::error::Error>> {
-    let cert_file = File::open(cert_path)?;
-    let key_file = File::open(key_path)?;
-    
-    let certs: Vec<_> = rustls_pemfile::certs(&mut BufReader::new(cert_file))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::<Result<Vec<_>, _>>()?;
-    
-    let key = rustls_pemfile::private_key(&mut BufReader::new(key_file))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
     
     let config = ServerConfig::builder()
         .with_no_client_auth()
@@ -337,6 +331,8 @@ pub fn create_server_config(
     Ok(Arc::new(config))
 }
 ```
+
+This keeps the PEM parsing path inside `rustls` itself, which avoids carrying an extra helper crate just to load certificates and keys.
 
 **Operational note**: This server configuration loads certificates and private keys, but revocation policy is separate. If your deployment requires CRL or OCSP enforcement, configure it explicitly in your verifier or enforce it at a proxy or service mesh; otherwise prefer short-lived certificates and deliberate rotation.
 
@@ -549,6 +545,8 @@ impl ConnectionHandler {
 }
 ```
 
+Passing `ConnectionPermit` by value is the RAII part of the design: explicit increment/decrement pairs are easy to miss on early returns, timeout branches, or future refactors, while `Drop` keeps the counter balanced on every normal exit path.
+
 ## 17.7 Main Server
 
 ```rust,no_run
@@ -675,7 +673,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     // `permit` was moved into `handle`; it is dropped when
                     // `handle` returns, decrementing the connection count on
-                    // every exit path.
+                    // every exit path instead of relying on a hand-written
+                    // `fetch_sub` at each return site.
                 });
             }
         }

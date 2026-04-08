@@ -11,6 +11,14 @@ pub enum ProcessingError {
     TooLarge(usize),
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AddResult {
+    pub success: bool,
+    pub value: i32,
+    pub error_code: i32,
+}
+
 unsafe extern "C" {
     #[link_name = "book_ffi_strlen"]
     fn book_ffi_strlen_c(s: *const c_char) -> usize;
@@ -62,8 +70,19 @@ pub unsafe extern "C" fn book_ffi_strlen(s: *const c_char) -> usize {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn rust_add(a: i32, b: i32) -> i32 {
-    a.checked_add(b).unwrap_or(0)
+pub extern "C" fn rust_add_checked(a: i32, b: i32) -> AddResult {
+    match a.checked_add(b) {
+        Some(value) => AddResult {
+            success: true,
+            value,
+            error_code: 0,
+        },
+        None => AddResult {
+            success: false,
+            value: 0,
+            error_code: 1,
+        },
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -139,10 +158,8 @@ pub extern "C" fn create_buffer(size: usize) -> *mut u8 {
         return ptr::null_mut();
     }
 
-    let mut buf = Vec::<u8>::with_capacity(size);
-    let ptr = buf.as_mut_ptr();
-    std::mem::forget(buf);
-    ptr
+    let boxed = vec![0u8; size].into_boxed_slice();
+    Box::into_raw(boxed) as *mut u8
 }
 
 #[unsafe(no_mangle)]
@@ -154,7 +171,8 @@ pub extern "C" fn create_buffer(size: usize) -> *mut u8 {
 pub unsafe extern "C" fn free_buffer(ptr: *mut u8, size: usize) {
     if !ptr.is_null() {
         unsafe {
-            let _ = Vec::<u8>::from_raw_parts(ptr, 0, size);
+            let slice = std::ptr::slice_from_raw_parts_mut(ptr, size);
+            let _ = Box::from_raw(slice);
         }
     }
 }
@@ -165,17 +183,32 @@ static GLOBAL_CALLBACK: Mutex<Option<Callback>> = Mutex::new(None);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn register_callback(cb: Option<Callback>) -> i32 {
-    register_callback_safe(cb)
+    std::panic::catch_unwind(|| register_callback_safe(cb)).unwrap_or(-2)
 }
 
 pub fn register_callback_safe(cb: Option<Callback>) -> i32 {
-    let mut guard = GLOBAL_CALLBACK.lock().expect("callback mutex poisoned");
-    *guard = cb;
-    0
+    match GLOBAL_CALLBACK.lock() {
+        Ok(mut guard) => {
+            *guard = cb;
+            0
+        }
+        Err(poisoned) => {
+            let mut guard = poisoned.into_inner();
+            *guard = None;
+            -1
+        }
+    }
 }
 
 pub fn invoke_registered_callback(status: i32, payload: &[u8]) -> Option<i32> {
-    let callback = *GLOBAL_CALLBACK.lock().expect("callback mutex poisoned");
+    let callback = match GLOBAL_CALLBACK.lock() {
+        Ok(guard) => *guard,
+        Err(poisoned) => {
+            let mut guard = poisoned.into_inner();
+            *guard = None;
+            None
+        }
+    };
     callback.map(|cb| cb(status, payload.as_ptr(), payload.len()))
 }
 
@@ -203,7 +236,14 @@ mod tests {
 
     #[test]
     fn exported_functions_validate_inputs() {
-        assert_eq!(rust_add(i32::MAX, 1), 0);
+        let ok = rust_add_checked(20, 22);
+        assert!(ok.success);
+        assert_eq!(ok.value, 42);
+
+        let overflow = rust_add_checked(i32::MAX, 1);
+        assert!(!overflow.success);
+        assert_eq!(overflow.error_code, 1);
+
         assert_eq!(unsafe { process_buffer(ptr::null(), 8) }, -1);
         assert_eq!(unsafe { process_buffer([1u8, 2, 3].as_ptr(), 3) }, 3);
     }
@@ -224,6 +264,11 @@ mod tests {
         let ptr = create_buffer(16);
         assert!(!ptr.is_null());
         unsafe {
+            assert!(
+                std::slice::from_raw_parts(ptr, 16)
+                    .iter()
+                    .all(|byte| *byte == 0)
+            );
             ptr::write_bytes(ptr, 0xAA, 16);
         }
         unsafe {

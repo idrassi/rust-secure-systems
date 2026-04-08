@@ -311,15 +311,15 @@ impl PacketBuffer {
     }
     
     fn read_header(&self) -> &[u8; 4] {
-        // `&raw const` creates a pointer without creating a reference,
-        // which is safe even if the struct has uninitialized fields
-        let header_ptr = &raw const self.header;
-        unsafe { &*header_ptr }
+        // `header` is always initialized, so a normal shared reference is fine.
+        &self.header
     }
 }
 ```
 
 The older macros still work and are useful in older code or macro-heavy contexts, but `&raw const` / `&raw mut` is the modern direct form.
+
+In this example, `&raw mut self.payload` is the important operation because `payload` is the maybe-uninitialized field. You do **not** need `&raw` for every other initialized field in the same struct.
 
 🔒 **Security practice**: Prefer `&raw const` / `&raw mut` (or `addr_of!` / `addr_of_mut!` in older code) over `&self.field` or `&mut self.field` when the struct may contain uninitialized data. Creating a reference to uninitialized memory is instant UB, even if you never read through it.
 

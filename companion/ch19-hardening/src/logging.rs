@@ -79,12 +79,18 @@ pub fn log_security_event(
 
 pub fn mask_token(token: &str) -> String {
     let len = token.chars().count();
-    if len > 8 {
-        let prefix: String = token.chars().take(4).collect();
-        let suffix: String = token.chars().skip(len - 4).collect();
-        format!("{prefix}****{suffix}")
-    } else {
-        "****".to_string()
+    match len {
+        0..=8 => "****".to_string(),
+        9..=16 => {
+            let prefix: String = token.chars().take(2).collect();
+            let suffix: String = token.chars().skip(len - 2).collect();
+            format!("{prefix}****{suffix}")
+        }
+        _ => {
+            let prefix: String = token.chars().take(4).collect();
+            let suffix: String = token.chars().skip(len - 4).collect();
+            format!("{prefix}****{suffix}")
+        }
     }
 }
 

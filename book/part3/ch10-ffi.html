@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -600,12 +600,26 @@ type Callback = extern "C" fn(i32, *const u8, usize) -&gt; i32;
 
 static GLOBAL_CALLBACK: Mutex&lt;Option&lt;Callback&gt;&gt; = Mutex::new(None);
 
+#[unsafe(no_mangle)]
+pub extern "C" fn register_callback(cb: Option&lt;Callback&gt;) -&gt; i32 {
+    std::panic::catch_unwind(|| register_callback_safe(cb)).unwrap_or(-2)
+}
+
 fn register_callback_safe(cb: Option&lt;Callback&gt;) -&gt; i32 {
-    let mut guard = GLOBAL_CALLBACK.lock().expect("callback mutex poisoned");
-    *guard = cb;
-    0
+    match GLOBAL_CALLBACK.lock() {
+        Ok(mut guard) =&gt; {
+            *guard = cb;
+            0
+        }
+        Err(poisoned) =&gt; {
+            let mut guard = poisoned.into_inner();
+            *guard = None;
+            -1
+        }
+    }
 }
 <span class="boring">}</span></code></pre>
+<p>If shared callback state is poisoned, clear it and return an error instead of calling <code>.expect(...)</code> and panicking across the FFI boundary.</p>
 <h2 id="107-summary"><a class="header" href="#107-summary">10.7 Summary</a></h2>
 <ul>
 <li>FFI is inherently unsafe: every boundary crossing requires careful validation.</li>

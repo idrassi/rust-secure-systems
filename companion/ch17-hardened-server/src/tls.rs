@@ -1,20 +1,15 @@
-use rustls::ServerConfig;
-use std::fs::File;
-use std::io::BufReader;
+use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
 
 pub fn create_server_config(
     cert_path: &str,
     key_path: &str,
 ) -> Result<Arc<ServerConfig>, Box<dyn std::error::Error>> {
-    let cert_file = File::open(cert_path)?;
-    let key_file = File::open(key_path)?;
-
-    let certs: Vec<_> =
-        rustls_pemfile::certs(&mut BufReader::new(cert_file)).collect::<Result<Vec<_>, _>>()?;
-
-    let key = rustls_pemfile::private_key(&mut BufReader::new(key_file))?
-        .ok_or("no private key found")?;
+    let certs = CertificateDer::pem_file_iter(cert_path)?.collect::<Result<Vec<_>, _>>()?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
 
     let config = ServerConfig::builder()
         .with_no_client_auth()

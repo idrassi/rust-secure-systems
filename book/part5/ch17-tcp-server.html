@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -185,7 +185,7 @@
 <blockquote>
 <p><em>“Theory without practice is empty. Practice without theory is blind.”</em></p>
 </blockquote>
-<p>This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We’ll build a secure echo server with TLS, rate limiting, connection management, and comprehensive logging. Every design decision will reference the security principles covered earlier in the book.</p>
+<p>This chapter brings together everything from the previous chapters into a complete, production-quality hardened TCP server. We’ll build a secure echo server with TLS, rate limiting, connection management, and security-relevant logging. Every design decision will reference the security principles covered earlier in the book.</p>
 <p>The companion crate in this repository lives at <code>companion/ch17-hardened-server</code>. The snippets below use that package layout directly so Chapter 19 can deploy the same binary without translation.</p>
 <h2 id="171-design-and-threat-model"><a class="header" href="#171-design-and-threat-model">17.1 Design and Threat Model</a></h2>
 <h3 id="threat-model"><a class="header" href="#threat-model">Threat Model</a></h3>
@@ -202,7 +202,7 @@
 <tr><td>Memory exhaustion</td><td>Bounded buffers, size limits</td><td>Ch 7</td></tr>
 <tr><td>Buffer overflows</td><td>Rust’s memory safety</td><td>Ch 3</td></tr>
 <tr><td>Data races</td><td>Rust’s concurrency model</td><td>Ch 6</td></tr>
-<tr><td>Information disclosure</td><td>Structured logging, no secret leaks</td><td>Ch 5</td></tr>
+<tr><td>Information disclosure</td><td>Sanitized logging, no secret leaks</td><td>Ch 5, 19</td></tr>
 <tr><td>Dependency vulnerabilities</td><td>cargo-audit, cargo-deny</td><td>Ch 15, 16</td></tr>
 <tr><td>Panic-induced crashes</td><td><code>panic = "abort"</code>, explicit error handling, and poison recovery for shared state</td><td>Ch 5, 6</td></tr>
 </tbody>
@@ -226,7 +226,6 @@ edition.workspace = true
 tokio.workspace = true
 tokio-rustls.workspace = true
 rustls.workspace = true
-rustls-pemfile.workspace = true
 log.workspace = true
 env_logger.workspace = true
 thiserror.workspace = true
@@ -480,25 +479,20 @@ impl RateLimiter {
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::rustls as rustls;
-</span><span class="boring">use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
 </span>// src/tls.rs
-use rustls::ServerConfig;
+use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
-use std::fs::File;
-use std::io::BufReader;
 
 pub fn create_server_config(
     cert_path: &amp;str,
     key_path: &amp;str,
 ) -&gt; Result&lt;Arc&lt;ServerConfig&gt;, Box&lt;dyn std::error::Error&gt;&gt; {
-    let cert_file = File::open(cert_path)?;
-    let key_file = File::open(key_path)?;
-    
-    let certs: Vec&lt;_&gt; = rustls_pemfile::certs(&amp;mut BufReader::new(cert_file))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::&lt;Result&lt;Vec&lt;_&gt;, _&gt;&gt;()?;
-    
-    let key = rustls_pemfile::private_key(&amp;mut BufReader::new(key_file))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
     
     let config = ServerConfig::builder()
         .with_no_client_auth()
@@ -507,6 +501,7 @@ pub fn create_server_config(
     Ok(Arc::new(config))
 }
 <span class="boring">}</span></code></pre>
+<p>This keeps the PEM parsing path inside <code>rustls</code> itself, which avoids carrying an extra helper crate just to load certificates and keys.</p>
 <p><strong>Operational note</strong>: This server configuration loads certificates and private keys, but revocation policy is separate. If your deployment requires CRL or OCSP enforcement, configure it explicitly in your verifier or enforce it at a proxy or service mesh; otherwise prefer short-lived certificates and deliberate rotation.</p>
 <h2 id="176-connection-handler"><a class="header" href="#176-connection-handler">17.6 Connection Handler</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -716,6 +711,7 @@ impl ConnectionHandler {
     }
 }
 <span class="boring">}</span></code></pre>
+<p>Passing <code>ConnectionPermit</code> by value is the RAII part of the design: explicit increment/decrement pairs are easy to miss on early returns, timeout branches, or future refactors, while <code>Drop</code> keeps the counter balanced on every normal exit path.</p>
 <h2 id="177-main-server"><a class="header" href="#177-main-server">17.7 Main Server</a></h2>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::companion::ch17_hardened_server as ch17_hardened_server;
@@ -840,7 +836,8 @@ async fn main() -&gt; Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
                     }
                     // `permit` was moved into `handle`; it is dropped when
                     // `handle` returns, decrementing the connection count on
-                    // every exit path.
+                    // every exit path instead of relying on a hand-written
+                    // `fetch_sub` at each return site.
                 });
             }
         }

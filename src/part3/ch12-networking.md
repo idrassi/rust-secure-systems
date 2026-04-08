@@ -294,28 +294,24 @@ fn spawn_rate_limiter_cleanup(limiter: Arc<RateLimiter>) {
 [dependencies]
 tokio-rustls = "0.26"
 rustls = "0.23"
-rustls-pemfile = "2"
 ```
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::rustls as rustls;
-# use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-use rustls::ServerConfig;
+use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
 
 fn create_tls_config(
     cert_path: &str,
     key_path: &str,
 ) -> Result<Arc<ServerConfig>, Box<dyn std::error::Error>> {
-    let cert_file = std::fs::File::open(cert_path)?;
-    let key_file = std::fs::File::open(key_path)?;
-    
-    let certs: Vec<_> = rustls_pemfile::certs(&mut std::io::BufReader::new(cert_file))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::<Result<Vec<_>, _>>()?;
-    
-    let key = rustls_pemfile::private_key(&mut std::io::BufReader::new(key_file))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
     
     let config = ServerConfig::builder()
         .with_no_client_auth()
@@ -333,6 +329,8 @@ fn create_tls_config(
     Ok(Arc::new(config))
 }
 ```
+
+Current `rustls` exposes PEM parsing through `rustls::pki_types::pem::PemObject`, so you do not need a separate `rustls-pemfile` dependency for this pattern.
 
 The config object is only half the story. You still need to wrap accepted TCP streams with `tokio-rustls`:
 
@@ -407,9 +405,10 @@ Apply the same revocation thinking to client certificates. Internal PKI designs 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::rustls as rustls;
-# use rust_secure_systems_book::deps::rustls_pemfile as rustls_pemfile;
-use rustls::{RootCertStore, ServerConfig, server::WebPkiClientVerifier};
-use std::io::BufReader;
+use rustls::{
+    RootCertStore, ServerConfig, server::WebPkiClientVerifier,
+    pki_types::{CertificateDer, PrivateKeyDer, pem::PemObject},
+};
 use std::sync::Arc;
 
 fn create_mtls_config(
@@ -417,13 +416,12 @@ fn create_mtls_config(
     key_path: &str,
     client_ca_path: &str,
 ) -> Result<Arc<ServerConfig>, Box<dyn std::error::Error>> {
-    let certs = rustls_pemfile::certs(&mut BufReader::new(std::fs::File::open(cert_path)?))
+    let certs = CertificateDer::pem_file_iter(cert_path)?
         .collect::<Result<Vec<_>, _>>()?;
-    let key = rustls_pemfile::private_key(&mut BufReader::new(std::fs::File::open(key_path)?))?
-        .ok_or("no private key found")?;
+    let key = PrivateKeyDer::from_pem_file(key_path)?;
 
     let mut client_roots = RootCertStore::empty();
-    for cert in rustls_pemfile::certs(&mut BufReader::new(std::fs::File::open(client_ca_path)?)) {
+    for cert in CertificateDer::pem_file_iter(client_ca_path)? {
         client_roots.add(cert?)?;
     }
 

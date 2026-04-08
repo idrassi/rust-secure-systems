@@ -75,6 +75,8 @@ rustup update
 
 ### 2.2.1 `no_std` and Embedded Targets
 
+One Edition 2024 change is easy to miss during upgrades: `std::env::set_var` and `std::env::remove_var` are now `unsafe`. Reading environment variables with `std::env::var` is still safe, but mutating the process environment is no longer something to do casually inside multithreaded services.
+
 If your "systems programming" work includes firmware, kernels, bootloaders, or other bare-metal targets, the setup changes in security-relevant ways:
 
 - `#![no_std]` removes the standard library. If you still need heap allocation, pull in `alloc` explicitly and keep allocations bounded.
@@ -397,13 +399,12 @@ jobs:
       - name: Build book
         run: mdbook build
 
-      - name: Build snippet helper crate
-        run: |
-          rm -rf target/book-snippets-check
-          cargo check -p rust-secure-systems-book --target-dir target/book-snippets-check
-
       - name: Test book snippets
-        run: mdbook test -L target/book-snippets-check/debug/deps
+        run: |
+          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
+          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
+          cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
+          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
 
       - name: Audit dependencies
         run: |

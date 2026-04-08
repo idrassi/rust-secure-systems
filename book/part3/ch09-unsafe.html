@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-df55a967.js";
+            window.path_to_searchindex_js = "../searchindex-2cecf79f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -369,11 +369,9 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
         if self.cap &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() &gt; 0 {
             let layout = match std::alloc::Layout::array::&lt;T&gt;(self.cap) {
                 Ok(layout) =&gt; layout,
-                Err(_) =&gt; unsafe {
-                    // SAFETY: `cap` came from a successful allocation path for `T`,
-                    // so recomputing the same layout during `Drop` cannot overflow.
-                    std::hint::unreachable_unchecked()
-                },
+                Err(_) =&gt; unreachable!(
+                    "RawVec invariant violated: drop recomputed an impossible layout overflow"
+                ),
             };
             unsafe {
                 std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
@@ -382,7 +380,7 @@ impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     }
 }
 <span class="boring">}</span></code></pre>
-<p>This version turns size arithmetic failures into normal errors. It still mirrors the standard library’s usual OOM behavior by delegating null allocations to <code>handle_alloc_error</code>; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18’s <code>try_reserve_exact</code> example.</p>
+<p>This version turns size arithmetic failures into normal errors. It still mirrors the standard library’s usual OOM behavior by delegating null allocations to <code>handle_alloc_error</code>; if you need attacker-controlled growth to fail recoverably instead of aborting, prefer fallible reserve patterns such as Chapter 18’s <code>try_reserve_exact</code> example. In teaching examples, prefer a detectable panic over <code>unreachable_unchecked()</code>: if an invariant is ever broken, you want a crash you can investigate, not silent undefined behavior.</p>
 <h3 id="934-unsafecellt-is-the-foundation-of-interior-mutability"><a class="header" href="#934-unsafecellt-is-the-foundation-of-interior-mutability">9.3.4 <code>UnsafeCell&lt;T&gt;</code> Is the Foundation of Interior Mutability</a></h3>
 <p>If shared state can be mutated through a shared reference, the storage must live inside <code>UnsafeCell&lt;T&gt;</code> (or a safe abstraction built on top of it, such as <code>Cell</code>, <code>RefCell</code>, <code>Mutex</code>, or atomics):</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

@@ -81,19 +81,18 @@ fn encrypt(
     nonce_bytes: &[u8; 12],
     aad: &[u8],
     plaintext: &[u8],
-) -> Vec<u8> {
-    let unbound_key = UnboundKey::new(&AES_256_GCM, key).unwrap();
+) -> Result<Vec<u8>, ring::error::Unspecified> {
+    let unbound_key = UnboundKey::new(&AES_256_GCM, key)?;
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = plaintext.to_vec();
-    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &mut in_out)
-        .unwrap();
+    let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &mut in_out)?;
     
     // Append authentication tag to ciphertext
     let mut result = in_out;
     result.extend_from_slice(tag.as_ref());
-    result
+    Ok(result)
 }
 
 fn decrypt(
@@ -101,19 +100,21 @@ fn decrypt(
     nonce_bytes: &[u8; 12],
     aad: &[u8],
     ciphertext_and_tag: &[u8],
-) -> Option<Vec<u8>> {
-    let unbound_key = UnboundKey::new(&AES_256_GCM, key).unwrap();
+) -> Result<Vec<u8>, ring::error::Unspecified> {
+    let unbound_key = UnboundKey::new(&AES_256_GCM, key)?;
     let key = LessSafeKey::new(unbound_key);
     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
     
     let mut in_out = ciphertext_and_tag.to_vec();
-    let plaintext_len = key.open_in_place(nonce, Aad::from(aad), &mut in_out)
-        .ok()?
+    let plaintext_len = key
+        .open_in_place(nonce, Aad::from(aad), &mut in_out)?
         .len();
     
-    Some(in_out[..plaintext_len].to_vec())
+    Ok(in_out[..plaintext_len].to_vec())
 }
 ```
+
+Returning `Result` keeps crypto helpers aligned with Chapter 5's "fail explicitly" rule. The fixed-size `[u8; 32]` key type still documents the intended AES-256 key length, but the API no longer teaches panic-based error handling as the default pattern.
 
 If you are storing or transmitting the result, make the nonce part of the serialized format instead of expecting the caller to remember it out of band. A common layout is `nonce || ciphertext || tag`:
 
@@ -127,37 +128,35 @@ If you are storing or transmitting the result, make the nonce part of the serial
 #     nonce_bytes: &[u8; 12],
 #     aad: &[u8],
 #     plaintext: &[u8],
-# ) -> Vec<u8> {
-#     let unbound_key = UnboundKey::new(&AES_256_GCM, key).unwrap();
+# ) -> Result<Vec<u8>, ring::error::Unspecified> {
+#     let unbound_key = UnboundKey::new(&AES_256_GCM, key)?;
 #     let key = LessSafeKey::new(unbound_key);
 #     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
 # 
 #     let mut in_out = plaintext.to_vec();
-#     let tag = key
-#         .seal_in_place_separate_tag(nonce, Aad::from(aad), &mut in_out)
-#         .unwrap();
+#     let tag = key.seal_in_place_separate_tag(nonce, Aad::from(aad), &mut in_out)?;
 # 
 #     let mut result = in_out;
 #     result.extend_from_slice(tag.as_ref());
-#     result
+#     Ok(result)
 # }
 # fn decrypt(
 #     key: &[u8; 32],
 #     nonce_bytes: &[u8; 12],
 #     aad: &[u8],
 #     ciphertext_and_tag: &[u8],
-# ) -> Option<Vec<u8>> {
-#     let unbound_key = UnboundKey::new(&AES_256_GCM, key).unwrap();
+# ) -> Result<Vec<u8>, ring::error::Unspecified> {
+#     let unbound_key = UnboundKey::new(&AES_256_GCM, key)?;
 #     let key = LessSafeKey::new(unbound_key);
 #     let nonce = Nonce::assume_unique_for_key(*nonce_bytes);
 # 
 #     let mut in_out = ciphertext_and_tag.to_vec();
 #     let plaintext_len = key
 #         .open_in_place(nonce, Aad::from(aad), &mut in_out)
-#         .ok()?
+#         ?
 #         .len();
 # 
-#     Some(in_out[..plaintext_len].to_vec())
+#     Ok(in_out[..plaintext_len].to_vec())
 # }
 fn generate_nonce() -> [u8; 12] {
     let rng = SystemRandom::new();
@@ -166,35 +165,45 @@ fn generate_nonce() -> [u8; 12] {
     nonce
 }
 
+#[derive(Debug)]
+enum StoredCiphertextError {
+    Truncated,
+    Crypto(ring::error::Unspecified),
+}
+
 fn encrypt_for_storage(
     key: &[u8; 32],
     aad: &[u8],
     plaintext: &[u8],
-) -> Vec<u8> {
+) -> Result<Vec<u8>, ring::error::Unspecified> {
     let nonce = generate_nonce();
-    let ciphertext_and_tag = encrypt(key, &nonce, aad, plaintext);
+    let ciphertext_and_tag = encrypt(key, &nonce, aad, plaintext)?;
 
     let mut packed = nonce.to_vec();
     packed.extend_from_slice(&ciphertext_and_tag);
-    packed
+    Ok(packed)
 }
 
 fn decrypt_from_storage(
     key: &[u8; 32],
     aad: &[u8],
     packed: &[u8],
-) -> Option<Vec<u8>> {
+) -> Result<Vec<u8>, StoredCiphertextError> {
     if packed.len() < 12 {
-        return None;
+        return Err(StoredCiphertextError::Truncated);
     }
 
     let (nonce_bytes, ciphertext_and_tag) = packed.split_at(12);
-    let nonce: [u8; 12] = nonce_bytes.try_into().ok()?;
-    decrypt(key, &nonce, aad, ciphertext_and_tag)
+    let nonce: [u8; 12] = nonce_bytes
+        .try_into()
+        .map_err(|_| StoredCiphertextError::Truncated)?;
+    decrypt(key, &nonce, aad, ciphertext_and_tag).map_err(StoredCiphertextError::Crypto)
 }
 ```
 
 Here, `expect("OS CSPRNG failure")` is intentional: if the operating system cannot provide cryptographic randomness, fail closed instead of continuing with weaker entropy.
+
+The storage wrapper now distinguishes a malformed serialized record (`Truncated`) from an AEAD authentication failure (`Crypto(_)`) instead of collapsing both cases into `None`.
 
 Use AAD for metadata that must remain in the clear but still be authenticated: protocol version, content type, sender ID, key ID, or a packet header. If any AAD byte changes, decryption fails even though the bytes were never encrypted.
 
@@ -214,8 +223,10 @@ Use AAD for metadata that must remain in the clear but still be authenticated: p
 # use rust_secure_systems_book::deps::ring as ring;
 use ring::aead::{UnboundKey, CHACHA20_POLY1305};
 
-fn create_chacha20_key(key_bytes: &[u8; 32]) -> UnboundKey {
-    UnboundKey::new(&CHACHA20_POLY1305, key_bytes).unwrap()
+fn create_chacha20_key(
+    key_bytes: &[u8; 32],
+) -> Result<UnboundKey, ring::error::Unspecified> {
+    UnboundKey::new(&CHACHA20_POLY1305, key_bytes)
 }
 ```
 
@@ -260,15 +271,19 @@ impl ring::hkdf::KeyType for KeyBytes {
     }
 }
 
-fn derive_key(secret: &[u8], salt: &[u8], info: &[u8]) -> [u8; 32] {
+fn derive_key(
+    secret: &[u8],
+    salt: &[u8],
+    info: &[u8],
+) -> Result<[u8; 32], ring::error::Unspecified> {
     let salt = Salt::new(HKDF_SHA256, salt);
     let prk = salt.extract(secret);
     
     let mut key = [0u8; 32];
     let binding = [info];
-    let okm = prk.expand(&binding, KeyBytes).unwrap();
-    okm.fill(&mut key).unwrap();
-    key
+    let okm = prk.expand(&binding, KeyBytes)?;
+    okm.fill(&mut key)?;
+    Ok(key)
 }
 ```
 
@@ -359,22 +374,30 @@ fn hash_password(password: &str) -> Result<String, password_hash::errors::Error>
     Ok(hash.to_string())
 }
 
-fn verify_password(password: &str, hash: &str) -> bool {
-    let parsed = match PasswordHash::new(hash) {
-        Ok(h) => h,
-        Err(_) => return false,
-    };
-    Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
+fn parse_password_hash(
+    hash: &str,
+) -> Result<PasswordHash<'_>, password_hash::errors::Error> {
+    PasswordHash::new(hash)
+}
+
+fn verify_password(password: &str, parsed_hash: &PasswordHash<'_>) -> bool {
+    Argon2::default()
+        .verify_password(password.as_bytes(), parsed_hash)
+        .is_ok()
 }
 ```
 
 ⚠️ **Authentication timing pitfall**: Constant-time byte comparison is not enough if your surrounding control flow still leaks information. If a login path returns immediately for "user not found" but runs Argon2 for "wrong password", an attacker can distinguish the two cases from latency. For username/password authentication, always run the password check against either the real stored hash or a fixed dummy Argon2 hash, then return the same external error in both cases.
+
+Parse and validate PHC strings when you load or migrate account records, not inside the hot authentication path. A malformed stored hash is an internal integrity problem to alert on, not a second externally visible login outcome.
 
 🔒 **Argon2 parameters** (per OWASP recommendations):
 - **Memory**: 19 MiB (19,456 KiB) minimum
 - **Iterations**: 2 time cost (passes) minimum
 - **Parallelism**: 1 degree of parallelism minimum
 - Adjust upward based on your hardware and acceptable verification latency
+
+At the time of writing, `Argon2::default()` in the `argon2` 0.5 crate maps to **Argon2id v19** with those same baseline parameters: `m=19*1024 KiB`, `t=2`, `p=1`. When parameter reviewability matters, spell them out explicitly instead of relying on a default.
 
 ⚠️ **Legacy migration note**: bcrypt is still common in deployed systems. Do not choose it for a new design when Argon2id is available, but keep a bcrypt verifier in migration paths so existing password hashes can be checked once and then rehashed to Argon2id after a successful login.
 
@@ -445,20 +468,20 @@ use ring::{
     aead::{Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM},
 };
 
-fn key_exchange_pipeline() {
+fn key_exchange_pipeline() -> Result<(), ring::error::Unspecified> {
     // 1. Each party generates an ephemeral key pair
     let rng = ring::rand::SystemRandom::new();
-    let alice_private = agreement::EphemeralPrivateKey::generate(&X25519, &rng).unwrap();
-    let alice_public = alice_private.compute_public_key().unwrap();
+    let alice_private = agreement::EphemeralPrivateKey::generate(&X25519, &rng)?;
+    let alice_public = alice_private.compute_public_key()?;
     
-    let bob_private = agreement::EphemeralPrivateKey::generate(&X25519, &rng).unwrap();
-    let bob_public = bob_private.compute_public_key().unwrap();
+    let bob_private = agreement::EphemeralPrivateKey::generate(&X25519, &rng)?;
+    let bob_public = bob_private.compute_public_key()?;
     
     // 2. Key agreement - both parties derive the same shared secret
     let alice_shared = agreement::agree_ephemeral(
         alice_private,
         &UnparsedPublicKey::new(&X25519, bob_public.as_ref()),
-        |shared_secret| {
+        |shared_secret| -> Result<[u8; 32], ring::error::Unspecified> {
             // 3. Derive encryption key from shared secret using HKDF
             let salt = Salt::new(HKDF_SHA256, b"session-salt");
             let prk = salt.extract(shared_secret);
@@ -469,15 +492,17 @@ fn key_exchange_pipeline() {
             }
             
             let mut key_bytes = [0u8; 32];
-            prk.expand(&[b"encryption-key"], KeyLen).unwrap().fill(&mut key_bytes).unwrap();
-            key_bytes
+            prk.expand(&[b"encryption-key"], KeyLen)?
+                .fill(&mut key_bytes)?;
+            Ok::<[u8; 32], ring::error::Unspecified>(key_bytes)
         },
-    ).unwrap();
+    )??;
     
     // 4. Encrypt with the derived key
-    let unbound_key = UnboundKey::new(&AES_256_GCM, &alice_shared).unwrap();
+    let unbound_key = UnboundKey::new(&AES_256_GCM, &alice_shared)?;
     let key = LessSafeKey::new(unbound_key);
     // ... use key.seal_in_place_separate_tag / open_in_place
+    Ok(())
 }
 ```
 

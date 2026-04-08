@@ -116,7 +116,12 @@ impl From<ParseIntError> for AppError {
 }
 
 fn parse_port_number(s: &str) -> Result<u16, AppError> {
+    // This example follows the book's default network-service policy:
+    // port 0 is reserved rather than silently accepted.
     let port: u32 = s.parse()?;           // ParseIntError → AppError via From
+    if port == 0 {
+        return Err(AppError::InvalidData("Port 0 is reserved".to_string()));
+    }
     if port > 65535 {
         return Err(AppError::InvalidData(format!("Port {} out of range", port)));
     }
@@ -139,7 +144,7 @@ pub enum SecurityError {
     /// Authorization denied
     AccessDenied { user_id: u64, resource: String, required_role: String },
     /// Input validation failure
-    ValidationFailed { field: String, value: String, constraint: String },
+    ValidationFailed { field: String, constraint: String },
     /// Rate limit exceeded
     RateLimited { client_ip: std::net::IpAddr, retry_after: std::time::Duration },
     /// Cryptographic operation failed
@@ -155,12 +160,12 @@ impl fmt::Display for SecurityError {
                 write!(f, "Authentication failed for '{}': {}", username, reason)
             }
             SecurityError::AccessDenied { user_id, resource, required_role } => {
-                write!(f, "User {} denied access to '{}' (requires {})", 
+                write!(f, "User {} denied access to '{}' (requires {})",
                        user_id, resource, required_role)
             }
-            SecurityError::ValidationFailed { field, value, constraint } => {
-                write!(f, "Validation failed for '{}': {} (constraint: {})", 
-                       field, value, constraint)
+            SecurityError::ValidationFailed { field, constraint } => {
+                write!(f, "Validation failed for '{}' (constraint: {})",
+                       field, constraint)
             }
             SecurityError::RateLimited { client_ip, retry_after } => {
                 write!(f, "Rate limited {}: retry after {:?}", client_ip, retry_after)
@@ -181,6 +186,8 @@ impl std::error::Error for SecurityError {}
 🔒 **Security practice**: Never include sensitive data (passwords, tokens, raw keys) in error messages. Error strings may be logged, displayed, or leaked to attackers. Note in the example above, `username` is logged but passwords are never included.
 
 ## 5.4 The `thiserror` and `anyhow` Crates
+
+Treat the raw rejected value as separate from the user-facing error. Report which field failed and which constraint it violated; if operators need the original value for investigation, log it separately on a sanitized internal channel.
 
 ### `thiserror` - Derive Error for Libraries
 
@@ -300,7 +307,7 @@ Chapter 10 returns to the same boundary from the ABI side: use this pattern toge
 # enum SecurityError {
 #     AuthenticationFailed { username: String, reason: String },
 #     AccessDenied { user_id: u64, resource: String, required_role: String },
-#     ValidationFailed { field: String, value: String, constraint: String },
+#     ValidationFailed { field: String, constraint: String },
 # }
 #
 #[derive(Debug)]
@@ -379,7 +386,6 @@ fn validate_input(body: &[u8]) -> Result<Vec<u8>, SecurityError> {
     if body.is_empty() {
         Err(SecurityError::ValidationFailed {
             field: "body".to_string(),
-            value: String::new(),
             constraint: "must not be empty".to_string(),
         })
     } else {
@@ -397,7 +403,7 @@ fn execute(_user: &User, _validated: &[u8]) -> Result<String, SecurityError> {
 ```rust
 #[derive(Debug)]
 enum SecurityError {
-    ValidationFailed { field: String, value: String, constraint: String },
+    ValidationFailed { field: String, constraint: String },
 }
 
 fn parse_env_port(env_var: String) -> Result<u16, SecurityError> {
@@ -407,7 +413,6 @@ fn parse_env_port(env_var: String) -> Result<u16, SecurityError> {
     env_var.parse()
         .map_err(|_| SecurityError::ValidationFailed {
             field: "PORT".to_string(),
-            value: env_var.clone(),
             constraint: "must be a valid u16".to_string(),
         })
 }
@@ -420,7 +425,7 @@ fn parse_env_port(env_var: String) -> Result<u16, SecurityError> {
 # enum SecurityError {
 #     AuthenticationFailed { username: String, reason: String },
 #     AccessDenied { user_id: u64, resource: String, required_role: String },
-#     ValidationFailed { field: String, value: String, constraint: String },
+#     ValidationFailed { field: String, constraint: String },
 # }
 #
 mod log {

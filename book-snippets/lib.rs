@@ -29,7 +29,6 @@ pub mod deps {
     pub use rand_core;
     pub use ring;
     pub use rustls;
-    pub use rustls_pemfile;
     pub use secrecy;
     pub use serde;
     pub use serde_json;

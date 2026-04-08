@@ -35,7 +35,6 @@ hex = "0.4"
 log = "0.4"
 proptest = "1"
 rustls = "0.23"
-rustls-pemfile = "2"
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
@@ -68,7 +67,6 @@ rand = "0.8"
 rand_core = { version = "0.6", features = ["std"] }
 ring = "0.17"
 rustls.workspace = true
-rustls-pemfile.workspace = true
 secrecy = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -80,15 +78,15 @@ tokio-rustls.workspace = true
 tokio-util = { version = "0.7", features = ["codec"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
-wasmtime = "25"
+wasmtime = { version = "24.0.6", default-features = false, features = ["cranelift", "runtime", "std"] }
 webpki-roots = "0.26"
 windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }
 x25519-dalek = { version = "2", features = ["zeroize"] }
 zerocopy = { version = "0.8", features = ["derive"] }
 zeroize.workspace = true
-ch12_networking = { package = "ch12-networking", path = "companion/ch12-networking" }
-ch17_hardened_server = { package = "ch17-hardened-server", path = "companion/ch17-hardened-server" }
-ch19_hardening = { package = "ch19-hardening", path = "companion/ch19-hardening" }
+ch12_networking = { package = "ch12-networking", path = "companion/ch12-networking", version = "0.1.0" }
+ch17_hardened_server = { package = "ch17-hardened-server", path = "companion/ch17-hardened-server", version = "0.1.0" }
+ch19_hardening = { package = "ch19-hardening", path = "companion/ch19-hardening", version = "0.1.0" }
 
 [profile.release]
 overflow-checks = true
