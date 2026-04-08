@@ -244,7 +244,7 @@ impl Drop for SecureBuffer {
             unsafe { std::ptr::write_volatile(byte, 0); }
         }
         // A barrier after the wipe is enough: it keeps the optimizer from
-        // moving or eliding the volatile writes before the eventual free.
+        // moving the Vec's eventual deallocation ahead of these volatile writes.
         std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // Vec will be freed after this
     }

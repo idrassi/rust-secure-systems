@@ -845,6 +845,6 @@ In the next chapter, we build a secure binary parser: another common security-cr
 
 1. **Mutual TLS**: Extend `create_server_config()` to require and verify client certificates for privileged peers. Add tests for: valid client certificate accepted, unknown CA rejected, expired client certificate rejected, and plaintext clients rejected before application data is processed.
 
-2. **Graceful Shutdown**: Add graceful shutdown to the server: listen for SIGTERM (Unix) or Ctrl+C, stop accepting new connections, wait for existing connections to complete (with a timeout), and then exit cleanly. Ensure all connection counters are correctly decremented on shutdown.
+2. **TLS Handshake Drain**: Extend the shutdown path so it tracks in-flight TLS handshakes separately from established sessions. On shutdown, stop accepting new sockets, wait up to `SHUTDOWN_GRACE_SECS` for both handshakes and active sessions to drain, then abort anything still stuck. Add tests that verify the connection counter returns to zero and that a stalled handshake cannot hang shutdown forever.
 
 3. **Load Test**: Write a load-testing client that opens 500 concurrent connections and sends 100 messages per connection. Verify that: (a) the server never exceeds `MAX_CONNECTIONS`, (b) the rate limiter triggers for abusive clients, (c) no panics or errors appear in the server logs. Measure throughput and latency percentiles (p50, p99).

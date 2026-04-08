@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -262,7 +262,7 @@ fn main() {
 
     assert_eq!(counters, [1, 1, 1, 1]);
 }</code></pre>
-<p>The <code>move</code> here moves the <code>&amp;mut u64</code> borrow into each closure, not the integer itself. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
+<p>Each <code>scope.spawn</code> closure captures one <code>&amp;mut u64</code> from the loop iterator, and <code>move</code> is what lets the closure own that reference. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
 <p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
 <p>On constrained systems, pair this with <code>std::thread::Builder</code> when you need explicit thread names or stack-size control:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]

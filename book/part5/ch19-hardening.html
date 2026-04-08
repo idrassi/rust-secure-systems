@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -727,6 +727,7 @@ fn mask_token(token: &amp;str) -&gt; String {
 }
 <span class="boring">}</span></code></pre>
 <p>Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.</p>
+<p>This masking helper is for display and logging only. It is not constant-time and must never replace constant-time secret comparisons.</p>
 <p>Treat attacker-controlled strings as structured fields, not preformatted log lines. If you still have to feed a line-oriented sink, strip or encode <code>\r</code> and <code>\n</code> first so request data cannot forge extra log entries.</p>
 <h3 id="1943-security-event-taxonomy"><a class="header" href="#1943-security-event-taxonomy">19.4.3 Security Event Taxonomy</a></h3>
 <p>Define a consistent set of security event types across your application for reliable alerting:</p>
@@ -924,6 +925,7 @@ where
 <li><strong>Emit reload telemetry</strong>. Track the active key ID, reload success/failure, and time-to-expiry so an expired lease becomes a page, not a surprise outage.</li>
 </ul>
 <p>With the <code>rustls</code> pattern from Chapter 12, this means creating the <code>TlsAcceptor</code> from the current shared <code>Arc&lt;ServerConfig&gt;</code> for each new handshake instead of baking one immutable config into process startup. If a credential cannot be reloaded safely in process, prefer a controlled rolling restart over ad hoc in-place mutation of shared state.</p>
+<p>For public internet-facing services, automate certificate issuance and renewal instead of treating TLS rotation as a manual runbook. In Rust, <code>rustls-acme</code> provides <code>rustls</code>-oriented certificate management, while <code>instant-acme</code> is a lower-level ACME client if you need custom control-plane logic. However you implement it, validate the new chain before publication, emit renewal telemetry, and page before a renewal failure turns into an expiry outage.</p>
 <h3 id="1955-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1955-hardware-backed-keys-and-platform-keystores">19.5.5 Hardware-Backed Keys and Platform Keystores</a></h3>
 <p>When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.</p>
 <p>Practical options in Rust:</p>
@@ -1109,7 +1111,7 @@ aa-genprof /usr/local/bin/secure-server
 <li><input disabled="" type="checkbox"> Security metrics exported (prometheus, cloudwatch, etc.)</li>
 <li><input disabled="" type="checkbox"> Health check endpoint available</li>
 <li><input disabled="" type="checkbox"> Alerting configured for auth failures, rate limits, errors</li>
-<li><input disabled="" type="checkbox"> TLS certificates valid and monitored for expiry</li>
+<li><input disabled="" type="checkbox"> TLS certificates valid, monitored for expiry, and renewed by a tested automation path</li>
 </ul>
 <h3 id="documentation"><a class="header" href="#documentation">Documentation</a></h3>
 <ul>

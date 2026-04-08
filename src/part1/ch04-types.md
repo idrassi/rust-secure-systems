@@ -359,11 +359,9 @@ impl TryFrom<u32> for Port {
     type Error = &'static str;
     
     fn try_from(value: u32) -> Result<Self, Self::Error> {
-        if value <= 65535 {
-            Ok(Port(value as u16))
-        } else {
-            Err("Port number out of range")
-        }
+        u16::try_from(value)
+            .map(Port)
+            .map_err(|_| "Port number out of range")
     }
 }
 
@@ -373,6 +371,8 @@ fn bind(port: Port) {
 ```
 
 🔒 **Security pattern**: Use `TryFrom` for all conversions where the source type is wider than the target type (e.g., `u32` → `u16`, `usize` → `u8`). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).
+
+⚠️ **Avoid narrowing with `as` in security-critical code**: an unchecked cast such as `value as u16` silently truncates on overflow (CWE-197). If the conversion can fail, keep it explicit with `TryFrom`/`try_into()` and handle the error path.
 
 When zero has no valid meaning, prefer `NonZeroU32` or `NonZeroUsize` over a plain integer. This lets the type system reject sentinel `0` values up front and can make `Option<NonZeroU32>` more compact than `Option<u32>`.
 This example only demonstrates a range-checked narrowing conversion; Chapter 7's production `Port` validator adds policy-level checks and rejects reserved port `0`.

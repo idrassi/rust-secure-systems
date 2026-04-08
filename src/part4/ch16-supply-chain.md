@@ -250,7 +250,11 @@ For air-gapped environments:
 ```bash
 # Vendor all dependencies into the source tree
 mkdir -p .cargo
-cargo vendor vendor > .cargo/config.toml
+cargo vendor vendor > .cargo/vendor-config.toml
+
+# Merge the emitted [source] configuration into .cargo/config.toml
+# instead of overwriting any existing target, rustflags, or env settings.
+# If you do not already have .cargo/config.toml, rename vendor-config.toml to config.toml.
 
 # The vendor/ directory is now self-contained
 # Build without network access

@@ -101,7 +101,7 @@ fn main() {
 }
 ```
 
-The `move` here moves the `&mut u64` borrow into each closure, not the integer itself. That is safe because `thread::scope` guarantees every spawned thread exits before `counters` goes out of scope.
+Each `scope.spawn` closure captures one `&mut u64` from the loop iterator, and `move` is what lets the closure own that reference. That is safe because `thread::scope` guarantees every spawned thread exits before `counters` goes out of scope.
 
 This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.
 

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -1003,7 +1003,7 @@ mod tests {
 <p><strong>Mutual TLS</strong>: Extend <code>create_server_config()</code> to require and verify client certificates for privileged peers. Add tests for: valid client certificate accepted, unknown CA rejected, expired client certificate rejected, and plaintext clients rejected before application data is processed.</p>
 </li>
 <li>
-<p><strong>Graceful Shutdown</strong>: Add graceful shutdown to the server: listen for SIGTERM (Unix) or Ctrl+C, stop accepting new connections, wait for existing connections to complete (with a timeout), and then exit cleanly. Ensure all connection counters are correctly decremented on shutdown.</p>
+<p><strong>TLS Handshake Drain</strong>: Extend the shutdown path so it tracks in-flight TLS handshakes separately from established sessions. On shutdown, stop accepting new sockets, wait up to <code>SHUTDOWN_GRACE_SECS</code> for both handshakes and active sessions to drain, then abort anything still stuck. Add tests that verify the connection counter returns to zero and that a stalled handshake cannot hang shutdown forever.</p>
 </li>
 <li>
 <p><strong>Load Test</strong>: Write a load-testing client that opens 500 concurrent connections and sends 100 messages per connection. Verify that: (a) the server never exceeds <code>MAX_CONNECTIONS</code>, (b) the rate limiter triggers for abusive clients, (c) no panics or errors appear in the server logs. Measure throughput and latency percentiles (p50, p99).</p>

@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -384,9 +384,9 @@ strip = false                # Keep symbols while debugging locally
 lto = true                   # Link-time optimization (removes dead code)
 codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
-opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
+opt-level = 1                # Better debugging fidelity than "z" during local crash analysis
 </code></pre>
-<p>This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep <code>debug = true</code> and <code>strip = false</code> while doing local crash analysis, then switch to the stripped production profile once you publish or deploy the binary. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
+<p>This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep <code>debug = true</code> and <code>strip = false</code> while doing local crash analysis, and pair that with <code>opt-level = 1</code> or <code>2</code> while you still need debuggable stack traces and locals. Once debugging is done, switch to the stripped production profile and, if size is the goal, move to <code>opt-level = "z"</code> deliberately.</p>
 <p>🔒 <strong>Critical setting</strong>: <code>overflow-checks = true</code> in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.</p>
 <p>⚠️ <strong>Trade-off</strong>: <code>panic = "abort"</code> skips <code>Drop</code> during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use <code>Result</code> for attacker-controlled failures and reserve <code>panic = "abort"</code> for codebases where that trade-off is explicit.</p>
 <p>A practical default matrix:</p>

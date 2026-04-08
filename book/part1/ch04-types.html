@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -501,11 +501,9 @@ impl TryFrom&lt;u32&gt; for Port {
     type Error = &amp;'static str;
     
     fn try_from(value: u32) -&gt; Result&lt;Self, Self::Error&gt; {
-        if value &lt;= 65535 {
-            Ok(Port(value as u16))
-        } else {
-            Err("Port number out of range")
-        }
+        u16::try_from(value)
+            .map(Port)
+            .map_err(|_| "Port number out of range")
     }
 }
 
@@ -514,6 +512,7 @@ fn bind(port: Port) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>TryFrom</code> for all conversions where the source type is wider than the target type (e.g., <code>u32</code> → <code>u16</code>, <code>usize</code> → <code>u8</code>). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).</p>
+<p>⚠️ <strong>Avoid narrowing with <code>as</code> in security-critical code</strong>: an unchecked cast such as <code>value as u16</code> silently truncates on overflow (CWE-197). If the conversion can fail, keep it explicit with <code>TryFrom</code>/<code>try_into()</code> and handle the error path.</p>
 <p>When zero has no valid meaning, prefer <code>NonZeroU32</code> or <code>NonZeroUsize</code> over a plain integer. This lets the type system reject sentinel <code>0</code> values up front and can make <code>Option&lt;NonZeroU32&gt;</code> more compact than <code>Option&lt;u32&gt;</code>.
 This example only demonstrates a range-checked narrowing conversion; Chapter 7’s production <code>Port</code> validator adds policy-level checks and rejects reserved port <code>0</code>.</p>
 <h2 id="46-pattern-matching-deep-dive"><a class="header" href="#46-pattern-matching-deep-dive">4.6 Pattern Matching Deep Dive</a></h2>

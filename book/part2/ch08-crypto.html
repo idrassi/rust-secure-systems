@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -235,6 +235,7 @@ ed25519-dalek = { version = "2", features = ["zeroize"] }
 x25519-dalek = { version = "2", features = ["zeroize"] }
 </code></pre>
 <p>🔒 <strong>Recommendation</strong>: Use <code>ring</code> for production cryptographic operations (audited, widely deployed). Use RustCrypto crates when you need pure-Rust implementations (no C dependencies, easier cross-compilation).</p>
+<p>For FIPS-constrained deployments, do not assume <code>ring</code> satisfies the requirement. Evaluate an AWS-LC-based stack such as <code>aws-lc-rs</code> instead, and verify the exact module status, build flags, and operating environment against your compliance boundary before you ship.</p>
 <h2 id="82-authenticated-encryption"><a class="header" href="#82-authenticated-encryption">8.2 Authenticated Encryption</a></h2>
 <p><strong>Always use authenticated encryption.</strong> Never use encryption without authentication (e.g., AES-CBC without HMAC). This prevents chosen-ciphertext attacks and padding oracle attacks.</p>
 <h3 id="aes-256-gcm-with-ring"><a class="header" href="#aes-256-gcm-with-ring">AES-256-GCM with ring</a></h3>
@@ -436,7 +437,7 @@ fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32
 </span>use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; production systems should store per-hash parameters and override policy from validated config.
 const PBKDF2_ITERATIONS: NonZeroU32 =
     const { NonZeroU32::new(PBKDF2_ITERATION_COUNT).unwrap() };
 

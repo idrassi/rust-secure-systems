@@ -246,6 +246,8 @@ impl RateLimiter {
 
 Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example `/64`) or authenticated/user-based limits in front of the service.
 
+Rust's default `HashMap` hasher is randomly keyed, which makes collision attacks harder for attacker-controlled keys. Treat that as a security property: if you replace it with a fixed-seed or non-random hasher for speed, you are trading throughput for less HashDoS resistance on untrusted input.
+
 For authenticated endpoints, enforce a second quota keyed by the stable account identity rather than trusting network address alone:
 
 ```rust

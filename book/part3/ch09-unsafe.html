@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -367,8 +367,14 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
 impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     fn drop(&amp;mut self) {
         if self.cap &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() &gt; 0 {
-            let layout = std::alloc::Layout::array::&lt;T&gt;(self.cap)
-                .expect("layout overflow in drop");
+            let layout = match std::alloc::Layout::array::&lt;T&gt;(self.cap) {
+                Ok(layout) =&gt; layout,
+                Err(_) =&gt; unsafe {
+                    // SAFETY: `cap` came from a successful allocation path for `T`,
+                    // so recomputing the same layout during `Drop` cannot overflow.
+                    std::hint::unreachable_unchecked()
+                },
+            };
             unsafe {
                 std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
             }

@@ -27,11 +27,11 @@ You do **not** need prior Rust experience. We assume familiarity with systems pr
 
 The book is structured in five parts:
 
-1. **Foundations** (Chapters 1-4): Rust basics through a security lens,why Rust matters, setup, ownership/borrowing, and the type system.
-2. **Secure by Design** (Chapters 5-8): Error handling, concurrency safety, input validation, and cryptography,core patterns for writing secure software.
-3. **Systems Programming** (Chapters 9-12): Unsafe Rust, FFI, memory layout, and network programming,bridging the gap between safe abstractions and the bare metal.
-4. **Assurance and Verification** (Chapters 13-16): Testing, fuzzing, static analysis, and supply chain security,proving your code is correct.
-5. **Practical Secure Systems** (Chapters 17-19): Three hands-on projects that bring everything together,a hardened TCP server, a secure parser, and deployment hardening.
+1. **Foundations** (Chapters 1-4): Rust basics through a security lens, including why Rust matters, setup, ownership/borrowing, and the type system.
+2. **Secure by Design** (Chapters 5-8): Error handling, concurrency safety, input validation, and cryptography, including core patterns for writing secure software.
+3. **Systems Programming** (Chapters 9-12): Unsafe Rust, FFI, memory layout, and network programming, allowing to bridge the gap between safe abstractions and the bare metal.
+4. **Assurance and Verification** (Chapters 13-16): Testing, fuzzing, static analysis, and supply chain security, in order to  prove your code is correct.
+5. **Practical Secure Systems** (Chapters 17-19): Three hands-on projects that bring everything together, a hardened TCP server, a secure parser, and deployment hardening.
 
 ## A Note on Mindset
 

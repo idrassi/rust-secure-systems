@@ -199,8 +199,14 @@ impl<T> RawVec<T> {
 impl<T> Drop for RawVec<T> {
     fn drop(&mut self) {
         if self.cap > 0 && std::mem::size_of::<T>() > 0 {
-            let layout = std::alloc::Layout::array::<T>(self.cap)
-                .expect("layout overflow in drop");
+            let layout = match std::alloc::Layout::array::<T>(self.cap) {
+                Ok(layout) => layout,
+                Err(_) => unsafe {
+                    // SAFETY: `cap` came from a successful allocation path for `T`,
+                    // so recomputing the same layout during `Drop` cannot overflow.
+                    std::hint::unreachable_unchecked()
+                },
+            };
             unsafe {
                 std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
             }

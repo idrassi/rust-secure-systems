@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -416,6 +416,7 @@ impl RateLimiter {
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
 <p>Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example <code>/64</code>) or authenticated/user-based limits in front of the service.</p>
+<p>Rust’s default <code>HashMap</code> hasher is randomly keyed, which makes collision attacks harder for attacker-controlled keys. Treat that as a security property: if you replace it with a fixed-seed or non-random hasher for speed, you are trading throughput for less HashDoS resistance on untrusted input.</p>
 <p>For authenticated endpoints, enforce a second quota keyed by the stable account identity rather than trusting network address alone:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {

@@ -605,6 +605,8 @@ fn mask_token(token: &str) -> String {
 
 Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.
 
+This masking helper is for display and logging only. It is not constant-time and must never replace constant-time secret comparisons.
+
 Treat attacker-controlled strings as structured fields, not preformatted log lines. If you still have to feed a line-oriented sink, strip or encode `\r` and `\n` first so request data cannot forge extra log entries.
 
 ### 19.4.3 Security Event Taxonomy
@@ -820,6 +822,8 @@ Loading a secret once at startup is the easy case. Long-lived Tokio services nee
 
 With the `rustls` pattern from Chapter 12, this means creating the `TlsAcceptor` from the current shared `Arc<ServerConfig>` for each new handshake instead of baking one immutable config into process startup. If a credential cannot be reloaded safely in process, prefer a controlled rolling restart over ad hoc in-place mutation of shared state.
 
+For public internet-facing services, automate certificate issuance and renewal instead of treating TLS rotation as a manual runbook. In Rust, `rustls-acme` provides `rustls`-oriented certificate management, while `instant-acme` is a lower-level ACME client if you need custom control-plane logic. However you implement it, validate the new chain before publication, emit renewal telemetry, and page before a renewal failure turns into an expiry outage.
+
 ### 19.5.5 Hardware-Backed Keys and Platform Keystores
 
 When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.
@@ -1031,7 +1035,7 @@ Before deploying a Rust application to production:
 - [ ] Security metrics exported (prometheus, cloudwatch, etc.)
 - [ ] Health check endpoint available
 - [ ] Alerting configured for auth failures, rate limits, errors
-- [ ] TLS certificates valid and monitored for expiry
+- [ ] TLS certificates valid, monitored for expiry, and renewed by a tested automation path
 
 ### Documentation
 - [ ] Security policy documented (`SECURITY.md`)

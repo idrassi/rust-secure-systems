@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -206,11 +206,11 @@
 <h2 id="how-this-book-is-organized"><a class="header" href="#how-this-book-is-organized">How This Book Is Organized</a></h2>
 <p>The book is structured in five parts:</p>
 <ol>
-<li><strong>Foundations</strong> (Chapters 1-4): Rust basics through a security lens,why Rust matters, setup, ownership/borrowing, and the type system.</li>
-<li><strong>Secure by Design</strong> (Chapters 5-8): Error handling, concurrency safety, input validation, and cryptography,core patterns for writing secure software.</li>
-<li><strong>Systems Programming</strong> (Chapters 9-12): Unsafe Rust, FFI, memory layout, and network programming,bridging the gap between safe abstractions and the bare metal.</li>
-<li><strong>Assurance and Verification</strong> (Chapters 13-16): Testing, fuzzing, static analysis, and supply chain security,proving your code is correct.</li>
-<li><strong>Practical Secure Systems</strong> (Chapters 17-19): Three hands-on projects that bring everything together,a hardened TCP server, a secure parser, and deployment hardening.</li>
+<li><strong>Foundations</strong> (Chapters 1-4): Rust basics through a security lens, including why Rust matters, setup, ownership/borrowing, and the type system.</li>
+<li><strong>Secure by Design</strong> (Chapters 5-8): Error handling, concurrency safety, input validation, and cryptography, including core patterns for writing secure software.</li>
+<li><strong>Systems Programming</strong> (Chapters 9-12): Unsafe Rust, FFI, memory layout, and network programming, allowing to bridge the gap between safe abstractions and the bare metal.</li>
+<li><strong>Assurance and Verification</strong> (Chapters 13-16): Testing, fuzzing, static analysis, and supply chain security, in order to  prove your code is correct.</li>
+<li><strong>Practical Secure Systems</strong> (Chapters 17-19): Three hands-on projects that bring everything together, a hardened TCP server, a secure parser, and deployment hardening.</li>
 </ol>
 <h2 id="a-note-on-mindset"><a class="header" href="#a-note-on-mindset">A Note on Mindset</a></h2>
 <p>As a security-focused developer, you are accustomed to asking “what can go wrong?” Rust asks a different question: “what can the compiler prove is correct?” Learning to trust and verify the compiler is a key part of the Rust experience. But Rust also provides escape hatches (<code>unsafe</code>), and knowing when and how to use them safely is critical. This book spends significant time on that topic.</p>
@@ -616,9 +616,9 @@ strip = false                # Keep symbols while debugging locally
 lto = true                   # Link-time optimization (removes dead code)
 codegen-units = 1            # Better optimization, slower compile
 panic = "abort"              # Abort on panic (smaller binary, no unwinding)
-opt-level = "z"              # Optimize for minimum size (more aggressive than "s")
+opt-level = 1                # Better debugging fidelity than "z" during local crash analysis
 </code></pre>
-<p>This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep <code>debug = true</code> and <code>strip = false</code> while doing local crash analysis, then switch to the stripped production profile once you publish or deploy the binary. <code>opt-level = "z"</code> is more aggressive about shrinking code than <code>"s"</code>; if your deployment cares more about throughput than binary footprint, benchmark deliberately and document the choice.</p>
+<p>This is the audit-friendly variant of the hardened release profile used later in Chapter 19: keep <code>debug = true</code> and <code>strip = false</code> while doing local crash analysis, and pair that with <code>opt-level = 1</code> or <code>2</code> while you still need debuggable stack traces and locals. Once debugging is done, switch to the stripped production profile and, if size is the goal, move to <code>opt-level = "z"</code> deliberately.</p>
 <p>🔒 <strong>Critical setting</strong>: <code>overflow-checks = true</code> in release builds. By default, Rust wraps on integer overflow in release mode. For security-critical code, panicking on overflow is almost always the correct choice.</p>
 <p>⚠️ <strong>Trade-off</strong>: <code>panic = "abort"</code> skips <code>Drop</code> during panic paths. That is useful for FFI boundaries and smaller binaries, but it also means panic-triggered cleanup such as secret zeroization will not run. Use <code>Result</code> for attacker-controlled failures and reserve <code>panic = "abort"</code> for codebases where that trade-off is explicit.</p>
 <p>A practical default matrix:</p>
@@ -950,7 +950,7 @@ impl Drop for SecureBuffer {
             unsafe { std::ptr::write_volatile(byte, 0); }
         }
         // A barrier after the wipe is enough: it keeps the optimizer from
-        // moving or eliding the volatile writes before the eventual free.
+        // moving the Vec's eventual deallocation ahead of these volatile writes.
         std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
         // Vec will be freed after this
     }
@@ -1392,11 +1392,9 @@ impl TryFrom&lt;u32&gt; for Port {
     type Error = &amp;'static str;
     
     fn try_from(value: u32) -&gt; Result&lt;Self, Self::Error&gt; {
-        if value &lt;= 65535 {
-            Ok(Port(value as u16))
-        } else {
-            Err("Port number out of range")
-        }
+        u16::try_from(value)
+            .map(Port)
+            .map_err(|_| "Port number out of range")
     }
 }
 
@@ -1405,6 +1403,7 @@ fn bind(port: Port) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: Use <code>TryFrom</code> for all conversions where the source type is wider than the target type (e.g., <code>u32</code> → <code>u16</code>, <code>usize</code> → <code>u8</code>). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).</p>
+<p>⚠️ <strong>Avoid narrowing with <code>as</code> in security-critical code</strong>: an unchecked cast such as <code>value as u16</code> silently truncates on overflow (CWE-197). If the conversion can fail, keep it explicit with <code>TryFrom</code>/<code>try_into()</code> and handle the error path.</p>
 <p>When zero has no valid meaning, prefer <code>NonZeroU32</code> or <code>NonZeroUsize</code> over a plain integer. This lets the type system reject sentinel <code>0</code> values up front and can make <code>Option&lt;NonZeroU32&gt;</code> more compact than <code>Option&lt;u32&gt;</code>.
 This example only demonstrates a range-checked narrowing conversion; Chapter 7’s production <code>Port</code> validator adds policy-level checks and rejects reserved port <code>0</code>.</p>
 <h2 id="46-pattern-matching-deep-dive"><a class="header" href="#46-pattern-matching-deep-dive">4.6 Pattern Matching Deep Dive</a></h2>
@@ -2140,7 +2139,7 @@ fn main() {
 
     assert_eq!(counters, [1, 1, 1, 1]);
 }</code></pre>
-<p>The <code>move</code> here moves the <code>&amp;mut u64</code> borrow into each closure, not the integer itself. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
+<p>Each <code>scope.spawn</code> closure captures one <code>&amp;mut u64</code> from the loop iterator, and <code>move</code> is what lets the closure own that reference. That is safe because <code>thread::scope</code> guarantees every spawned thread exits before <code>counters</code> goes out of scope.</p>
 <p>This is especially useful in parser pipelines and batch validation code: worker threads can borrow stack data safely, and the compiler guarantees they are joined before the scope returns.</p>
 <p>On constrained systems, pair this with <code>std::thread::Builder</code> when you need explicit thread names or stack-size control:</p>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -3476,6 +3475,7 @@ ed25519-dalek = { version = "2", features = ["zeroize"] }
 x25519-dalek = { version = "2", features = ["zeroize"] }
 </code></pre>
 <p>🔒 <strong>Recommendation</strong>: Use <code>ring</code> for production cryptographic operations (audited, widely deployed). Use RustCrypto crates when you need pure-Rust implementations (no C dependencies, easier cross-compilation).</p>
+<p>For FIPS-constrained deployments, do not assume <code>ring</code> satisfies the requirement. Evaluate an AWS-LC-based stack such as <code>aws-lc-rs</code> instead, and verify the exact module status, build flags, and operating environment against your compliance boundary before you ship.</p>
 <h2 id="82-authenticated-encryption"><a class="header" href="#82-authenticated-encryption">8.2 Authenticated Encryption</a></h2>
 <p><strong>Always use authenticated encryption.</strong> Never use encryption without authentication (e.g., AES-CBC without HMAC). This prevents chosen-ciphertext attacks and padding oracle attacks.</p>
 <h3 id="aes-256-gcm-with-ring"><a class="header" href="#aes-256-gcm-with-ring">AES-256-GCM with ring</a></h3>
@@ -3677,7 +3677,7 @@ fn derive_key(secret: &amp;[u8], salt: &amp;[u8], info: &amp;[u8]) -&gt; [u8; 32
 </span>use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; production systems should store per-hash parameters and override policy from validated config.
 const PBKDF2_ITERATIONS: NonZeroU32 =
     const { NonZeroU32::new(PBKDF2_ITERATION_COUNT).unwrap() };
 
@@ -4323,8 +4323,14 @@ impl&lt;T&gt; RawVec&lt;T&gt; {
 impl&lt;T&gt; Drop for RawVec&lt;T&gt; {
     fn drop(&amp;mut self) {
         if self.cap &gt; 0 &amp;&amp; std::mem::size_of::&lt;T&gt;() &gt; 0 {
-            let layout = std::alloc::Layout::array::&lt;T&gt;(self.cap)
-                .expect("layout overflow in drop");
+            let layout = match std::alloc::Layout::array::&lt;T&gt;(self.cap) {
+                Ok(layout) =&gt; layout,
+                Err(_) =&gt; unsafe {
+                    // SAFETY: `cap` came from a successful allocation path for `T`,
+                    // so recomputing the same layout during `Drop` cannot overflow.
+                    std::hint::unreachable_unchecked()
+                },
+            };
             unsafe {
                 std::alloc::dealloc(self.ptr.as_ptr() as *mut u8, layout);
             }
@@ -5684,6 +5690,7 @@ impl RateLimiter {
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security impact</strong>: Rate limiting prevents brute-force attacks (CWE-307), denial of service (CWE-770), and credential stuffing. Apply per-IP and per-user limits.</p>
 <p>Per-IP maps are only a baseline defense. In IPv6-heavy deployments, attackers can rotate source addresses quickly enough to fill exact-address state tables, so bound the map and consider subnet aggregation (for example <code>/64</code>) or authenticated/user-based limits in front of the service.</p>
+<p>Rust’s default <code>HashMap</code> hasher is randomly keyed, which makes collision attacks harder for attacker-controlled keys. Treat that as a security property: if you replace it with a fixed-seed or non-random hasher for speed, you are trading throughput for less HashDoS resistance on untrusted input.</p>
 <p>For authenticated endpoints, enforce a second quota keyed by the stable account identity rather than trusting network address alone:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
@@ -7576,7 +7583,11 @@ docker run --rm -v "$(pwd)":/home/rust/src messense/rust-musl-cross:x86_64-musl 
 <p>For air-gapped environments:</p>
 <pre><code class="language-bash"># Vendor all dependencies into the source tree
 mkdir -p .cargo
-cargo vendor vendor &gt; .cargo/config.toml
+cargo vendor vendor &gt; .cargo/vendor-config.toml
+
+# Merge the emitted [source] configuration into .cargo/config.toml
+# instead of overwriting any existing target, rustflags, or env settings.
+# If you do not already have .cargo/config.toml, rename vendor-config.toml to config.toml.
 
 # The vendor/ directory is now self-contained
 # Build without network access
@@ -8544,7 +8555,7 @@ mod tests {
 <p><strong>Mutual TLS</strong>: Extend <code>create_server_config()</code> to require and verify client certificates for privileged peers. Add tests for: valid client certificate accepted, unknown CA rejected, expired client certificate rejected, and plaintext clients rejected before application data is processed.</p>
 </li>
 <li>
-<p><strong>Graceful Shutdown</strong>: Add graceful shutdown to the server: listen for SIGTERM (Unix) or Ctrl+C, stop accepting new connections, wait for existing connections to complete (with a timeout), and then exit cleanly. Ensure all connection counters are correctly decremented on shutdown.</p>
+<p><strong>TLS Handshake Drain</strong>: Extend the shutdown path so it tracks in-flight TLS handshakes separately from established sessions. On shutdown, stop accepting new sockets, wait up to <code>SHUTDOWN_GRACE_SECS</code> for both handshakes and active sessions to drain, then abort anything still stuck. Add tests that verify the connection counter returns to zero and that a stalled handshake cannot hang shutdown forever.</p>
 </li>
 <li>
 <p><strong>Load Test</strong>: Write a load-testing client that opens 500 concurrent connections and sends 100 messages per connection. Verify that: (a) the server never exceeds <code>MAX_CONNECTIONS</code>, (b) the rate limiter triggers for abusive clients, (c) no panics or errors appear in the server logs. Measure throughput and latency percentiles (p50, p99).</p>
@@ -9642,6 +9653,7 @@ fn mask_token(token: &amp;str) -&gt; String {
 }
 <span class="boring">}</span></code></pre>
 <p>Keep the masking logic character-aware so valid UTF-8 tokens cannot panic the logging path.</p>
+<p>This masking helper is for display and logging only. It is not constant-time and must never replace constant-time secret comparisons.</p>
 <p>Treat attacker-controlled strings as structured fields, not preformatted log lines. If you still have to feed a line-oriented sink, strip or encode <code>\r</code> and <code>\n</code> first so request data cannot forge extra log entries.</p>
 <h3 id="1943-security-event-taxonomy"><a class="header" href="#1943-security-event-taxonomy">19.4.3 Security Event Taxonomy</a></h3>
 <p>Define a consistent set of security event types across your application for reliable alerting:</p>
@@ -9839,6 +9851,7 @@ where
 <li><strong>Emit reload telemetry</strong>. Track the active key ID, reload success/failure, and time-to-expiry so an expired lease becomes a page, not a surprise outage.</li>
 </ul>
 <p>With the <code>rustls</code> pattern from Chapter 12, this means creating the <code>TlsAcceptor</code> from the current shared <code>Arc&lt;ServerConfig&gt;</code> for each new handshake instead of baking one immutable config into process startup. If a credential cannot be reloaded safely in process, prefer a controlled rolling restart over ad hoc in-place mutation of shared state.</p>
+<p>For public internet-facing services, automate certificate issuance and renewal instead of treating TLS rotation as a manual runbook. In Rust, <code>rustls-acme</code> provides <code>rustls</code>-oriented certificate management, while <code>instant-acme</code> is a lower-level ACME client if you need custom control-plane logic. However you implement it, validate the new chain before publication, emit renewal telemetry, and page before a renewal failure turns into an expiry outage.</p>
 <h3 id="1955-hardware-backed-keys-and-platform-keystores"><a class="header" href="#1955-hardware-backed-keys-and-platform-keystores">19.5.5 Hardware-Backed Keys and Platform Keystores</a></h3>
 <p>When compromise of the application host must not expose raw private keys, move key material out of ordinary process memory. Typical examples include CA roots, code-signing keys, long-lived TLS identities, payment keys, and any key subject to regulatory controls.</p>
 <p>Practical options in Rust:</p>
@@ -10024,7 +10037,7 @@ aa-genprof /usr/local/bin/secure-server
 <li><input disabled="" type="checkbox"> Security metrics exported (prometheus, cloudwatch, etc.)</li>
 <li><input disabled="" type="checkbox"> Health check endpoint available</li>
 <li><input disabled="" type="checkbox"> Alerting configured for auth failures, rate limits, errors</li>
-<li><input disabled="" type="checkbox"> TLS certificates valid and monitored for expiry</li>
+<li><input disabled="" type="checkbox"> TLS certificates valid, monitored for expiry, and renewed by a tested automation path</li>
 </ul>
 <h3 id="documentation"><a class="header" href="#documentation">Documentation</a></h3>
 <ul>

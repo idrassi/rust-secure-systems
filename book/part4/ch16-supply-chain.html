@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1e603e64.js";
+            window.path_to_searchindex_js = "../searchindex-b568d221.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -383,7 +383,11 @@ docker run --rm -v "$(pwd)":/home/rust/src messense/rust-musl-cross:x86_64-musl 
 <p>For air-gapped environments:</p>
 <pre><code class="language-bash"># Vendor all dependencies into the source tree
 mkdir -p .cargo
-cargo vendor vendor &gt; .cargo/config.toml
+cargo vendor vendor &gt; .cargo/vendor-config.toml
+
+# Merge the emitted [source] configuration into .cargo/config.toml
+# instead of overwriting any existing target, rustflags, or env settings.
+# If you do not already have .cargo/config.toml, rename vendor-config.toml to config.toml.
 
 # The vendor/ directory is now self-contained
 # Build without network access

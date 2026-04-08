@@ -63,6 +63,8 @@ x25519-dalek = { version = "2", features = ["zeroize"] }
 
 🔒 **Recommendation**: Use `ring` for production cryptographic operations (audited, widely deployed). Use RustCrypto crates when you need pure-Rust implementations (no C dependencies, easier cross-compilation).
 
+For FIPS-constrained deployments, do not assume `ring` satisfies the requirement. Evaluate an AWS-LC-based stack such as `aws-lc-rs` instead, and verify the exact module status, build flags, and operating environment against your compliance boundary before you ship.
+
 ## 8.2 Authenticated Encryption
 
 **Always use authenticated encryption.** Never use encryption without authentication (e.g., AES-CBC without HMAC). This prevents chosen-ciphertext attacks and padding oracle attacks.
@@ -278,7 +280,7 @@ fn derive_key(secret: &[u8], salt: &[u8], info: &[u8]) -> [u8; 32] {
 use ring::pbkdf2;
 use std::num::NonZeroU32;
 
-const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; load and tune this from config in production.
+const PBKDF2_ITERATION_COUNT: u32 = 600_000;  // Example baseline only; production systems should store per-hash parameters and override policy from validated config.
 const PBKDF2_ITERATIONS: NonZeroU32 =
     const { NonZeroU32::new(PBKDF2_ITERATION_COUNT).unwrap() };
 
