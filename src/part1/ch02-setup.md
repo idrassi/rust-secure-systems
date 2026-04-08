@@ -8,7 +8,7 @@ A secure development workflow starts with a well-configured environment. In this
 
 The recommended installation method is `rustup`, which manages Rust toolchains and allows easy switching between stable, beta, and nightly compilers.
 
-For third-party Cargo tools, this book pins concrete versions that were reviewed for this edition on **April 7, 2026**. Treat those pins as an auditable starting point rather than eternal truth: refresh them deliberately during your own dependency review cycle.
+For third-party Cargo tools, this book pins concrete versions that were reviewed for this edition on **April 8, 2026**. Treat those pins as an auditable starting point rather than eternal truth: refresh them deliberately during your own dependency review cycle.
 
 ### Linux and macOS
 
