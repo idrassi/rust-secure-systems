@@ -400,11 +400,7 @@ jobs:
         run: mdbook build
 
       - name: Test book snippets
-        run: |
-          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
-          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
-          cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
-          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
+        run: bash ./scripts/test-book-snippets.sh
 
       - name: Audit dependencies
         run: |
@@ -423,6 +419,8 @@ jobs:
 ```
 
 Pin third-party GitHub Actions to full commit SHAs and install reviewed crate versions with `--locked` in CI. Update those pins deliberately as part of your dependency review process rather than inheriting "latest" on every run.
+
+For local Windows runs, prefer `.\scripts\test-book-snippets.cmd` so PowerShell execution policy does not block the helper script.
 
 ## 2.8 Summary
 

@@ -38,8 +38,4 @@ jobs:
         run: mdbook build
 
       - name: Test mdBook snippets
-        run: |
-          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
-          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
-          cargo check -p rust-secure-systems-book --locked --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
-          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
+        run: bash ./scripts/test-book-snippets.sh --locked

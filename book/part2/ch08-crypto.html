@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2b348c00.js";
+            window.path_to_searchindex_js = "../searchindex-94f12764.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -551,15 +551,15 @@ fn verify_password(password: &amp;str, parsed_hash: &amp;PasswordHash&lt;'_&gt;)
 <p>Ed25519 is the recommended signature scheme for most applications: it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
 <pre><code class="language-toml">[dependencies]
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
-rand = "0.8"
+rand_core = { version = "0.6", features = ["std"] }
 </code></pre>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::ed25519_dalek as ed25519_dalek;
-</span><span class="boring">use rust_secure_systems_book::deps::rand as rand;
+</span><span class="boring">use rust_secure_systems_book::deps::rand_core as rand_core;
 </span>use ed25519_dalek::{Signature, Signer, SigningKey, Verifier};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 
 fn sign_example() {
     let mut csprng = OsRng;
@@ -578,7 +578,7 @@ fn sign_example() {
     assert!(verifying_key.verify(b"tampered document", &amp;signature).is_err());
 }
 <span class="boring">}</span></code></pre>
-<p><code>SigningKey::generate</code> is only available when the crate’s <code>rand_core</code> feature is enabled, so make sure your dependency configuration includes it.</p>
+<p><code>SigningKey::generate</code> is only available when the crate’s <code>rand_core</code> feature is enabled, so make sure your dependency configuration includes it. The separate <code>rand_core</code> dependency supplies an <code>OsRng</code> that matches the trait version <code>ed25519-dalek</code> expects.</p>
 <p>🔒 <strong>Security notes</strong>:</p>
 <ul>
 <li>Ed25519 uses deterministic signatures (no per-signature randomness needed), eliminating the catastrophic nonce-reuse vulnerability that affects ECDSA.</li>
@@ -597,7 +597,6 @@ fn sign_example() {
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
-</span><span class="boring">use rust_secure_systems_book::deps::rand as rand;
 </span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
 </span>use ring::{
     agreement::{self, UnparsedPublicKey, X25519},
@@ -804,7 +803,7 @@ fn generate_api_token() -&gt; String {
     hex::encode(bytes)
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
+<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. The <code>rand</code> ecosystem also offers cryptographically secure generators, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
 <p>In small examples, panicking on <code>rng.fill(...)</code> is acceptable because the only sensible response to OS CSPRNG failure is to abort or surface the error, never to keep running with a weaker fallback.</p>
 <h2 id="88-tls-with-rustls"><a class="header" href="#88-tls-with-rustls">8.8 TLS with rustls</a></h2>
 <p>For secure network communication, use <code>rustls</code> instead of OpenSSL:</p>

@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2b348c00.js";
+            window.path_to_searchindex_js = "searchindex-94f12764.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -191,7 +191,7 @@
 <p class="book-masthead__meta">Book version 1.0.7 | April 8, 2026 | <a href="https://amcrypto.jp">amcrypto.jp</a></p>
 
 </section>
-<p>If you are reading this book, you likely already know the landscape: buffer overflows, use-after-free bugs, integer overflows, race conditions, and injection flaws remain the dominant vulnerability classes in systems software. Despite decades of effort(static analyzers, sanitizers, coding standards, and security review), C and C++ codebases continue to produce critical vulnerabilities at an alarming rate. The fundamental problem is that C and C++ give the programmer <em>too much power</em> with <em>too little guidance</em>.</p>
+<p>If you are reading this book, you likely already know the landscape: buffer overflows, use-after-free bugs, integer overflows, race conditions, and injection flaws remain the dominant vulnerability classes in systems software. Despite decades of effort (static analyzers, sanitizers, coding standards, and security review), C and C++ codebases continue to produce critical vulnerabilities at an alarming rate. The fundamental problem is that C and C++ give the programmer <em>too much power</em> with <em>too little guidance</em>.</p>
 <p>Rust changes the equation.</p>
 <p>Rust is not a silver bullet, but it is the most significant advance in systems programming language design for secure coding in decades. Its ownership model, borrow checker, and type system work together to eliminate entire categories of memory safety and concurrency bugs <em>at compile time</em>, without requiring a garbage collector or runtime overhead. This is a paradigm shift: instead of finding bugs through testing and review, Rust prevents them from existing in the first place.</p>
 <h2 id="who-this-book-is-for"><a class="header" href="#who-this-book-is-for">Who This Book Is For</a></h2>
@@ -280,9 +280,9 @@ fn main() {
 <p>Rust’s type system is rich and expressive. It uses:</p>
 <ul>
 <li><strong>Algebraic data types</strong> (<code>enum</code> and <code>struct</code>) that make illegal states unrepresentable.</li>
-<li><strong>Pattern matching</strong> that is exhaustive,the compiler ensures all cases are handled.</li>
-<li><strong>No implicit nulls</strong>,the <code>Option&lt;T&gt;</code> type explicitly represents the presence or absence of a value.</li>
-<li><strong>No implicit conversions</strong>,you must be explicit about type changes.</li>
+<li><strong>Pattern matching</strong> that is exhaustive, the compiler ensures all cases are handled.</li>
+<li><strong>No implicit nulls</strong>, the <code>Option&lt;T&gt;</code> type explicitly represents the presence or absence of a value.</li>
+<li><strong>No implicit conversions</strong>, you must be explicit about type changes.</li>
 </ul>
 <pre class="playground"><code class="language-rust edition2024">#[derive(Debug)]
 struct User {
@@ -712,11 +712,7 @@ jobs:
         run: mdbook build
 
       - name: Test book snippets
-        run: |
-          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
-          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
-          cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
-          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
+        run: bash ./scripts/test-book-snippets.sh
 
       - name: Audit dependencies
         run: |
@@ -734,6 +730,7 @@ jobs:
           cargo outdated --exit-code 1
 </code></pre>
 <p>Pin third-party GitHub Actions to full commit SHAs and install reviewed crate versions with <code>--locked</code> in CI. Update those pins deliberately as part of your dependency review process rather than inheriting “latest” on every run.</p>
+<p>For local Windows runs, prefer <code>.\scripts\test-book-snippets.cmd</code> so PowerShell execution policy does not block the helper script.</p>
 <h2 id="28-summary"><a class="header" href="#28-summary">2.8 Summary</a></h2>
 <ul>
 <li>Install Rust via <code>rustup</code> and keep toolchains updated.</li>
@@ -3795,15 +3792,15 @@ fn verify_password(password: &amp;str, parsed_hash: &amp;PasswordHash&lt;'_&gt;)
 <p>Ed25519 is the recommended signature scheme for most applications: it is fast, compact (64-byte signatures, 32-byte public keys), and immune to many side-channel issues that affect ECDSA:</p>
 <pre><code class="language-toml">[dependencies]
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
-rand = "0.8"
+rand_core = { version = "0.6", features = ["std"] }
 </code></pre>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
 </span><span class="boring">use rust_secure_systems_book::deps::ed25519_dalek as ed25519_dalek;
-</span><span class="boring">use rust_secure_systems_book::deps::rand as rand;
+</span><span class="boring">use rust_secure_systems_book::deps::rand_core as rand_core;
 </span>use ed25519_dalek::{Signature, Signer, SigningKey, Verifier};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 
 fn sign_example() {
     let mut csprng = OsRng;
@@ -3822,7 +3819,7 @@ fn sign_example() {
     assert!(verifying_key.verify(b"tampered document", &amp;signature).is_err());
 }
 <span class="boring">}</span></code></pre>
-<p><code>SigningKey::generate</code> is only available when the crate’s <code>rand_core</code> feature is enabled, so make sure your dependency configuration includes it.</p>
+<p><code>SigningKey::generate</code> is only available when the crate’s <code>rand_core</code> feature is enabled, so make sure your dependency configuration includes it. The separate <code>rand_core</code> dependency supplies an <code>OsRng</code> that matches the trait version <code>ed25519-dalek</code> expects.</p>
 <p>🔒 <strong>Security notes</strong>:</p>
 <ul>
 <li>Ed25519 uses deterministic signatures (no per-signature randomness needed), eliminating the catastrophic nonce-reuse vulnerability that affects ECDSA.</li>
@@ -3841,7 +3838,6 @@ fn sign_example() {
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span><span class="boring">extern crate rust_secure_systems_book;
-</span><span class="boring">use rust_secure_systems_book::deps::rand as rand;
 </span><span class="boring">use rust_secure_systems_book::deps::ring as ring;
 </span>use ring::{
     agreement::{self, UnparsedPublicKey, X25519},
@@ -4048,7 +4044,7 @@ fn generate_api_token() -&gt; String {
     hex::encode(bytes)
 }
 <span class="boring">}</span></code></pre>
-<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In <code>rand</code> 0.8, <code>thread_rng()</code> is also backed by a CSPRNG, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
+<p>⚠️ <strong>Prefer</strong> <code>ring::rand::SystemRandom</code> for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. The <code>rand</code> ecosystem also offers cryptographically secure generators, but <code>SystemRandom</code> makes the security intent clearer and keeps key generation tied directly to the operating system RNG.</p>
 <p>In small examples, panicking on <code>rng.fill(...)</code> is acceptable because the only sensible response to OS CSPRNG failure is to abort or surface the error, never to keep running with a weaker fallback.</p>
 <h2 id="88-tls-with-rustls"><a class="header" href="#88-tls-with-rustls">8.8 TLS with rustls</a></h2>
 <p>For secure network communication, use <code>rustls</code> instead of OpenSSL:</p>

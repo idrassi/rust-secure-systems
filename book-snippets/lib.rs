@@ -25,7 +25,6 @@ pub mod deps {
     pub use password_hash;
     pub use proptest;
     pub use quickcheck_macros;
-    pub use rand;
     pub use rand_core;
     pub use ring;
     pub use rustls;

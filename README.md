@@ -34,22 +34,16 @@ Install Rust and `mdbook`, then run:
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 mdbook build
-BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
-rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
-cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
-mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
+bash ./scripts/test-book-snippets.sh
 ```
 
-In PowerShell, use the same host-specific target-dir pattern:
+On Windows:
 
 ```powershell
-$BookSnippetsTargetDir = "target/book-snippets-check-$((cargo -vV | Select-String '^host:' | ForEach-Object { $_.ToString().Split()[1] }))"
-if (Test-Path $BookSnippetsTargetDir) { Remove-Item -LiteralPath $BookSnippetsTargetDir -Recurse -Force }
-cargo check -p rust-secure-systems-book --target-dir $BookSnippetsTargetDir
-mdbook test -L "$BookSnippetsTargetDir/debug/deps"
+.\scripts\test-book-snippets.cmd
 ```
 
-The fresh, host-specific helper directory avoids stale metadata collisions when the same working tree is reused across different hosts or toolchains.
+These wrappers keep `mdbook test` on a fresh, host-specific helper directory so local runs do not trip over stale metadata collisions from previous builds, hosts, or toolchains.
 
 The generated site is written to `book/`.
 

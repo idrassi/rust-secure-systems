@@ -410,15 +410,15 @@ Ed25519 is the recommended signature scheme for most applications: it is fast, c
 ```toml
 [dependencies]
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
-rand = "0.8"
+rand_core = { version = "0.6", features = ["std"] }
 ```
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
 # use rust_secure_systems_book::deps::ed25519_dalek as ed25519_dalek;
-# use rust_secure_systems_book::deps::rand as rand;
+# use rust_secure_systems_book::deps::rand_core as rand_core;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 
 fn sign_example() {
     let mut csprng = OsRng;
@@ -438,7 +438,7 @@ fn sign_example() {
 }
 ```
 
-`SigningKey::generate` is only available when the crate's `rand_core` feature is enabled, so make sure your dependency configuration includes it.
+`SigningKey::generate` is only available when the crate's `rand_core` feature is enabled, so make sure your dependency configuration includes it. The separate `rand_core` dependency supplies an `OsRng` that matches the trait version `ed25519-dalek` expects.
 
 🔒 **Security notes**:
 - Ed25519 uses deterministic signatures (no per-signature randomness needed), eliminating the catastrophic nonce-reuse vulnerability that affects ECDSA.
@@ -460,7 +460,6 @@ The standard pattern for establishing a shared secret and encrypting data is: X2
 
 ```rust,no_run
 # extern crate rust_secure_systems_book;
-# use rust_secure_systems_book::deps::rand as rand;
 # use rust_secure_systems_book::deps::ring as ring;
 use ring::{
     agreement::{self, UnparsedPublicKey, X25519},
@@ -700,7 +699,7 @@ fn generate_api_token() -> String {
 }
 ```
 
-⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. In `rand` 0.8, `thread_rng()` is also backed by a CSPRNG, but `SystemRandom` makes the security intent clearer and keeps key generation tied directly to the operating system RNG.
+⚠️ **Prefer** `ring::rand::SystemRandom` for all cryptographic purposes in production: it is explicit, auditable, and always backed by the OS CSPRNG. The `rand` ecosystem also offers cryptographically secure generators, but `SystemRandom` makes the security intent clearer and keeps key generation tied directly to the operating system RNG.
 
 In small examples, panicking on `rng.fill(...)` is acceptable because the only sensible response to OS CSPRNG failure is to abort or surface the error, never to keep running with a weaker fallback.
 

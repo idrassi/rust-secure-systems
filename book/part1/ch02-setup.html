@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2b348c00.js";
+            window.path_to_searchindex_js = "../searchindex-94f12764.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -480,11 +480,7 @@ jobs:
         run: mdbook build
 
       - name: Test book snippets
-        run: |
-          BOOK_SNIPPETS_TARGET_DIR="target/book-snippets-check-$(cargo -vV | awk '/^host:/ {print $2}')"
-          rm -rf "$BOOK_SNIPPETS_TARGET_DIR"
-          cargo check -p rust-secure-systems-book --target-dir "$BOOK_SNIPPETS_TARGET_DIR"
-          mdbook test -L "$BOOK_SNIPPETS_TARGET_DIR/debug/deps"
+        run: bash ./scripts/test-book-snippets.sh
 
       - name: Audit dependencies
         run: |
@@ -502,6 +498,7 @@ jobs:
           cargo outdated --exit-code 1
 </code></pre>
 <p>Pin third-party GitHub Actions to full commit SHAs and install reviewed crate versions with <code>--locked</code> in CI. Update those pins deliberately as part of your dependency review process rather than inheriting “latest” on every run.</p>
+<p>For local Windows runs, prefer <code>.\scripts\test-book-snippets.cmd</code> so PowerShell execution policy does not block the helper script.</p>
 <h2 id="28-summary"><a class="header" href="#28-summary">2.8 Summary</a></h2>
 <ul>
 <li>Install Rust via <code>rustup</code> and keep toolchains updated.</li>

@@ -60,9 +60,9 @@ The compiler rejects this code. In C, this would be a potential use-after-free i
 Rust's type system is rich and expressive. It uses:
 
 - **Algebraic data types** (`enum` and `struct`) that make illegal states unrepresentable.
-- **Pattern matching** that is exhaustive,the compiler ensures all cases are handled.
-- **No implicit nulls**,the `Option<T>` type explicitly represents the presence or absence of a value.
-- **No implicit conversions**,you must be explicit about type changes.
+- **Pattern matching** that is exhaustive, the compiler ensures all cases are handled.
+- **No implicit nulls**, the `Option<T>` type explicitly represents the presence or absence of a value.
+- **No implicit conversions**, you must be explicit about type changes.
 
 ```rust
 #[derive(Debug)]
