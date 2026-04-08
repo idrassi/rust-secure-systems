@@ -179,7 +179,7 @@ Go provides memory safety through garbage collection, but it does not prevent da
 
 - Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.
 - The ownership model, type system, and concurrency guarantees work together to make insecure patterns impossible to express in safe code.
-- Rust does not protect against logic errors, side channels, or misuse of `unsafe` code,defense in depth is still required.
+- Rust does not protect against logic errors, side channels, or misuse of `unsafe` code, defense in depth is still required.
 - Rust is being adopted across the security industry for critical infrastructure.
 
 In the next chapter, we will set up a development environment optimized for secure Rust development, including tooling for linting, formatting, and dependency auditing.

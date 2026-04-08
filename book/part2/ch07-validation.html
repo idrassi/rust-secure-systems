@@ -36,7 +36,7 @@
             const path_to_root = "../";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8d2f1d10.js";
+            window.path_to_searchindex_js = "../searchindex-b89c1476.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-933a3071.js"></script>
@@ -290,7 +290,7 @@ fn bind(port: BindPort) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
-<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. NFKC is more aggressive: it folds compatibility characters such as full-width forms, which is often desirable for login identifiers and usernames but too destructive for free-form content. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
+<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. For security-sensitive identifiers, follow an explicit profile instead of choosing NFKC ad hoc: for example, PRECIS username profiles use NFC plus separate width/case mapping rules, while free-form content usually should not apply aggressive compatibility folding at all. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
 <h3 id="layer-2-parse-dont-validate"><a class="header" href="#layer-2-parse-dont-validate">Layer 2: Parse, Don’t Validate</a></h3>
 <p>The principle comes from functional programming: instead of checking if data is valid and then using it, <strong>parse</strong> the data into a strongly-typed representation that is valid by construction:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]

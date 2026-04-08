@@ -116,7 +116,7 @@ fn bind(port: BindPort) {
 
 🔒 **Security pattern**: "Parse, don't validate." Borrowing Alexis King's phrasing, create types that can only be constructed with valid data. Once you have a `Hostname`, you never need to validate it again. The type itself is proof of validity.
 
-⚠️ **Unicode note**: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. NFKC is more aggressive: it folds compatibility characters such as full-width forms, which is often desirable for login identifiers and usernames but too destructive for free-form content. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.
+⚠️ **Unicode note**: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. For security-sensitive identifiers, follow an explicit profile instead of choosing NFKC ad hoc: for example, PRECIS username profiles use NFC plus separate width/case mapping rules, while free-form content usually should not apply aggressive compatibility folding at all. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.
 
 ### Layer 2: Parse, Don't Validate
 

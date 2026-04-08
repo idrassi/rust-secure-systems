@@ -389,7 +389,61 @@ fn verify_password(password: &str, parsed_hash: &PasswordHash<'_>) -> bool {
 
 ⚠️ **Authentication timing pitfall**: Constant-time byte comparison is not enough if your surrounding control flow still leaks information. If a login path returns immediately for "user not found" but runs Argon2 for "wrong password", an attacker can distinguish the two cases from latency. For username/password authentication, always run the password check against either the real stored hash or a fixed dummy Argon2 hash, then return the same external error in both cases.
 
-Parse and validate PHC strings when you load or migrate account records, not inside the hot authentication path. A malformed stored hash is an internal integrity problem to alert on, not a second externally visible login outcome.
+```rust,no_run
+# extern crate rust_secure_systems_book;
+# use rust_secure_systems_book::deps::argon2 as argon2;
+# use rust_secure_systems_book::deps::password_hash as password_hash;
+use argon2::{Argon2, PasswordVerifier};
+use password_hash::PasswordHashString;
+
+const DUMMY_HASH: &str =
+    "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc";
+
+#[derive(Debug)]
+struct UserRecord {
+    password_hash: PasswordHashString,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthError {
+    InvalidCredentials,
+}
+
+struct Authenticator {
+    dummy_hash: PasswordHashString,
+}
+
+impl Authenticator {
+    fn new() -> Self {
+        Self {
+            dummy_hash: PasswordHashString::new(DUMMY_HASH)
+                .expect("hardcoded dummy hash must be valid"),
+        }
+    }
+
+    fn verify_login(
+        &self,
+        user: Option<&UserRecord>,
+        password: &str,
+    ) -> Result<(), AuthError> {
+        let hash_to_check = user
+            .map(|record| record.password_hash.password_hash())
+            .unwrap_or_else(|| self.dummy_hash.password_hash());
+
+        let password_ok = Argon2::default()
+            .verify_password(password.as_bytes(), &hash_to_check)
+            .is_ok();
+
+        if user.is_some() && password_ok {
+            Ok(())
+        } else {
+            Err(AuthError::InvalidCredentials)
+        }
+    }
+}
+```
+
+Pre-validate PHC strings when you load or migrate account records, not from unchecked database text inside the hot authentication path. A malformed stored hash is an internal integrity problem to alert on, not a second externally visible login outcome.
 
 🔒 **Argon2 parameters** (per OWASP recommendations):
 - **Memory**: 19 MiB (19,456 KiB) minimum

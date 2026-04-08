@@ -19,7 +19,7 @@ lto = true                   # Link-time optimization (removes dead code, reduce
 codegen-units = 1            # Single codegen unit (better optimization, no parallel shortcuts)
 panic = "abort"              # Abort on panic (smaller binary, no unwinding table attack surface)
 strip = "symbols"            # Strip debug symbols from release binary
-opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
+opt-level = "z"              # Optimize for size (reduces binary footprint and attack surface)
 
 # Optional alternative for crash analysis:
 # debug = 1                  # Smaller than full debug info; useful for post-mortem builds
@@ -144,7 +144,7 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 # Copy only the binary
 COPY --from=builder /app/target/release/ch17-hardened-server /usr/local/bin/secure-server
 
-# Run as non-root user (distroless/cc nonroot already does this)
+# Re-assert the non-root runtime identity explicitly.
 USER nonroot:nonroot
 
 EXPOSE 8443

@@ -375,7 +375,7 @@ fn bind(port: Port) {
 ⚠️ **Avoid narrowing with `as` in security-critical code**: an unchecked cast such as `value as u16` silently truncates on overflow (CWE-197). If the conversion can fail, keep it explicit with `TryFrom`/`try_into()` and handle the error path.
 
 When zero has no valid meaning, prefer `NonZeroU32` or `NonZeroUsize` over a plain integer. This lets the type system reject sentinel `0` values up front and can make `Option<NonZeroU32>` more compact than `Option<u32>`.
-This example only demonstrates a range-checked narrowing conversion; Chapter 7's production `Port` validator adds policy-level checks and rejects reserved port `0`.
+This example only demonstrates a range-checked narrowing conversion; Chapter 7 shows how to layer policy checks on top of this range constraint, including rejection of reserved port `0`.
 
 ## 4.6 Pattern Matching Deep Dive
 

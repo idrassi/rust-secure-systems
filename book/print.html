@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8d2f1d10.js";
+            window.path_to_searchindex_js = "searchindex-b89c1476.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -396,7 +396,7 @@ fn main() {
 <ul>
 <li>Rust eliminates the most prevalent vulnerability classes (memory safety bugs) at compile time.</li>
 <li>The ownership model, type system, and concurrency guarantees work together to make insecure patterns impossible to express in safe code.</li>
-<li>Rust does not protect against logic errors, side channels, or misuse of <code>unsafe</code> code,defense in depth is still required.</li>
+<li>Rust does not protect against logic errors, side channels, or misuse of <code>unsafe</code> code, defense in depth is still required.</li>
 <li>Rust is being adopted across the security industry for critical infrastructure.</li>
 </ul>
 <p>In the next chapter, we will set up a development environment optimized for secure Rust development, including tooling for linting, formatting, and dependency auditing.</p>
@@ -1402,7 +1402,7 @@ fn bind(port: Port) {
 <p>🔒 <strong>Security pattern</strong>: Use <code>TryFrom</code> for all conversions where the source type is wider than the target type (e.g., <code>u32</code> → <code>u16</code>, <code>usize</code> → <code>u8</code>). This prevents CWE-190 (Integer Overflow or Wraparound) and CWE-20 (Improper Input Validation).</p>
 <p>⚠️ <strong>Avoid narrowing with <code>as</code> in security-critical code</strong>: an unchecked cast such as <code>value as u16</code> silently truncates on overflow (CWE-197). If the conversion can fail, keep it explicit with <code>TryFrom</code>/<code>try_into()</code> and handle the error path.</p>
 <p>When zero has no valid meaning, prefer <code>NonZeroU32</code> or <code>NonZeroUsize</code> over a plain integer. This lets the type system reject sentinel <code>0</code> values up front and can make <code>Option&lt;NonZeroU32&gt;</code> more compact than <code>Option&lt;u32&gt;</code>.
-This example only demonstrates a range-checked narrowing conversion; Chapter 7’s production <code>Port</code> validator adds policy-level checks and rejects reserved port <code>0</code>.</p>
+This example only demonstrates a range-checked narrowing conversion; Chapter 7 shows how to layer policy checks on top of this range constraint, including rejection of reserved port <code>0</code>.</p>
 <h2 id="46-pattern-matching-deep-dive"><a class="header" href="#46-pattern-matching-deep-dive">4.6 Pattern Matching Deep Dive</a></h2>
 <p>Pattern matching is not limited to <code>match</code>. Rust supports patterns in many contexts:</p>
 <h3 id="destructuring"><a class="header" href="#destructuring">Destructuring</a></h3>
@@ -2934,7 +2934,7 @@ fn bind(port: BindPort) {
 }
 <span class="boring">}</span></code></pre>
 <p>🔒 <strong>Security pattern</strong>: “Parse, don’t validate.” Borrowing Alexis King’s phrasing, create types that can only be constructed with valid data. Once you have a <code>Hostname</code>, you never need to validate it again. The type itself is proof of validity.</p>
-<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. NFKC is more aggressive: it folds compatibility characters such as full-width forms, which is often desirable for login identifiers and usernames but too destructive for free-form content. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
+<p>⚠️ <strong>Unicode note</strong>: If you accept non-ASCII identifiers (usernames, domains, paths), normalization becomes part of validation. Normalize to a canonical form (usually NFC), reject bidirectional control characters unless you explicitly support them, and review confusable/homoglyph risks. NFC preserves distinctions that users may care about in display-oriented text. For security-sensitive identifiers, follow an explicit profile instead of choosing NFKC ad hoc: for example, PRECIS username profiles use NFC plus separate width/case mapping rules, while free-form content usually should not apply aggressive compatibility folding at all. For domain names, use an IDNA library and validate the ASCII A-label form rather than rolling your own Unicode hostname parser.</p>
 <h3 id="layer-2-parse-dont-validate"><a class="header" href="#layer-2-parse-dont-validate">Layer 2: Parse, Don’t Validate</a></h3>
 <p>The principle comes from functional programming: instead of checking if data is valid and then using it, <strong>parse</strong> the data into a strongly-typed representation that is valid by construction:</p>
 <pre class="playground"><code class="language-rust edition2024"><span class="boring">#![allow(unused)]
@@ -3777,7 +3777,61 @@ fn verify_password(password: &amp;str, parsed_hash: &amp;PasswordHash&lt;'_&gt;)
 }
 <span class="boring">}</span></code></pre>
 <p>⚠️ <strong>Authentication timing pitfall</strong>: Constant-time byte comparison is not enough if your surrounding control flow still leaks information. If a login path returns immediately for “user not found” but runs Argon2 for “wrong password”, an attacker can distinguish the two cases from latency. For username/password authentication, always run the password check against either the real stored hash or a fixed dummy Argon2 hash, then return the same external error in both cases.</p>
-<p>Parse and validate PHC strings when you load or migrate account records, not inside the hot authentication path. A malformed stored hash is an internal integrity problem to alert on, not a second externally visible login outcome.</p>
+<pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
+</span><span class="boring">fn main() {
+</span><span class="boring">extern crate rust_secure_systems_book;
+</span><span class="boring">use rust_secure_systems_book::deps::argon2 as argon2;
+</span><span class="boring">use rust_secure_systems_book::deps::password_hash as password_hash;
+</span>use argon2::{Argon2, PasswordVerifier};
+use password_hash::PasswordHashString;
+
+const DUMMY_HASH: &amp;str =
+    "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQ$CTFhFdXPJO1aFaMaO6Mm5c8y7cJHAph8ArZWb2GRPPc";
+
+#[derive(Debug)]
+struct UserRecord {
+    password_hash: PasswordHashString,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthError {
+    InvalidCredentials,
+}
+
+struct Authenticator {
+    dummy_hash: PasswordHashString,
+}
+
+impl Authenticator {
+    fn new() -&gt; Self {
+        Self {
+            dummy_hash: PasswordHashString::new(DUMMY_HASH)
+                .expect("hardcoded dummy hash must be valid"),
+        }
+    }
+
+    fn verify_login(
+        &amp;self,
+        user: Option&lt;&amp;UserRecord&gt;,
+        password: &amp;str,
+    ) -&gt; Result&lt;(), AuthError&gt; {
+        let hash_to_check = user
+            .map(|record| record.password_hash.password_hash())
+            .unwrap_or_else(|| self.dummy_hash.password_hash());
+
+        let password_ok = Argon2::default()
+            .verify_password(password.as_bytes(), &amp;hash_to_check)
+            .is_ok();
+
+        if user.is_some() &amp;&amp; password_ok {
+            Ok(())
+        } else {
+            Err(AuthError::InvalidCredentials)
+        }
+    }
+}
+<span class="boring">}</span></code></pre>
+<p>Pre-validate PHC strings when you load or migrate account records, not from unchecked database text inside the hot authentication path. A malformed stored hash is an internal integrity problem to alert on, not a second externally visible login outcome.</p>
 <p>🔒 <strong>Argon2 parameters</strong> (per OWASP recommendations):</p>
 <ul>
 <li><strong>Memory</strong>: 19 MiB (19,456 KiB) minimum</li>
@@ -9148,7 +9202,7 @@ lto = true                   # Link-time optimization (removes dead code, reduce
 codegen-units = 1            # Single codegen unit (better optimization, no parallel shortcuts)
 panic = "abort"              # Abort on panic (smaller binary, no unwinding table attack surface)
 strip = "symbols"            # Strip debug symbols from release binary
-opt-level = "z"              # Optimize for size (smaller binary, better cache behavior)
+opt-level = "z"              # Optimize for size (reduces binary footprint and attack surface)
 
 # Optional alternative for crash analysis:
 # debug = 1                  # Smaller than full debug info; useful for post-mortem builds
@@ -9263,7 +9317,7 @@ FROM gcr.io/distroless/cc-debian12:nonroot
 # Copy only the binary
 COPY --from=builder /app/target/release/ch17-hardened-server /usr/local/bin/secure-server
 
-# Run as non-root user (distroless/cc nonroot already does this)
+# Re-assert the non-root runtime identity explicitly.
 USER nonroot:nonroot
 
 EXPOSE 8443
