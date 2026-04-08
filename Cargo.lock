@@ -1543,7 +1543,7 @@ dependencies = [
 
 [[package]]
 name = "rust-secure-systems-book"
-version = "1.0.7"
+version = "1.0.8"
 dependencies = [
  "aes-gcm",
  "anyhow",
