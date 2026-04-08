@@ -37,7 +37,7 @@
             const path_to_root = "";
             const default_light_theme = "navy";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2cecf79f.js";
+            window.path_to_searchindex_js = "searchindex-baab6fb8.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-933a3071.js"></script>
@@ -9380,7 +9380,7 @@ cargo build --target wasm32-unknown-unknown --release
 <h4 id="sandboxed-plugin-architecture-with-wasmtime"><a class="header" href="#sandboxed-plugin-architecture-with-wasmtime">Sandboxed Plugin Architecture with Wasmtime</a></h4>
 <pre><code class="language-toml"># Cargo.toml
 [dependencies]
-wasmtime = { version = "24.0.6", default-features = false, features = ["cranelift", "runtime", "std"] }
+wasmtime = { version = "43.0.0", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"] }
 anyhow = "1"
 </code></pre>
 <pre class="playground"><code class="language-rust no_run edition2024"><span class="boring">#![allow(unused)]
@@ -9440,16 +9440,17 @@ fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt
 
     let log_func = Func::wrap(
         &amp;mut store,
-        |mut caller: Caller&lt;'_, HostState&gt;, ptr: u32, len: u32| -&gt; Result&lt;()&gt; {
+        |mut caller: Caller&lt;'_, HostState&gt;, ptr: u32, len: u32| -&gt; wasmtime::Result&lt;()&gt; {
             let memory = caller
                 .get_export("memory")
                 .and_then(|export| export.into_memory())
-                .context("module has no exported memory")?;
+                .ok_or_else(|| wasmtime::Error::msg("module has no exported memory"))?;
             let max_log_bytes = caller.data().max_log_bytes;
             let data = memory.data(&amp;caller);
-            let (start, end) = checked_guest_range(ptr, len, data.len(), max_log_bytes)?;
+            let (start, end) = checked_guest_range(ptr, len, data.len(), max_log_bytes)
+                .map_err(wasmtime::Error::msg)?;
             let message =
-                std::str::from_utf8(&amp;data[start..end]).context("plugin log was not valid UTF-8")?;
+                std::str::from_utf8(&amp;data[start..end]).map_err(wasmtime::Error::msg)?;
             println!("Plugin log: {message}");
             Ok(())
         },
@@ -9475,7 +9476,7 @@ fn run_untrusted_plugin(wasm_bytes: &amp;[u8], input: &amp;[u8]) -&gt; Result&lt
     Ok(data[output_start..output_end].to_vec())
 }
 <span class="boring">}</span></code></pre>
-<p>The sample disables <code>wasmtime</code> default features because this sandbox only needs the basic runtime and JIT. Trimming unused cache, profiling, and component-model features reduces both dependency surface and maintenance overhead.</p>
+<p>The sample disables <code>wasmtime</code> default features because this sandbox only needs the basic runtime and JIT. Trimming unused cache, profiling, and component-model features reduces both dependency surface and maintenance overhead. On current Wasmtime releases, the extra <code>anyhow</code> feature keeps ordinary host setup code ergonomic, while fallible host callbacks still return <code>wasmtime::Result</code> so trap conversion stays explicit at the Wasm boundary.</p>
 <p>Security properties in this design:</p>
 <ol>
 <li><strong>Fuel limiting</strong>: Prevents infinite loops and CPU exhaustion.</li>

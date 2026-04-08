@@ -5,9 +5,6 @@ all-features = true
 feature-depth = 1
 
 [advisories]
-ignore = [
-    { id = "RUSTSEC-2024-0436", reason = "Transitive through wasmtime 24.0.6. Default features are reduced and this unavoidable advisory is tracked until upstream removes the dependency." },
-]
 
 [licenses]
 allow = [

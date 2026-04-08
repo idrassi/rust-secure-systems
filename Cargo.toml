@@ -78,7 +78,7 @@ tokio-rustls.workspace = true
 tokio-util = { version = "0.7", features = ["codec"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
-wasmtime = { version = "24.0.6", default-features = false, features = ["cranelift", "runtime", "std"] }
+wasmtime = { version = "43.0.0", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"] }
 webpki-roots = "0.26"
 windows-sys = { version = "0.59", features = ["Win32_System_Memory"] }
 x25519-dalek = { version = "2", features = ["zeroize"] }

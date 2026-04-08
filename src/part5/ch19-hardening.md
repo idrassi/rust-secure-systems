@@ -289,7 +289,7 @@ For production integration, prefer `wasm32-wasip2` or `wasm32-wasip1` when you n
 ```toml
 # Cargo.toml
 [dependencies]
-wasmtime = { version = "24.0.6", default-features = false, features = ["cranelift", "runtime", "std"] }
+wasmtime = { version = "43.0.0", default-features = false, features = ["anyhow", "cranelift", "runtime", "std"] }
 anyhow = "1"
 ```
 
@@ -349,16 +349,17 @@ fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
 
     let log_func = Func::wrap(
         &mut store,
-        |mut caller: Caller<'_, HostState>, ptr: u32, len: u32| -> Result<()> {
+        |mut caller: Caller<'_, HostState>, ptr: u32, len: u32| -> wasmtime::Result<()> {
             let memory = caller
                 .get_export("memory")
                 .and_then(|export| export.into_memory())
-                .context("module has no exported memory")?;
+                .ok_or_else(|| wasmtime::Error::msg("module has no exported memory"))?;
             let max_log_bytes = caller.data().max_log_bytes;
             let data = memory.data(&caller);
-            let (start, end) = checked_guest_range(ptr, len, data.len(), max_log_bytes)?;
+            let (start, end) = checked_guest_range(ptr, len, data.len(), max_log_bytes)
+                .map_err(wasmtime::Error::msg)?;
             let message =
-                std::str::from_utf8(&data[start..end]).context("plugin log was not valid UTF-8")?;
+                std::str::from_utf8(&data[start..end]).map_err(wasmtime::Error::msg)?;
             println!("Plugin log: {message}");
             Ok(())
         },
@@ -385,7 +386,7 @@ fn run_untrusted_plugin(wasm_bytes: &[u8], input: &[u8]) -> Result<Vec<u8>> {
 }
 ```
 
-The sample disables `wasmtime` default features because this sandbox only needs the basic runtime and JIT. Trimming unused cache, profiling, and component-model features reduces both dependency surface and maintenance overhead.
+The sample disables `wasmtime` default features because this sandbox only needs the basic runtime and JIT. Trimming unused cache, profiling, and component-model features reduces both dependency surface and maintenance overhead. On current Wasmtime releases, the extra `anyhow` feature keeps ordinary host setup code ergonomic, while fallible host callbacks still return `wasmtime::Result` so trap conversion stays explicit at the Wasm boundary.
 
 Security properties in this design:
 
